@@ -22,7 +22,7 @@ final class RelativePath
         $path = str_replace('\\', '/', trim($path));
 
         if (str_starts_with($path, '/') || preg_match('#^[A-Za-z]:#', $path) === 1) {
-            throw new ManifestException(sprintf('Absoluter Pfad „%s“ im Manifest ist nicht erlaubt.', $path));
+            throw new ManifestException(sprintf('Absolute path "%s" is not allowed in the manifest.', $path));
         }
 
         $segments = array_values(array_filter(
@@ -31,11 +31,11 @@ final class RelativePath
         ));
 
         if (in_array('..', $segments, true)) {
-            throw new ManifestException(sprintf('Pfad „%s“ im Manifest darf kein „..“ enthalten.', $path));
+            throw new ManifestException(sprintf('Path "%s" in the manifest must not contain "..".', $path));
         }
 
         if ($segments === []) {
-            throw new ManifestException('Leerer Pfad im Manifest.');
+            throw new ManifestException('Empty path in the manifest.');
         }
 
         return implode('/', $segments);

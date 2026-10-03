@@ -48,7 +48,7 @@ enum ConfigurationKey: string
 
         if (!is_string($value) || trim($value) === '') {
             throw new ConfigurationException(
-                sprintf('Wert für „%s“ in %s muss ein nicht leerer Text sein.', $this->value, $source),
+                sprintf('Value of "%s" in %s must be a non-empty string.', $this->value, $source),
             );
         }
 
@@ -59,7 +59,7 @@ enum ConfigurationKey: string
         };
 
         if (!$isValid) {
-            throw new ConfigurationException(sprintf('Ungültiger Wert „%s“ für „%s“ in %s.', $value, $this->value, $source));
+            throw new ConfigurationException(sprintf('Invalid value "%s" for "%s" in %s.', $value, $this->value, $source));
         }
 
         return match ($this) {
@@ -76,7 +76,7 @@ enum ConfigurationKey: string
     public static function fromName(string $name, string $source): self
     {
         return self::tryFrom($name) ?? throw new ConfigurationException(sprintf(
-            'Unbekannter Schlüssel „%s“ in %s. Erlaubt: %s.',
+            'Unknown key "%s" in %s. Allowed: %s.',
             $name,
             $source,
             implode(', ', array_map(static fn (self $key): string => $key->value, self::cases())),

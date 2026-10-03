@@ -47,8 +47,6 @@ sudo vendor/bin/jxt sync --dry-run
 sudo vendor/bin/jxt sync
 ```
 
-The tools' output is currently in German.
-
 ## Documentation
 
 - [Usage](docs/USAGE.md) ([Deutsch](docs/USAGE.de.md)): commands, configuration, warnings

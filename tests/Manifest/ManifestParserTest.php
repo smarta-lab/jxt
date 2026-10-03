@@ -292,7 +292,7 @@ final class ManifestParserTest extends TestCase
      */
     public static function invalidManifests(): iterable
     {
-        yield 'no XML' => ['not xml', 'kein gültiges XML'];
+        yield 'no XML' => ['not xml', 'not valid XML'];
         yield 'wrong root element' => ['<phpunit/>', '<extension>'];
         yield 'unsupported type' => [
             '<extension type="plugin"><name>plg_x</name></extension>',
@@ -302,7 +302,7 @@ final class ManifestParserTest extends TestCase
             '<extension type="module" client="api"><name>mod_x</name></extension>',
             'api',
         ];
-        yield 'empty name' => ['<extension type="module"><name> </name></extension>', 'Erweiterungsname'];
+        yield 'empty name' => ['<extension type="module"><name> </name></extension>', 'extension name'];
         yield 'invalid element name' => [
             '<extension type="module"><name>../mod_x</name></extension>',
             '../mod_x',
@@ -317,7 +317,7 @@ final class ManifestParserTest extends TestCase
         ];
         yield 'empty path' => [
             '<extension type="module"><name>mod_x</name><files><folder> </folder></files></extension>',
-            'Leerer Pfad',
+            'Empty path',
         ];
         yield 'media without destination' => [
             '<extension type="module"><name>mod_x</name><media folder="media"><folder>css</folder></media></extension>',

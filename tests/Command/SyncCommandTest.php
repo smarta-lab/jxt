@@ -49,7 +49,7 @@ final class SyncCommandTest extends TestCase
         self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
         self::assertStringContainsString('+ modules/mod_x/tmpl/default.php', self::display($tester));
         self::assertStringContainsString('- modules/mod_x/tmpl/old.php', self::display($tester));
-        self::assertStringContainsString('1 kopiert, 1 gelöscht, 1 unverändert', self::display($tester));
+        self::assertStringContainsString('1 copied, 1 deleted, 1 unchanged', self::display($tester));
     }
 
     public function testDryRunChangesNothing(): void
@@ -68,7 +68,7 @@ final class SyncCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->run(['--dry-run' => true]));
         self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/default.php');
         self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
-        self::assertStringContainsString('Probelauf', self::display($tester));
+        self::assertStringContainsString('Dry run', self::display($tester));
         self::assertStringContainsString('+ modules/mod_x/tmpl/default.php', self::display($tester));
     }
 
@@ -78,7 +78,7 @@ final class SyncCommandTest extends TestCase
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertStringContainsString('0 kopiert, 0 gelöscht, 2 unverändert', self::display($tester));
+        self::assertStringContainsString('0 copied, 0 deleted, 2 unchanged', self::display($tester));
     }
 
     public function testPointsToCacheRefreshWhenVersionChanged(): void
@@ -88,7 +88,7 @@ final class SyncCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('1.0.0 → 1.1.0', self::display($tester));
-        self::assertStringContainsString('Cache aktualisieren', self::display($tester));
+        self::assertStringContainsString('Refresh Cache', self::display($tester));
     }
 
     public function testWarnsAboutInstallerChanges(): void
@@ -114,7 +114,7 @@ final class SyncCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('language/de-DE/mod_x.sys.ini', self::display($tester));
-        self::assertStringContainsString('Nicht im Manifest', self::display($tester));
+        self::assertStringContainsString('Not listed in the manifest', self::display($tester));
     }
 
     public function testFailsWithoutInstalledManifest(): void
@@ -123,7 +123,7 @@ final class SyncCommandTest extends TestCase
         $tester = $this->tester();
 
         self::assertSame(Command::FAILURE, $tester->execute([]));
-        self::assertStringContainsString('Erste Installation', self::display($tester));
+        self::assertStringContainsString('Please install the extension once', self::display($tester));
     }
 
     public function testFailsWithoutJoomlaRoot(): void

@@ -25,7 +25,7 @@ final class ManifestLocator
         ));
 
         return match (count($manifests)) {
-            0 => throw new ManifestException(sprintf('Kein Joomla-Manifest in %s gefunden.', $directory)),
+            0 => throw new ManifestException(sprintf('No Joomla manifest found in %s.', $directory)),
             1 => $manifests[0],
             default => throw new ManifestException(sprintf(
                 'Mehrere Joomla-Manifeste in %s gefunden: %s',

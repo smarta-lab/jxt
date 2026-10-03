@@ -33,13 +33,13 @@ final readonly class PackageBuilder
         $path = $distDirectory . '/' . $this->fileName($manifest);
 
         if (!is_dir($distDirectory) && !mkdir($distDirectory, 0777, true) && !is_dir($distDirectory)) {
-            throw new BuildException(sprintf('Zielordner %s kann nicht angelegt werden.', $distDirectory));
+            throw new BuildException(sprintf('Cannot create output directory %s.', $distDirectory));
         }
 
         $zip = new ZipArchive();
 
         if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new BuildException(sprintf('ZIP-Datei %s kann nicht angelegt werden.', $path));
+            throw new BuildException(sprintf('Cannot create ZIP file %s.', $path));
         }
 
         foreach ($files as $file) {
@@ -47,7 +47,7 @@ final readonly class PackageBuilder
         }
 
         if (!$zip->close()) {
-            throw new BuildException(sprintf('ZIP-Datei %s kann nicht geschrieben werden.', $path));
+            throw new BuildException(sprintf('Cannot write ZIP file %s.', $path));
         }
 
         return new Package($path, count($files));

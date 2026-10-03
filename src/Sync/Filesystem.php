@@ -18,7 +18,7 @@ final class Filesystem
      */
     public function copyFile(string $source, string $target): void
     {
-        $this->run(static fn (): bool => copy($source, $target), sprintf('%s kann nicht nach %s kopiert werden', $source, $target));
+        $this->run(static fn (): bool => copy($source, $target), sprintf('Cannot copy %s to %s', $source, $target));
     }
 
     /**
@@ -26,7 +26,7 @@ final class Filesystem
      */
     public function deleteFile(string $path): void
     {
-        $this->run(static fn (): bool => unlink($path), sprintf('%s kann nicht gelöscht werden', $path));
+        $this->run(static fn (): bool => unlink($path), sprintf('Cannot delete %s', $path));
     }
 
     /**
@@ -34,7 +34,7 @@ final class Filesystem
      */
     public function deleteDirectory(string $path): void
     {
-        $this->run(static fn (): bool => rmdir($path), sprintf('Ordner %s kann nicht gelöscht werden', $path));
+        $this->run(static fn (): bool => rmdir($path), sprintf('Cannot delete directory %s', $path));
     }
 
     /**
@@ -42,7 +42,7 @@ final class Filesystem
      */
     public function createDirectory(string $path): void
     {
-        $this->run(static fn (): bool => mkdir($path), sprintf('Ordner %s kann nicht angelegt werden', $path));
+        $this->run(static fn (): bool => mkdir($path), sprintf('Cannot create directory %s', $path));
     }
 
     /**
@@ -53,7 +53,7 @@ final class Filesystem
         clearstatcache(true, $path);
 
         if (((int) fileperms($path) & 0777) !== $mode) {
-            $this->run(static fn (): bool => chmod($path, $mode), sprintf('Rechte von %s können nicht gesetzt werden', $path));
+            $this->run(static fn (): bool => chmod($path, $mode), sprintf('Cannot set the mode of %s', $path));
         }
     }
 
@@ -65,11 +65,11 @@ final class Filesystem
         clearstatcache(true, $path);
 
         if ($owner !== null && $this->ownerName($path) !== $owner) {
-            $this->run(static fn (): bool => chown($path, $owner), sprintf('Eigentümer von %s kann nicht gesetzt werden', $path));
+            $this->run(static fn (): bool => chown($path, $owner), sprintf('Cannot set the owner of %s', $path));
         }
 
         if ($group !== null && $this->groupName($path) !== $group) {
-            $this->run(static fn (): bool => chgrp($path, $group), sprintf('Gruppe von %s kann nicht gesetzt werden', $path));
+            $this->run(static fn (): bool => chgrp($path, $group), sprintf('Cannot set the group of %s', $path));
         }
     }
 

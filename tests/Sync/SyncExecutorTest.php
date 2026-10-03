@@ -41,8 +41,8 @@ final class SyncExecutorTest extends TestCase
     public function testCopiesChangedFilesAndDeletesStaleEntries(): void
     {
         $this->writeFile('project/tmpl/new.php', 'neu');
-        $this->writeFile('project/tmpl/changed.php', 'geändert');
-        $this->writeFile('project/tmpl/same.php', 'Projekt');
+        $this->writeFile('project/tmpl/changed.php', 'changed');
+        $this->writeFile('project/tmpl/same.php', 'project');
         $this->writeFile('joomla/modules/mod_x/tmpl/changed.php', 'alt');
         $this->writeFile('joomla/modules/mod_x/tmpl/same.php', 'Server');
         $this->writeFile('joomla/modules/mod_x/old/stale.php');
@@ -63,7 +63,7 @@ final class SyncExecutorTest extends TestCase
         ));
 
         self::assertStringEqualsFile($this->joomla() . '/modules/mod_x/tmpl/new.php', 'neu');
-        self::assertStringEqualsFile($this->joomla() . '/modules/mod_x/tmpl/changed.php', 'geändert');
+        self::assertStringEqualsFile($this->joomla() . '/modules/mod_x/tmpl/changed.php', 'changed');
         self::assertStringEqualsFile($this->joomla() . '/modules/mod_x/tmpl/same.php', 'Server');
         self::assertDirectoryDoesNotExist($this->joomla() . '/modules/mod_x/old');
     }

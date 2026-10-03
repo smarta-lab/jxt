@@ -19,7 +19,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Command `jxt build`: creates an installable ZIP file from the project directory.
  */
-#[AsCommand(name: 'build', description: 'Erstellt eine installierbare ZIP-Datei der Erweiterung.')]
+#[AsCommand(name: 'build', description: 'Builds an installable ZIP file of the extension.')]
 final class BuildCommand extends Command
 {
     /**
@@ -57,10 +57,10 @@ final class BuildCommand extends Command
         $unlisted = $this->unlistedSourceFinder->find($manifest->plan, $this->projectDirectory);
 
         if ($unlisted !== []) {
-            $io->warning(implode("\n", ['Nicht im Manifest, daher nicht im ZIP:', ...$unlisted]));
+            $io->warning(implode("\n", ['Not listed in the manifest, therefore not in the ZIP:', ...$unlisted]));
         }
 
-        $io->success(sprintf('%s erstellt (%d Dateien).', $this->displayPath($package->path), $package->fileCount));
+        $io->success(sprintf('Created %s (%d files).', $this->displayPath($package->path), $package->fileCount));
 
         return Command::SUCCESS;
     }

@@ -32,14 +32,14 @@ final readonly class ConfigurationFile
         $content = is_readable($this->path) ? file_get_contents($this->path) : false;
 
         if ($content === false) {
-            throw new ConfigurationException(sprintf('Konfiguration %s ist nicht lesbar.', $this->path));
+            throw new ConfigurationException(sprintf('Configuration %s is not readable.', $this->path));
         }
 
         try {
             $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new ConfigurationException(
-                sprintf('Konfiguration %s enthält kein gültiges JSON: %s', $this->path, $exception->getMessage()),
+                sprintf('Configuration %s does not contain valid JSON: %s', $this->path, $exception->getMessage()),
                 0,
                 $exception,
             );
@@ -86,7 +86,7 @@ final readonly class ConfigurationFile
 
         if (!$written) {
             throw new ConfigurationException(
-                sprintf('Konfiguration %s kann nicht geschrieben werden%s', $this->path, $error === null ? '.' : ': ' . $error),
+                sprintf('Cannot write configuration %s%s', $this->path, $error === null ? '.' : ': ' . $error),
             );
         }
     }

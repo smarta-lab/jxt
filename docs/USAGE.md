@@ -6,8 +6,6 @@ All commands are run in the project directory of an extension, i.e. the director
 manifest (`mod_*.xml` or `templateDetails.xml`). The manifest is found automatically: it is the only
 XML file in that directory whose root element is `<extension>`.
 
-The tools' output is currently in German.
-
 ## jxt sync – deploy to the test server
 
 ```bash
@@ -23,7 +21,7 @@ mod_example → /var/www/html
   + modules/mod_example/tmpl/new.php
   ~ modules/mod_example/src/Helper.php
 
- [OK] 2 kopiert, 1 gelöscht, 35 unverändert.
+ [OK] 2 copied, 1 deleted, 35 unchanged.
 ```
 
 `+` new file, `~` changed file, `-` deleted file or directory (with a trailing `/`).
@@ -116,17 +114,17 @@ e.g. to disable a global `owner` for one project. Run `jxt config` without sudo,
 would be owned by root; it refuses to write under sudo.
 
 ```
-Schlüssel   Wert          Herkunft
+Key         Value         Origin
 joomla_root /var/www/html global
 owner       www-data      global
 group       www-data      global
-dist_dir    dist          Standard
-dir_mode    0775          Projekt
-file_mode   0644          Standard
+dist_dir    dist          default
+dir_mode    0775          project
+file_mode   0644          default
 ```
 
-The origin is one of: project file (`Projekt`), global file (`global`), default value (`Standard`)
-or not set (`nicht gesetzt`).
+The origin is one of: project file (`project`), global file (`global`), default value (`default`)
+or not set (`not set`).
 
 ## Configuration
 

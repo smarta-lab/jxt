@@ -28,7 +28,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Command `jxt sync`: transfers the extension to the local Joomla test server.
  */
-#[AsCommand(name: 'sync', description: 'Überträgt die Erweiterung auf den lokalen Joomla-Testserver.')]
+#[AsCommand(name: 'sync', description: 'Deploys the extension to the local Joomla test site.')]
 final class SyncCommand extends Command
 {
     /**
@@ -49,7 +49,7 @@ final class SyncCommand extends Command
     #[\Override]
     protected function configure(): void
     {
-        $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Nur anzeigen, was kopiert und gelöscht würde.');
+        $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show what would be copied and deleted.');
     }
 
     /**
@@ -69,7 +69,7 @@ final class SyncCommand extends Command
 
             if (!is_file($installedManifest)) {
                 throw new DeploymentException(sprintf(
-                    '%s nicht gefunden. Erste Installation bitte im Backend mit der ZIP-Datei (jxt build) durchführen.',
+                    '%s not found. Please install the extension once via the backend using the ZIP file (jxt build).',
                     $installedManifest,
                 ));
             }
@@ -81,7 +81,7 @@ final class SyncCommand extends Command
                 $joomlaRoot,
             );
 
-            $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->element, $joomlaRoot, $dryRun ? ' (Probelauf)' : ''));
+            $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->element, $joomlaRoot, $dryRun ? ' (dry run)' : ''));
             $this->listChanges($io, $plan);
             $this->warn($io, $plan, $configuration, $dryRun);
             $this->warnAboutUnlistedSources($io, $manifest->plan);
@@ -93,19 +93,19 @@ final class SyncCommand extends Command
             $io->error($exception->getMessage());
 
             if ($exception instanceof DeploymentException && !$this->executor->runsAsRoot) {
-                $io->note('Fehlen Schreibrechte auf dem Server? Dann jxt sync mit sudo ausführen.');
+                $io->note('Missing write permissions on the server? Then run jxt sync with sudo.');
             }
 
             return Command::FAILURE;
         }
 
         $summary = sprintf(
-            '%d kopiert, %d gelöscht, %d unverändert.',
+            '%d copied, %d deleted, %d unchanged.',
             count($plan->changedFiles()),
             count($plan->deletions),
             $plan->unchangedCount(),
         );
-        $io->success($dryRun ? 'Probelauf, nichts geändert: ' . $summary : $summary);
+        $io->success($dryRun ? 'Dry run, nothing changed: ' . $summary : $summary);
 
         return Command::SUCCESS;
     }
@@ -116,13 +116,13 @@ final class SyncCommand extends Command
     private function joomlaRoot(Configuration $configuration): string
     {
         $joomlaRoot = $configuration->joomlaRoot ?? throw new ConfigurationException(sprintf(
-            'joomla_root ist nicht konfiguriert. Bitte in ~/.config/jxt/config.json oder %s eintragen.',
+            'joomla_root is not configured. Please set it in ~/.config/jxt/config.json or %s.',
             ConfigurationLoader::PROJECT_FILE,
         ));
 
         if (!is_file($joomlaRoot . '/configuration.php')) {
             throw new ConfigurationException(
-                sprintf('%s ist keine Joomla-Installation (configuration.php fehlt).', $joomlaRoot),
+                sprintf('%s is not a Joomla installation (configuration.php is missing).', $joomlaRoot),
             );
         }
 
@@ -155,7 +155,7 @@ final class SyncCommand extends Command
         $unlisted = $this->unlistedSourceFinder->find($plan, $this->projectDirectory);
 
         if ($unlisted !== []) {
-            $io->warning(implode("\n", ['Nicht im Manifest, daher nicht übertragen:', ...$unlisted]));
+            $io->warning(implode("\n", ['Not listed in the manifest, therefore not deployed:', ...$unlisted]));
         }
     }
 
@@ -166,35 +166,35 @@ final class SyncCommand extends Command
     private function warn(SymfonyStyle $io, SyncPlan $plan, Configuration $configuration, bool $dryRun): void
     {
         $comparison = $plan->comparison;
-        $installerHint = 'jxt sync führt keine Installationsskripte, SQL-Dateien oder Update-Server-Einträge aus. '
-            . 'Bitte die ZIP-Datei (jxt build) im Backend installieren.';
+        $installerHint = 'jxt sync does not run install scripts, SQL files or update server entries. '
+            . 'Please install the ZIP file (jxt build) via the backend.';
 
         if ($comparison->changedInstallerSections !== []) {
             $io->warning(sprintf(
-                'Im Manifest geändert: %s. %s',
+                'Changed in the manifest: %s. %s',
                 implode(', ', $comparison->changedInstallerSections),
                 $installerHint,
             ));
         }
 
         if ($plan->changedInstallerFiles !== []) {
-            $io->warning(sprintf('Neue oder geänderte Installer-Dateien: %s. %s', implode(', ', $plan->changedInstallerFiles), $installerHint));
+            $io->warning(sprintf('New or changed installer files: %s. %s', implode(', ', $plan->changedInstallerFiles), $installerHint));
         }
 
         if ($comparison->namespaceChanged) {
-            $io->note(sprintf('Namespace geändert: %s wird gelöscht, Joomla erzeugt die Datei neu.', SyncPlanner::AUTOLOAD_CACHE));
+            $io->note(sprintf('Namespace changed: %s is deleted, Joomla rebuilds the file.', SyncPlanner::AUTOLOAD_CACHE));
         }
 
         if ($comparison->versionChanged()) {
             $io->note(sprintf(
-                'Version %s → %s: Die Anzeige im Erweiterungsmanager über „Erweiterungen: Verwalten“ → „Cache aktualisieren“ auffrischen.',
+                'Version %s → %s: refresh the display in the extension manager via "Extensions: Manage" → "Refresh Cache".',
                 $comparison->oldVersion ?? '–',
                 $comparison->newVersion ?? '–',
             ));
         }
 
         if (!$dryRun && !$this->executor->runsAsRoot && ($configuration->owner !== null || $configuration->group !== null)) {
-            $io->warning('owner/group sind konfiguriert, jxt sync läuft aber nicht mit sudo: Eigentümer und Gruppe werden nicht gesetzt.');
+            $io->warning('owner/group are configured, but jxt sync is not running with sudo: owner and group are not set.');
         }
     }
 }

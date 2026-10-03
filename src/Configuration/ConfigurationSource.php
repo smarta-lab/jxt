@@ -9,8 +9,8 @@ namespace SmartA\Jxt\Configuration;
  */
 enum ConfigurationSource: string
 {
-    case Project = 'Projekt';
+    case Project = 'project';
     case Global = 'global';
-    case Default = 'Standard';
-    case None = 'nicht gesetzt';
+    case Default = 'default';
+    case None = 'not set';
 }

@@ -41,9 +41,9 @@ final class ConfigCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         $display = $tester->getDisplay();
         self::assertMatchesRegularExpression('/joomla_root\s+\/var\/www\/html\s+global/', $display);
-        self::assertMatchesRegularExpression('/dir_mode\s+0775\s+Projekt/', $display);
-        self::assertMatchesRegularExpression('/dist_dir\s+dist\s+Standard/', $display);
-        self::assertMatchesRegularExpression('/owner\s+–\s+nicht gesetzt/', $display);
+        self::assertMatchesRegularExpression('/dir_mode\s+0775\s+project/', $display);
+        self::assertMatchesRegularExpression('/dist_dir\s+dist\s+default/', $display);
+        self::assertMatchesRegularExpression('/owner\s+–\s+not set/', $display);
         self::assertStringContainsString($this->globalFile(), $display);
         self::assertStringContainsString($this->project() . '/.jxt.json', $display);
     }
@@ -115,8 +115,8 @@ final class ConfigCommandTest extends TestCase
         yield 'unknown action' => [['action' => 'delete'], 'delete'];
         yield 'unknown key' => [['action' => 'set', 'key' => 'joomla_rot', 'value' => '/x'], 'joomla_rot'];
         yield 'invalid value' => [['action' => 'set', 'key' => 'file_mode', 'value' => '999'], 'file_mode'];
-        yield 'missing value' => [['action' => 'set', 'key' => 'owner'], 'Wert'];
-        yield 'missing key' => [['action' => 'unset'], 'Schlüssel'];
+        yield 'missing value' => [['action' => 'set', 'key' => 'owner'], 'specify a value'];
+        yield 'missing key' => [['action' => 'unset'], 'specify a key'];
     }
 
     public function testRefusesToWriteUnderSudo(): void

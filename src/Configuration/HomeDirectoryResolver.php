@@ -53,11 +53,11 @@ final readonly class HomeDirectoryResolver
 
         if ($this->effectiveUserId === 0 && $sudoUser !== '' && $sudoUser !== 'root') {
             return ($this->homeOfUser)($sudoUser)
-                ?? throw new ConfigurationException(sprintf('Home-Verzeichnis von „%s“ nicht gefunden.', $sudoUser));
+                ?? throw new ConfigurationException(sprintf('Home directory of "%s" not found.', $sudoUser));
         }
 
         $home = $this->environment['HOME'] ?? '';
 
-        return $home !== '' ? $home : throw new ConfigurationException('Home-Verzeichnis nicht ermittelbar (HOME fehlt).');
+        return $home !== '' ? $home : throw new ConfigurationException('Cannot determine the home directory (HOME is not set).');
     }
 }

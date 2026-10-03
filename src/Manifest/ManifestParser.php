@@ -31,7 +31,7 @@ final class ManifestParser
         $xml = is_file($path) && is_readable($path) ? file_get_contents($path) : false;
 
         if ($xml === false) {
-            throw new ManifestException(sprintf('Manifest %s ist nicht lesbar.', $path));
+            throw new ManifestException(sprintf('Manifest %s is not readable.', $path));
         }
 
         try {
@@ -184,11 +184,11 @@ final class ManifestParser
         if ($root === false) {
             $reason = $error === false ? '' : ': ' . trim($error->message);
 
-            throw new ManifestException('Das Manifest ist kein gültiges XML' . $reason);
+            throw new ManifestException('The manifest is not valid XML' . $reason);
         }
 
         if ($root->getName() !== 'extension') {
-            throw new ManifestException('Das Manifest muss das Wurzelelement <extension> haben.');
+            throw new ManifestException('The manifest must have the root element <extension>.');
         }
 
         return $root;
@@ -202,7 +202,7 @@ final class ManifestParser
         $type = trim((string) $root['type']);
 
         return ExtensionType::tryFrom($type)
-            ?? throw new ManifestException(sprintf('Erweiterungstyp „%s“ wird nicht unterstützt.', $type));
+            ?? throw new ManifestException(sprintf('Extension type "%s" is not supported.', $type));
     }
 
     /**
@@ -217,7 +217,7 @@ final class ManifestParser
         }
 
         return ClientType::tryFrom($client)
-            ?? throw new ManifestException(sprintf('Unbekannter Client „%s“ im Manifest.', $client));
+            ?? throw new ManifestException(sprintf('Unknown client "%s" in the manifest.', $client));
     }
 
     /**
@@ -231,7 +231,7 @@ final class ManifestParser
         $name = trim((string) $root->name);
 
         if ($name === '') {
-            throw new ManifestException('Der Erweiterungsname <name> fehlt im Manifest.');
+            throw new ManifestException('The extension name <name> is missing in the manifest.');
         }
 
         $element = match ($type) {
@@ -240,7 +240,7 @@ final class ManifestParser
         };
 
         if (preg_match(self::ELEMENT_PATTERN, $element) !== 1) {
-            throw new ManifestException(sprintf('Ungültiger Elementname „%s“.', $element));
+            throw new ManifestException(sprintf('Invalid element name "%s".', $element));
         }
 
         return $element;
@@ -338,7 +338,7 @@ final class ManifestParser
         $tag = trim((string) $language['tag']);
 
         if (preg_match(self::LANGUAGE_TAG_PATTERN, $tag) !== 1) {
-            throw new ManifestException(sprintf('Ungültiges Sprach-Tag „%s“ im Manifest.', $tag));
+            throw new ManifestException(sprintf('Invalid language tag "%s" in the manifest.', $tag));
         }
 
         return $tag;
@@ -366,7 +366,7 @@ final class ManifestParser
     private function mediaDirectory(SimpleXMLElement $media): string
     {
         if (trim((string) $media['destination']) === '') {
-            throw new ManifestException('Im Manifest fehlt das Attribut destination bei <media>.');
+            throw new ManifestException('The attribute destination of <media> is missing in the manifest.');
         }
 
         return 'media/' . RelativePath::normalize((string) $media['destination']);

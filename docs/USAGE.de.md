@@ -6,6 +6,8 @@ Alle Befehle werden im Projektordner einer Erweiterung ausgeführt, also in dem 
 Manifest (`mod_*.xml` oder `templateDetails.xml`). Das Manifest wird automatisch gefunden: Es ist die
 einzige XML-Datei in diesem Ordner mit dem Wurzelelement `<extension>`.
 
+Die Ausgabe von jxt ist englisch; die Beispiele unten zeigen sie unverändert.
+
 ## jxt sync – auf den Testserver übertragen
 
 ```bash
@@ -21,7 +23,7 @@ mod_example → /var/www/html
   + modules/mod_example/tmpl/new.php
   ~ modules/mod_example/src/Helper.php
 
- [OK] 2 kopiert, 1 gelöscht, 35 unverändert.
+ [OK] 2 copied, 1 deleted, 35 unchanged.
 ```
 
 `+` neue Datei, `~` geänderte Datei, `-` gelöschte Datei oder gelöschter Ordner (mit `/` am Ende).
@@ -117,14 +119,17 @@ globale Datei `~/.config/jxt/config.json`. `set <key> null` speichert ein ausdr�
 sonst gehörte die Datei root; unter sudo verweigert es das Schreiben.
 
 ```
-Schlüssel   Wert          Herkunft
+Key         Value         Origin
 joomla_root /var/www/html global
 owner       www-data      global
 group       www-data      global
-dist_dir    dist          Standard
-dir_mode    0775          Projekt
-file_mode   0644          Standard
+dist_dir    dist          default
+dir_mode    0775          project
+file_mode   0644          default
 ```
+
+Die Herkunft (`Origin`) ist die Projektdatei (`project`), die globale Datei (`global`), der
+Standardwert (`default`) oder nicht gesetzt (`not set`).
 
 ## Konfiguration
 

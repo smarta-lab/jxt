@@ -45,7 +45,7 @@ final class ManifestLocatorTest extends TestCase
         $this->writeFile('phpunit.xml', '<phpunit/>');
 
         $this->expectException(ManifestException::class);
-        $this->expectExceptionMessageIsOrContains('Kein Joomla-Manifest');
+        $this->expectExceptionMessageIsOrContains('No Joomla manifest');
 
         (new ManifestLocator())->locate($this->directory);
     }

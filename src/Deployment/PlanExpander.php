@@ -47,10 +47,10 @@ final class PlanExpander
         return match ($entry->kind) {
             EntryKind::File => is_file($path)
                 ? [$entry]
-                : throw new DeploymentException(sprintf('Datei %s aus dem Manifest fehlt.', $entry->source)),
+                : throw new DeploymentException(sprintf('File %s listed in the manifest is missing.', $entry->source)),
             EntryKind::Directory => is_dir($path)
                 ? $this->directoryEntries($entry, $path)
-                : throw new DeploymentException(sprintf('Ordner %s aus dem Manifest fehlt.', $entry->source)),
+                : throw new DeploymentException(sprintf('Directory %s listed in the manifest is missing.', $entry->source)),
         };
     }
 

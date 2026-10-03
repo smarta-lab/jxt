@@ -49,7 +49,7 @@ final class BuildCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $exitCode);
         self::assertFileExists($this->project . '/build/mod_x-1.0.0.zip');
         self::assertStringContainsString('mod_x-1.0.0.zip', self::display($tester));
-        self::assertStringContainsString('2 Dateien', self::display($tester));
+        self::assertStringContainsString('2 files', self::display($tester));
     }
 
     public function testWarnsAboutUnlistedMediaFolder(): void
@@ -68,7 +68,7 @@ final class BuildCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('media/svg/', self::display($tester));
-        self::assertStringContainsString('Nicht im Manifest', self::display($tester));
+        self::assertStringContainsString('Not listed in the manifest', self::display($tester));
     }
 
     public function testReportsErrorsWithoutStackTrace(): void
@@ -77,6 +77,6 @@ final class BuildCommandTest extends TestCase
         $exitCode = $tester->execute([]);
 
         self::assertSame(Command::FAILURE, $exitCode);
-        self::assertStringContainsString('Kein Joomla-Manifest', self::display($tester));
+        self::assertStringContainsString('No Joomla manifest', self::display($tester));
     }
 }
