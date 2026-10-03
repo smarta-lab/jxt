@@ -46,7 +46,7 @@ final readonly class ConfigurationFile
         }
 
         if (!is_array($data) || ($data !== [] && array_is_list($data))) {
-            throw new ConfigurationException(sprintf('Konfiguration %s muss ein JSON-Objekt sein.', $this->path));
+            throw new ConfigurationException(sprintf('Configuration %s must be a JSON object.', $this->path));
         }
 
         $values = [];

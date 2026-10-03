@@ -125,7 +125,7 @@ final class ConfigurationLoaderTest extends TestCase
     public static function invalidConfigurations(): iterable
     {
         yield 'no JSON' => ['{', '.jxt.json'];
-        yield 'no object' => ['[1, 2]', 'JSON-Objekt'];
+        yield 'no object' => ['[1, 2]', 'must be a JSON object'];
         yield 'unknown key' => ['{"joomla_rot": "/var/www"}', 'joomla_rot'];
         yield 'wrong type' => ['{"owner": 33}', 'owner'];
         yield 'empty value' => ['{"group": " "}', 'group'];

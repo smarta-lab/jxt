@@ -8,8 +8,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- The error message for several manifests in the project directory was still
-  in German.
+- The error messages for several manifests in the project directory and for a
+  configuration file that is not a JSON object were still in German.
 
 ## [0.1.0] - 2026-10-03
 
