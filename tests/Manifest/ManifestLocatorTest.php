@@ -56,7 +56,7 @@ final class ManifestLocatorTest extends TestCase
         $this->writeFile('mod_b.xml', '<extension type="module"><name>mod_b</name></extension>');
 
         $this->expectException(ManifestException::class);
-        $this->expectExceptionMessageIsOrContains('mod_a.xml, mod_b.xml');
+        $this->expectExceptionMessageMatches('/^Several Joomla manifests found in .+: mod_a\.xml, mod_b\.xml\.$/');
 
         (new ManifestLocator())->locate($this->directory);
     }
