@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="site" method="upgrade">
+    <name>mod_fixture</name>
+    <version>0.1.0</version>
+    <files>
+        <folder module="mod_fixture">tmpl</folder>
+    </files>
+</extension>

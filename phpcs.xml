@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="jxt">
+    <arg name="colors"/>
+    <arg value="p"/>
+    <file>bin/jxt</file>
+    <file>src/</file>
+    <file>tests/</file>
+    <exclude-pattern>tests/tmp/*</exclude-pattern>
+    <rule ref="PSR12"/>
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="150"/>
+            <property name="absoluteLineLimit" value="0"/>
+        </properties>
+    </rule>
+</ruleset>

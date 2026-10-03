@@ -1,0 +1,50 @@
+{
+    "name": "smarta-lab/jxt",
+    "description": "Manifest-driven CLI for Joomla!® extension development: sync to a local test site, build installable ZIP packages.",
+    "keywords": [
+        "joomla",
+        "joomla-extension",
+        "cli",
+        "deployment",
+        "developer-tools"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/smarta-lab/jxt",
+    "support": {
+        "issues": "https://github.com/smarta-lab/jxt/issues",
+        "source": "https://github.com/smarta-lab/jxt"
+    },
+    "readme": "README.md",
+    "authors": [
+        {
+            "name": "Carsten Volkwein",
+            "homepage": "https://github.com/smarta-lab"
+        }
+    ],
+    "bin": [
+        "bin/jxt"
+    ],
+    "require": {
+        "php": ">=8.4",
+        "ext-libxml": "*",
+        "ext-posix": "*",
+        "ext-simplexml": "*",
+        "ext-zip": "*",
+        "symfony/console": "^8.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.2",
+        "squizlabs/php_codesniffer": "^4.0",
+        "phpunit/phpunit": "^13.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "SmartA\\Jxt\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SmartA\\Jxt\\Tests\\": "tests/"
+        }
+    }
+}

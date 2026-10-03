@@ -1,0 +1,35 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Composer\InstalledVersions;
+use SmartA\Jxt\Command\BuildCommand;
+use SmartA\Jxt\Command\ConfigCommand;
+use SmartA\Jxt\Command\SyncCommand;
+use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Configuration\HomeDirectoryResolver;
+use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Sync\SyncExecutor;
+use Symfony\Component\Console\Application;
+
+require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+
+try {
+    $configurationLoader = ConfigurationLoader::forUser(HomeDirectoryResolver::fromSystem());
+} catch (JxtException $exception) {
+    fwrite(STDERR, $exception->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+$projectDirectory = (string) getcwd();
+$runsAsRoot = posix_geteuid() === 0;
+$sudoUser = getenv('SUDO_USER');
+
+$application = new Application('jxt', InstalledVersions::getPrettyVersion('smarta-lab/jxt') ?? 'unknown');
+$application->addCommands([
+    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor($runsAsRoot)),
+    new BuildCommand($projectDirectory, $configurationLoader),
+    new ConfigCommand($projectDirectory, $configurationLoader, $runsAsRoot && is_string($sudoUser) && $sudoUser !== ''),
+]);
+$application->run();

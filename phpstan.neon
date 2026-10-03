@@ -1,0 +1,13 @@
+parameters:
+    level: max
+    phpVersion:
+        min: 80400
+        max: 80599
+
+    paths:
+        - bin/jxt
+        - src
+        - tests
+
+    excludePaths:
+        - tests/tmp
