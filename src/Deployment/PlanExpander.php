@@ -24,12 +24,12 @@ final class PlanExpander
      *
      * @throws DeploymentException if a file or directory listed in the plan is missing
      */
-    public function expand(DeploymentPlan $plan, string $projectDirectory): array
+    public function expand(DeploymentPlan $plan, string $extensionDirectory): array
     {
         $files = [];
 
         foreach ($plan->entries as $entry) {
-            $files = [...$files, ...$this->expandEntry($entry, $projectDirectory)];
+            $files = [...$files, ...$this->expandEntry($entry, $extensionDirectory)];
         }
 
         return $files;
@@ -40,9 +40,9 @@ final class PlanExpander
      *
      * @return list<PlanEntry>
      */
-    private function expandEntry(PlanEntry $entry, string $projectDirectory): array
+    private function expandEntry(PlanEntry $entry, string $extensionDirectory): array
     {
-        $path = $projectDirectory . '/' . $entry->source;
+        $path = $extensionDirectory . '/' . $entry->source;
 
         return match ($entry->kind) {
             EntryKind::File => is_file($path)

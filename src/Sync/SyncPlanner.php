@@ -29,19 +29,19 @@ final readonly class SyncPlanner
     /**
      * Creates the sync plan.
      *
-     * @param Manifest $new              Manifest in the project directory
+     * @param Manifest $new              Manifest in the extension directory
      * @param Manifest $old              Manifest installed on the server
      *
      * @throws \SmartA\Jxt\Deployment\DeploymentException if files listed in the manifest are missing
      */
-    public function plan(Manifest $new, Manifest $old, string $projectDirectory, string $joomlaRoot): SyncPlan
+    public function plan(Manifest $new, Manifest $old, string $extensionDirectory, string $joomlaRoot): SyncPlan
     {
-        $files = $this->planExpander->expand($new->plan, $projectDirectory);
+        $files = $this->planExpander->expand($new->plan, $extensionDirectory);
         $targets = array_fill_keys(array_map(static fn (PlanEntry $file): string => $file->target, $files), true);
         $directories = $this->managedDirectories($new, $files);
         $comparison = $this->compare($old, $new);
         $syncFiles = array_map(
-            fn (PlanEntry $file): SyncFile => new SyncFile($file, $this->status($file, $projectDirectory, $joomlaRoot)),
+            fn (PlanEntry $file): SyncFile => new SyncFile($file, $this->status($file, $extensionDirectory, $joomlaRoot)),
             $files,
         );
 
@@ -86,9 +86,9 @@ final readonly class SyncPlanner
     /**
      * Compares a project file with the file on the server.
      */
-    private function status(PlanEntry $file, string $projectDirectory, string $joomlaRoot): FileStatus
+    private function status(PlanEntry $file, string $extensionDirectory, string $joomlaRoot): FileStatus
     {
-        $source = $projectDirectory . '/' . $file->source;
+        $source = $extensionDirectory . '/' . $file->source;
         $target = $joomlaRoot . '/' . $file->target;
 
         return match (true) {

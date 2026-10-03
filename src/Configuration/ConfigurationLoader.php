@@ -34,7 +34,7 @@ final readonly class ConfigurationLoader
      */
     public function globalFile(): ?ConfigurationFile
     {
-        return $this->globalConfigFile === null ? null : new ConfigurationFile($this->globalConfigFile);
+        return $this->globalConfigFile === null ? null : new ConfigurationFile($this->globalConfigFile, true);
     }
 
     /**
@@ -56,6 +56,7 @@ final readonly class ConfigurationLoader
         $value = static fn (ConfigurationKey $key): ?string => $values[$key->value] ?? $key->defaultValue();
 
         $joomlaRoot = $value(ConfigurationKey::JoomlaRoot);
+        $manifest = $value(ConfigurationKey::Manifest);
         $distDirectory = (string) $value(ConfigurationKey::DistDirectory);
 
         return new Configuration(
@@ -67,6 +68,7 @@ final readonly class ConfigurationLoader
             ),
             (int) octdec((string) $value(ConfigurationKey::DirectoryMode)),
             (int) octdec((string) $value(ConfigurationKey::FileMode)),
+            $manifest === null ? null : $projectDirectory . '/' . $manifest,
         );
     }
 

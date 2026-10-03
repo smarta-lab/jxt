@@ -12,7 +12,7 @@ use ZipArchive;
 /**
  * Creates a ZIP file that can be installed in the Joomla backend.
  *
- * The ZIP contains the manifest and all files listed in it with their paths in the project directory,
+ * The ZIP contains the manifest and all files listed in it with their paths in the extension directory,
  * as expected by the Joomla installer.
  */
 final readonly class PackageBuilder
@@ -27,9 +27,9 @@ final readonly class PackageBuilder
      * @throws BuildException if the output directory or the ZIP file cannot be created
      * @throws \SmartA\Jxt\Deployment\DeploymentException if files listed in the manifest are missing
      */
-    public function build(Manifest $manifest, string $projectDirectory, string $distDirectory): Package
+    public function build(Manifest $manifest, string $extensionDirectory, string $distDirectory): Package
     {
-        $files = $this->planExpander->expand($manifest->plan, $projectDirectory);
+        $files = $this->planExpander->expand($manifest->plan, $extensionDirectory);
         $path = $distDirectory . '/' . $this->fileName($manifest);
 
         if (!is_dir($distDirectory) && !mkdir($distDirectory, 0777, true) && !is_dir($distDirectory)) {
@@ -43,7 +43,7 @@ final readonly class PackageBuilder
         }
 
         foreach ($files as $file) {
-            $zip->addFile($projectDirectory . '/' . $file->source, $file->source);
+            $zip->addFile($extensionDirectory . '/' . $file->source, $file->source);
         }
 
         if (!$zip->close()) {

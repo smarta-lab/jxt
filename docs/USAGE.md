@@ -2,10 +2,23 @@
 
 [Deutsch](USAGE.de.md)
 
-All commands are run in the project directory of an extension, i.e. the
-directory containing the manifest (`mod_*.xml` or `templateDetails.xml`). The
-manifest is found automatically: it is the only XML file in that directory whose
-root element is `<extension>`.
+All commands are run in the project directory of an extension. Usually this is
+the directory containing the manifest (`mod_*.xml` or `templateDetails.xml`).
+The manifest is found automatically: it is the only XML file in that directory
+whose root element is `<extension>`.
+
+If the extension lives in a subdirectory of the project (e.g. `extension/`, with
+`composer.json`, `tests/` and `docs/` in the project directory), or if the
+project directory contains more than one manifest, set the manifest in the
+project configuration:
+
+```bash
+vendor/bin/jxt config set manifest extension/mod_example.xml
+```
+
+As with the Joomla installer, all paths in the manifest are relative to the
+directory of the manifest. `.jxt.json` and `dist/` stay in the project
+directory.
 
 ## jxt sync – deploy to the test server
 
@@ -110,9 +123,9 @@ vendor/bin/jxt build
 
 Creates `dist/<element>-<version>.zip` (templates:
 `dist/tpl_<name>-<version>.zip`) containing the manifest and all files it lists,
-with the paths they have in the project. An existing file with the same name is
-replaced. Like `jxt sync`, `jxt build` warns about files that are not listed in
-the manifest.
+with their paths relative to the manifest. An existing file with the same name
+is replaced. Like `jxt sync`, `jxt build` warns about files that are not listed
+in the manifest.
 
 The ZIP is built from the working copy, including uncommitted changes.
 
@@ -135,6 +148,7 @@ Key         Value         Origin
 joomla_root /var/www/html global
 owner       www-data      global
 group       www-data      global
+manifest    –             not set
 dist_dir    dist          default
 dir_mode    0775          project
 file_mode   0644          default
@@ -160,6 +174,7 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `joomla_root` | Absolute path of the Joomla test server; must contain `configuration.php` | – (required for `jxt sync`) |
 | `owner` | Owner of the deployed files, only applied as root | – |
 | `group` | Group of the deployed files, only applied as root | – |
+| `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
 | `dist_dir` | Output directory of `jxt build`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories | `0755` |
 | `file_mode` | Mode for files | `0644` |

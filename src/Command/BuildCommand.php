@@ -46,15 +46,17 @@ final class BuildCommand extends Command
 
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
-            $manifest = $this->manifestParser->parseFile($this->manifestLocator->locate($this->projectDirectory));
-            $package = $this->packageBuilder->build($manifest, $this->projectDirectory, $configuration->distDirectory);
+            $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
+            $manifest = $this->manifestParser->parseFile($manifestFile);
+            $extensionDirectory = dirname($manifestFile);
+            $package = $this->packageBuilder->build($manifest, $extensionDirectory, $configuration->distDirectory);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
             return Command::FAILURE;
         }
 
-        $unlisted = $this->unlistedSourceFinder->find($manifest->plan, $this->projectDirectory);
+        $unlisted = $this->unlistedSourceFinder->find($manifest->plan, $extensionDirectory);
 
         if ($unlisted !== []) {
             $io->warning(implode("\n", ['Not listed in the manifest, therefore not in the ZIP:', ...$unlisted]));

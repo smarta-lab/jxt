@@ -15,7 +15,7 @@ final readonly class DeploymentPlan
      * @param list<PlanEntry> $entries              Files and directories to transfer
      * @param list<string>    $exclusiveDirectories Target directories owned exclusively by the extension
      *                                              (relative to the Joomla root directory)
-     * @param list<string>    $sourceDirectories    Source directories of the manifest sections (relative to the project directory)
+     * @param list<string>    $sourceDirectories    Source directories of the manifest sections (relative to the extension directory)
      *                                              whose content should be fully listed in the manifest
      */
     public function __construct(

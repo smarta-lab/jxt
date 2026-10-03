@@ -117,6 +117,10 @@ final class ConfigCommandTest extends TestCase
         yield 'invalid value' => [['action' => 'set', 'key' => 'file_mode', 'value' => '999'], 'file_mode'];
         yield 'missing value' => [['action' => 'set', 'key' => 'owner'], 'specify a value'];
         yield 'missing key' => [['action' => 'unset'], 'specify a key'];
+        yield 'global manifest' => [
+            ['action' => 'set', 'key' => 'manifest', 'value' => 'mod_x.xml', '--global' => true],
+            'project configuration',
+        ];
     }
 
     public function testRefusesToWriteUnderSudo(): void

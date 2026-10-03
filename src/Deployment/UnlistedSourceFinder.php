@@ -14,19 +14,19 @@ namespace SmartA\Jxt\Deployment;
 final class UnlistedSourceFinder
 {
     /**
-     * Returns the unlisted paths relative to the project directory, directories with a trailing `/`.
+     * Returns the unlisted paths relative to the extension directory, directories with a trailing `/`.
      *
      * If a whole directory is unlisted, only the directory is reported, not every file in it.
      *
      * @return list<string>
      */
-    public function find(DeploymentPlan $plan, string $projectDirectory): array
+    public function find(DeploymentPlan $plan, string $extensionDirectory): array
     {
         $unlisted = [];
 
         foreach ($plan->sourceDirectories as $directory) {
-            if (is_dir($projectDirectory . '/' . $directory)) {
-                $unlisted = [...$unlisted, ...$this->scan($plan, $projectDirectory, $directory)];
+            if (is_dir($extensionDirectory . '/' . $directory)) {
+                $unlisted = [...$unlisted, ...$this->scan($plan, $extensionDirectory, $directory)];
             }
         }
 
@@ -38,21 +38,21 @@ final class UnlistedSourceFinder
      *
      * @return list<string>
      */
-    private function scan(DeploymentPlan $plan, string $projectDirectory, string $directory): array
+    private function scan(DeploymentPlan $plan, string $extensionDirectory, string $directory): array
     {
         $unlisted = [];
 
-        foreach (scandir($projectDirectory . '/' . $directory) ?: [] as $name) {
+        foreach (scandir($extensionDirectory . '/' . $directory) ?: [] as $name) {
             $path = $directory . '/' . $name;
 
             if ($name === '.' || $name === '..' || str_starts_with($name, '.git') || $this->isCovered($plan, $path)) {
                 continue;
             }
 
-            if (!is_dir($projectDirectory . '/' . $path)) {
+            if (!is_dir($extensionDirectory . '/' . $path)) {
                 $unlisted[] = $path;
             } elseif ($this->containsListedEntries($plan, $path)) {
-                $unlisted = [...$unlisted, ...$this->scan($plan, $projectDirectory, $path)];
+                $unlisted = [...$unlisted, ...$this->scan($plan, $extensionDirectory, $path)];
             } else {
                 $unlisted[] = $path . '/';
             }

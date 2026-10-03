@@ -13,7 +13,7 @@ use SmartA\Jxt\Deployment\PlanEntry;
  * Reads a Joomla manifest and derives the deployment plan from it.
  *
  * Takes `<files>`, `<scriptfile>`, `<languages>`, `<media>` and the manifest file itself
- * into account. The manifest must be located in the project directory of the extension.
+ * into account. All paths are relative to the extension directory, i.e. the directory of the manifest.
  */
 final class ManifestParser
 {
@@ -44,7 +44,7 @@ final class ManifestParser
     /**
      * Parses the content of a manifest.
      *
-     * @param string $fileName File name of the manifest in the project directory
+     * @param string $fileName File name of the manifest
      *
      * @throws ManifestException if the manifest is invalid or has an unsupported type
      */
@@ -85,7 +85,7 @@ final class ManifestParser
      *
      * These are the `folder` attributes of `<files>`, `<languages>` and `<media>`, and for language files
      * without `folder` the first path segment (e.g. `language`). Without `folder` on `<files>` or `<media>`
-     * this would be the project directory itself, which also contains dev files; it is therefore not checked.
+     * this would be the extension directory itself, which may also contain dev files; it is therefore not checked.
      *
      * @return list<string>
      */

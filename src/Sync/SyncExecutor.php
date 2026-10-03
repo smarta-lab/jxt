@@ -30,7 +30,7 @@ final readonly class SyncExecutor
      *
      * @throws \SmartA\Jxt\Deployment\DeploymentException if a file operation fails
      */
-    public function execute(SyncPlan $plan, string $projectDirectory, string $joomlaRoot, Configuration $configuration): void
+    public function execute(SyncPlan $plan, string $extensionDirectory, string $joomlaRoot, Configuration $configuration): void
     {
         foreach ($plan->deletions as $deletion) {
             $path = $joomlaRoot . '/' . $deletion->target;
@@ -51,7 +51,7 @@ final readonly class SyncExecutor
             $this->ensureDirectory($joomlaRoot, dirname($file->entry->target), $configuration);
 
             if ($file->status !== FileStatus::Unchanged) {
-                $this->filesystem->copyFile($projectDirectory . '/' . $file->entry->source, $target);
+                $this->filesystem->copyFile($extensionDirectory . '/' . $file->entry->source, $target);
             }
 
             $this->applyPermissions($target, $configuration->fileMode, $configuration);

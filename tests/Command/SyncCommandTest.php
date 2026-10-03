@@ -117,6 +117,25 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('Not listed in the manifest', self::display($tester));
     }
 
+    public function testSyncsFromConfiguredManifestInSubdirectory(): void
+    {
+        unlink($this->temporaryDirectory . '/project/mod_x.xml');
+        unlink($this->temporaryDirectory . '/project/tmpl/default.php');
+        rmdir($this->temporaryDirectory . '/project/tmpl');
+        $this->writeFile('project/extension/mod_x.xml', $this->manifestXml('1.0.0'));
+        $this->writeFile('project/extension/tmpl/default.php', '<?php // extension');
+        $this->writeFile(
+            'project/.jxt.json',
+            (string) json_encode(['joomla_root' => $this->joomla(), 'manifest' => 'extension/mod_x.xml']),
+        );
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringEqualsFile($this->joomla() . '/modules/mod_x/tmpl/default.php', '<?php // extension');
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertStringContainsString('1 copied, 1 deleted, 1 unchanged', self::display($tester));
+    }
+
     public function testFailsWithoutInstalledManifest(): void
     {
         unlink($this->joomla() . '/modules/mod_x/mod_x.xml');

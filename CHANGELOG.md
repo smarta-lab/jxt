@@ -6,6 +6,13 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Configuration key `manifest` in `.jxt.json` for extensions in a subdirectory
+  of the project or projects with more than one manifest. All paths of the
+  manifest are relative to its directory; the error messages for a missing or
+  ambiguous manifest point to the new key.
+
 ### Fixed
 
 - The error messages for several manifests in the project directory and for a

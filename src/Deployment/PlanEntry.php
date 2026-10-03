@@ -10,7 +10,7 @@ namespace SmartA\Jxt\Deployment;
 final readonly class PlanEntry
 {
     /**
-     * @param string $source Path relative to the extension's project directory
+     * @param string $source Path relative to the extension directory (the directory of the manifest)
      * @param string $target Path relative to the Joomla root directory
      */
     public function __construct(

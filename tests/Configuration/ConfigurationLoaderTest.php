@@ -45,6 +45,7 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame($this->project() . '/dist', $configuration->distDirectory);
         self::assertSame(0755, $configuration->directoryMode);
         self::assertSame(0644, $configuration->fileMode);
+        self::assertNull($configuration->manifestFile);
     }
 
     public function testWorksWithoutGlobalConfigurationFile(): void
@@ -90,10 +91,30 @@ final class ConfigurationLoaderTest extends TestCase
             new ConfigurationEntry(ConfigurationKey::JoomlaRoot, '/var/www/html', ConfigurationSource::Global),
             new ConfigurationEntry(ConfigurationKey::Owner, null, ConfigurationSource::Project),
             new ConfigurationEntry(ConfigurationKey::Group, null, ConfigurationSource::None),
+            new ConfigurationEntry(ConfigurationKey::Manifest, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::DistDirectory, 'dist', ConfigurationSource::Default),
             new ConfigurationEntry(ConfigurationKey::DirectoryMode, '0770', ConfigurationSource::Project),
             new ConfigurationEntry(ConfigurationKey::FileMode, '0644', ConfigurationSource::Default),
         ], $entries);
+    }
+
+    public function testResolvesManifestRelativeToProjectDirectory(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"manifest": "extension/mod_x.xml"}');
+
+        $configuration = (new ConfigurationLoader(null))->load($this->project());
+
+        self::assertSame($this->project() . '/extension/mod_x.xml', $configuration->manifestFile);
+    }
+
+    public function testRejectsManifestInGlobalConfiguration(): void
+    {
+        $this->writeFile('config.json', '{"manifest": "mod_x.xml"}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessageMatches('/manifest can only be set in the project configuration/');
+
+        (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
     }
 
     public function testKeepsAbsoluteDistDirectory(): void
@@ -132,6 +153,7 @@ final class ConfigurationLoaderTest extends TestCase
         yield 'relative Joomla directory' => ['{"joomla_root": "html"}', 'joomla_root'];
         yield 'invalid mode' => ['{"file_mode": "0999"}', 'file_mode'];
         yield 'mode as number' => ['{"dir_mode": 755}', 'dir_mode'];
+        yield 'absolute manifest path' => ['{"manifest": "/srv/mod_x.xml"}', 'Invalid value "/srv/mod_x.xml" for "manifest"'];
     }
 
     /**

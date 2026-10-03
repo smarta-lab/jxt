@@ -2,10 +2,22 @@
 
 [English](USAGE.md)
 
-Alle Befehle werden im Projektordner einer Erweiterung ausgeführt, also in dem
-Ordner mit dem Manifest (`mod_*.xml` oder `templateDetails.xml`). Das Manifest
-wird automatisch gefunden: Es ist die einzige XML-Datei in diesem Ordner mit dem
-Wurzelelement `<extension>`.
+Alle Befehle werden im Projektordner einer Erweiterung ausgeführt. Meist ist das
+der Ordner mit dem Manifest (`mod_*.xml` oder `templateDetails.xml`). Das
+Manifest wird automatisch gefunden: Es ist die einzige XML-Datei in diesem
+Ordner mit dem Wurzelelement `<extension>`.
+
+Liegt die Erweiterung in einem Unterordner des Projekts (z. B. `extension/`,
+während `composer.json`, `tests/` und `docs/` im Projektordner liegen) oder
+enthält der Projektordner mehr als ein Manifest, wird das Manifest in der
+Projektkonfiguration angegeben:
+
+```bash
+vendor/bin/jxt config set manifest extension/mod_example.xml
+```
+
+Wie beim Joomla-Installer gelten alle Pfade im Manifest relativ zum Ordner des
+Manifests. `.jxt.json` und `dist/` bleiben im Projektordner.
 
 Die Ausgabe von jxt ist englisch; die Beispiele unten zeigen sie unverändert.
 
@@ -116,9 +128,9 @@ vendor/bin/jxt build
 
 Erstellt `dist/<element>-<version>.zip` (Templates:
 `dist/tpl_<name>-<version>.zip`) mit dem Manifest und allen darin genannten
-Dateien, jeweils mit ihrem Pfad im Projekt. Eine vorhandene Datei gleichen
-Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor Dateien, die nicht im
-Manifest stehen.
+Dateien, jeweils mit ihrem Pfad relativ zum Manifest. Eine vorhandene Datei
+gleichen Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor Dateien, die
+nicht im Manifest stehen.
 
 Das ZIP wird aus der Arbeitskopie erstellt, also einschließlich nicht
 committeter Änderungen.
@@ -142,6 +154,7 @@ Key         Value         Origin
 joomla_root /var/www/html global
 owner       www-data      global
 group       www-data      global
+manifest    –             not set
 dist_dir    dist          default
 dir_mode    0775          project
 file_mode   0644          default
@@ -168,6 +181,7 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `joomla_root` | Absoluter Pfad des Joomla-Testservers; muss `configuration.php` enthalten | – (für `jxt sync` erforderlich) |
 | `owner` | Eigentümer der übertragenen Dateien, nur als root wirksam | – |
 | `group` | Gruppe der übertragenen Dateien, nur als root wirksam | – |
+| `manifest` | Manifest-Datei relativ zum Projektordner; nur in `.jxt.json` | – (wird im Projektordner gesucht) |
 | `dist_dir` | Zielordner von `jxt build`, relativ zum Projekt oder absolut | `dist` |
 | `dir_mode` | Rechte für Ordner | `0755` |
 | `file_mode` | Rechte für Dateien | `0644` |

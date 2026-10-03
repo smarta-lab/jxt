@@ -16,6 +16,8 @@ final readonly class Configuration
      * @param string      $distDirectory  Absolute output directory for `jxt build`
      * @param int         $directoryMode  Mode for directories, e.g. 0755
      * @param int         $fileMode       Mode for files, e.g. 0644
+     * @param string|null $manifestFile   Absolute path of the configured manifest; null to locate it
+     *                                    in the project directory
      */
     public function __construct(
         public ?string $joomlaRoot,
@@ -24,6 +26,7 @@ final readonly class Configuration
         public string $distDirectory,
         public int $directoryMode,
         public int $fileMode,
+        public ?string $manifestFile = null,
     ) {
     }
 }

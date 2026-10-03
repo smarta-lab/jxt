@@ -12,6 +12,7 @@ enum ConfigurationKey: string
     case JoomlaRoot = 'joomla_root';
     case Owner = 'owner';
     case Group = 'group';
+    case Manifest = 'manifest';
     case DistDirectory = 'dist_dir';
     case DirectoryMode = 'dir_mode';
     case FileMode = 'file_mode';
@@ -29,6 +30,14 @@ enum ConfigurationKey: string
             self::FileMode => '0644',
             default => null,
         };
+    }
+
+    /**
+     * Checks whether the key may only be set in the project configuration `.jxt.json`.
+     */
+    public function isProjectOnly(): bool
+    {
+        return $this === self::Manifest;
     }
 
     /**
@@ -54,6 +63,7 @@ enum ConfigurationKey: string
 
         $isValid = match ($this) {
             self::JoomlaRoot => str_starts_with($value, '/'),
+            self::Manifest => !str_starts_with($value, '/'),
             self::DirectoryMode, self::FileMode => preg_match(self::MODE_PATTERN, $value) === 1,
             default => true,
         };

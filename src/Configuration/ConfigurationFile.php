@@ -12,7 +12,10 @@ use SmartA\Jxt\PhpErrors;
  */
 final readonly class ConfigurationFile
 {
-    public function __construct(public string $path)
+    /**
+     * @param bool $isGlobal Whether this is the global configuration, where project-only keys are not allowed
+     */
+    public function __construct(public string $path, public bool $isGlobal = false)
     {
     }
 
@@ -53,6 +56,7 @@ final readonly class ConfigurationFile
 
         foreach ($data as $name => $value) {
             $key = ConfigurationKey::fromName((string) $name, $this->path);
+            $this->assertAllowed($key);
             $values[$key->value] = $key->validate($value, $this->path);
         }
 
@@ -64,7 +68,7 @@ final readonly class ConfigurationFile
      *
      * @param array<string, string|null> $values Values by key name
      *
-     * @throws ConfigurationException if the directory or file cannot be written
+     * @throws ConfigurationException if a key is not allowed in this file or the file cannot be written
      */
     public function write(array $values): void
     {
@@ -72,6 +76,7 @@ final readonly class ConfigurationFile
 
         foreach (ConfigurationKey::cases() as $key) {
             if (array_key_exists($key->value, $values)) {
+                $this->assertAllowed($key);
                 $ordered[$key->value] = $values[$key->value];
             }
         }
@@ -88,6 +93,23 @@ final readonly class ConfigurationFile
             throw new ConfigurationException(
                 sprintf('Cannot write configuration %s%s', $this->path, $error === null ? '.' : ': ' . $error),
             );
+        }
+    }
+
+    /**
+     * Rejects project-only keys in the global configuration.
+     *
+     * @throws ConfigurationException if the key is not allowed in this file
+     */
+    private function assertAllowed(ConfigurationKey $key): void
+    {
+        if ($this->isGlobal && $key->isProjectOnly()) {
+            throw new ConfigurationException(sprintf(
+                '%s can only be set in the project configuration %s, not in %s.',
+                $key->value,
+                ConfigurationLoader::PROJECT_FILE,
+                $this->path,
+            ));
         }
     }
 }

@@ -13,7 +13,8 @@ each extension project. It had three problems:
 Requirements for the replacement:
 
 1. Find and parse the manifest (`mod_*.xml`, `templateDetails.xml`) in the
-   current directory.
+   current directory, or the manifest configured in `.jxt.json` if the
+   extension is in a subdirectory.
 2. Find the Joomla test server through a configuration file.
 3. Copy only the files and directories listed in the manifest and set file
    permissions.
@@ -53,8 +54,9 @@ written:
 
 The manifest parser turns the manifest into a *deployment plan*: a list of
 "source → target" mappings for the manifest file itself, `<files>`,
-`<scriptfile>`, `<languages>` and `<media>`. Sources are relative to the project
-directory, targets relative to the Joomla root. `jxt sync` and `jxt build` use
+`<scriptfile>`, `<languages>` and `<media>`. Sources are relative to the
+extension directory (the directory of the manifest, usually the project
+directory), targets relative to the Joomla root. `jxt sync` and `jxt build` use
 the same plan, so the server and the ZIP always contain the same files.
 
 The plan also records:

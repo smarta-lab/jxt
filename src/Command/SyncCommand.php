@@ -64,7 +64,9 @@ final class SyncCommand extends Command
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
             $joomlaRoot = $this->joomlaRoot($configuration);
-            $manifest = $this->manifestParser->parseFile($this->manifestLocator->locate($this->projectDirectory));
+            $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
+            $manifest = $this->manifestParser->parseFile($manifestFile);
+            $extensionDirectory = dirname($manifestFile);
             $installedManifest = $joomlaRoot . '/' . $manifest->installedManifest();
 
             if (!is_file($installedManifest)) {
@@ -77,17 +79,17 @@ final class SyncCommand extends Command
             $plan = $this->planner->plan(
                 $manifest,
                 $this->manifestParser->parseFile($installedManifest),
-                $this->projectDirectory,
+                $extensionDirectory,
                 $joomlaRoot,
             );
 
             $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->element, $joomlaRoot, $dryRun ? ' (dry run)' : ''));
             $this->listChanges($io, $plan);
             $this->warn($io, $plan, $configuration, $dryRun);
-            $this->warnAboutUnlistedSources($io, $manifest->plan);
+            $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
 
             if (!$dryRun) {
-                $this->executor->execute($plan, $this->projectDirectory, $joomlaRoot, $configuration);
+                $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
             }
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
@@ -150,9 +152,9 @@ final class SyncCommand extends Command
     /**
      * Warns about files in the source directories that are not listed in the manifest and would therefore be missing.
      */
-    private function warnAboutUnlistedSources(SymfonyStyle $io, DeploymentPlan $plan): void
+    private function warnAboutUnlistedSources(SymfonyStyle $io, DeploymentPlan $plan, string $extensionDirectory): void
     {
-        $unlisted = $this->unlistedSourceFinder->find($plan, $this->projectDirectory);
+        $unlisted = $this->unlistedSourceFinder->find($plan, $extensionDirectory);
 
         if ($unlisted !== []) {
             $io->warning(implode("\n", ['Not listed in the manifest, therefore not deployed:', ...$unlisted]));
