@@ -27,6 +27,10 @@ sudo vendor/bin/jxt sync            # deploy
 sudo vendor/bin/jxt sync --dry-run  # only show what would be copied and deleted
 ```
 
+`vendor/bin/sjxt` is a shorthand for `sudo vendor/bin/jxt` (Linux and macOS).
+sudo resets `PATH`, so `sudo jxt` does not find jxt even if `vendor/bin` is in
+your `PATH`, e.g. via direnv; `sjxt sync` does.
+
 `jxt sync` compares the project with the test server and lists the changes:
 
 ```

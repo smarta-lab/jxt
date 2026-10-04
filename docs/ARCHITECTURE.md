@@ -136,6 +136,10 @@ Consequences when only files are copied after the first installation:
   configuration is determined via `SUDO_USER`.
 - `jxt config` refuses to write under sudo so that configuration files are not
   owned by root.
+- `bin/sjxt` runs `sudo php …/jxt` and resolves the PHP binary and the jxt
+  proxy beforehand, because sudo replaces `PATH` with `secure_path`. Composer's
+  proxy passes the bin directory in `COMPOSER_RUNTIME_BIN_DIR`, so the jxt
+  proxy with the project's autoloader is used.
 
 ## Code structure
 

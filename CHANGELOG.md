@@ -12,6 +12,8 @@ project follows [Semantic Versioning](https://semver.org/).
   of the project or projects with more than one manifest. All paths of the
   manifest are relative to its directory; the error messages for a missing or
   ambiguous manifest point to the new key.
+- `vendor/bin/sjxt` as a shorthand for `sudo vendor/bin/jxt`; it also works
+  when `vendor/bin` is only in the user's `PATH`, e.g. via direnv.
 
 ### Fixed
 

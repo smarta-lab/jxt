@@ -28,6 +28,10 @@ sudo vendor/bin/jxt sync            # übertragen
 sudo vendor/bin/jxt sync --dry-run  # nur anzeigen, nichts ändern
 ```
 
+`vendor/bin/sjxt` ist eine Kurzform für `sudo vendor/bin/jxt` (Linux und macOS).
+sudo setzt `PATH` zurück, deshalb findet `sudo jxt` jxt nicht, auch wenn
+`vendor/bin` z. B. über direnv im `PATH` liegt; `sjxt sync` funktioniert.
+
 `jxt sync` gleicht das Projekt mit dem Testserver ab und listet die Änderungen
 auf:
 
