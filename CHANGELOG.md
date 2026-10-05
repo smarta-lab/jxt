@@ -6,6 +6,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-06
+
 ### Added
 
 - Configuration key `manifest` in `.jxt.json` for extensions in a subdirectory
@@ -23,6 +25,7 @@ project follows [Semantic Versioning](https://semver.org/).
 
 - `jxt sync` no longer suggests sudo; its hints for the first installation and
   for installer-relevant changes point to `jxt install`.
+- `composer.lock` is no longer included in the package archive.
 
 ### Removed
 
@@ -49,5 +52,6 @@ First public release.
 - `jxt build`: build an installable ZIP file from the manifest.
 - `jxt config`: show and change the global and per-project configuration.
 
-[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/smarta-lab/jxt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/smarta-lab/jxt/releases/tag/v0.1.0
