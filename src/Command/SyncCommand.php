@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
-use SmartA\Jxt\Configuration\Configuration;
-use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
@@ -63,7 +61,7 @@ final class SyncCommand extends Command
 
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
-            $joomlaRoot = $this->joomlaRoot($configuration);
+            $joomlaRoot = $configuration->validJoomlaRoot();
             $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
             $manifest = $this->manifestParser->parseFile($manifestFile);
             $extensionDirectory = dirname($manifestFile);
@@ -71,7 +69,7 @@ final class SyncCommand extends Command
 
             if (!is_file($installedManifest)) {
                 throw new DeploymentException(sprintf(
-                    '%s not found. Please install the extension once via the backend using the ZIP file (jxt build).',
+                    '%s not found. Please install the extension once with jxt install.',
                     $installedManifest,
                 ));
             }
@@ -85,7 +83,7 @@ final class SyncCommand extends Command
 
             $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->element, $joomlaRoot, $dryRun ? ' (dry run)' : ''));
             $this->listChanges($io, $plan);
-            $this->warn($io, $plan, $configuration, $dryRun);
+            $this->warn($io, $plan);
             $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
 
             if (!$dryRun) {
@@ -94,8 +92,8 @@ final class SyncCommand extends Command
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
-            if ($exception instanceof DeploymentException && !$this->executor->runsAsRoot) {
-                $io->note('Missing write permissions on the server? Then run jxt sync with sudo.');
+            if ($exception instanceof DeploymentException) {
+                $io->note('Missing write permissions on the server? jxt install runs the Joomla installer as web server user.');
             }
 
             return Command::FAILURE;
@@ -110,25 +108,6 @@ final class SyncCommand extends Command
         $io->success($dryRun ? 'Dry run, nothing changed: ' . $summary : $summary);
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Returns the validated Joomla root directory from the configuration.
-     */
-    private function joomlaRoot(Configuration $configuration): string
-    {
-        $joomlaRoot = $configuration->joomlaRoot ?? throw new ConfigurationException(sprintf(
-            'joomla_root is not configured. Please set it in ~/.config/jxt/config.json or %s.',
-            ConfigurationLoader::PROJECT_FILE,
-        ));
-
-        if (!is_file($joomlaRoot . '/configuration.php')) {
-            throw new ConfigurationException(
-                sprintf('%s is not a Joomla installation (configuration.php is missing).', $joomlaRoot),
-            );
-        }
-
-        return $joomlaRoot;
     }
 
     /**
@@ -162,14 +141,13 @@ final class SyncCommand extends Command
     }
 
     /**
-     * Warns about changes that only take effect when installing via the Joomla installer,
-     * and, outside a dry run, about missing root privileges for owner/group.
+     * Warns about changes that only take effect when installing via the Joomla installer.
      */
-    private function warn(SymfonyStyle $io, SyncPlan $plan, Configuration $configuration, bool $dryRun): void
+    private function warn(SymfonyStyle $io, SyncPlan $plan): void
     {
         $comparison = $plan->comparison;
         $installerHint = 'jxt sync does not run install scripts, SQL files or update server entries. '
-            . 'Please install the ZIP file (jxt build) via the backend.';
+            . 'Please run jxt install.';
 
         if ($comparison->changedInstallerSections !== []) {
             $io->warning(sprintf(
@@ -189,14 +167,10 @@ final class SyncCommand extends Command
 
         if ($comparison->versionChanged()) {
             $io->note(sprintf(
-                'Version %s → %s: refresh the display in the extension manager via "Extensions: Manage" → "Refresh Cache".',
+                'Version %s → %s: run jxt install, or refresh the display via "Extensions: Manage" → "Refresh Cache".',
                 $comparison->oldVersion ?? '–',
                 $comparison->newVersion ?? '–',
             ));
-        }
-
-        if (!$dryRun && !$this->executor->runsAsRoot && ($configuration->owner !== null || $configuration->group !== null)) {
-            $io->warning('owner/group are configured, but jxt sync is not running with sudo: owner and group are not set.');
         }
     }
 }

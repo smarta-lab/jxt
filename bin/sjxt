@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Runs jxt with sudo. sudo resets PATH (secure_path), so jxt and the PHP binary
-# are resolved before switching to root.
-set -euo pipefail
-
-bin_dir="${COMPOSER_RUNTIME_BIN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-
-exec sudo "$(command -v php)" "$bin_dir/jxt" "$@"

@@ -11,18 +11,13 @@ use SmartA\Jxt\Deployment\EntryKind;
  * Executes a sync plan on the server.
  *
  * Order: delete, create the extension's directories, copy files. The mode is set for all files
- * and directories of the extension and for newly created directories, owner and group only as root.
- * Existing shared directories such as `language/de-DE/` remain unchanged.
+ * and directories of the extension and for newly created directories. Existing shared directories
+ * such as `language/de-DE/` remain unchanged.
  */
 final readonly class SyncExecutor
 {
-    /**
-     * @param bool $runsAsRoot Whether the process runs as root and may therefore run `chown`
-     */
-    public function __construct(
-        public bool $runsAsRoot,
-        private Filesystem $filesystem = new Filesystem(),
-    ) {
+    public function __construct(private Filesystem $filesystem = new Filesystem())
+    {
     }
 
     /**
@@ -43,7 +38,7 @@ final readonly class SyncExecutor
 
         foreach ($plan->directories as $directory) {
             $this->ensureDirectory($joomlaRoot, $directory, $configuration);
-            $this->applyPermissions($joomlaRoot . '/' . $directory, $configuration->directoryMode, $configuration);
+            $this->filesystem->changeMode($joomlaRoot . '/' . $directory, $configuration->directoryMode);
         }
 
         foreach ($plan->files as $file) {
@@ -54,7 +49,7 @@ final readonly class SyncExecutor
                 $this->filesystem->copyFile($extensionDirectory . '/' . $file->entry->source, $target);
             }
 
-            $this->applyPermissions($target, $configuration->fileMode, $configuration);
+            $this->filesystem->changeMode($target, $configuration->fileMode);
         }
     }
 
@@ -70,20 +65,8 @@ final readonly class SyncExecutor
 
             if (!is_dir($path)) {
                 $this->filesystem->createDirectory($path);
-                $this->applyPermissions($path, $configuration->directoryMode, $configuration);
+                $this->filesystem->changeMode($path, $configuration->directoryMode);
             }
-        }
-    }
-
-    /**
-     * Sets the mode and, as root, owner and group.
-     */
-    private function applyPermissions(string $path, int $mode, Configuration $configuration): void
-    {
-        $this->filesystem->changeMode($path, $mode);
-
-        if ($this->runsAsRoot) {
-            $this->filesystem->changeOwner($path, $configuration->owner, $configuration->group);
         }
     }
 }

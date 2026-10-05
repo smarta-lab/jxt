@@ -107,6 +107,14 @@ final class ManifestParserTest extends TestCase
         self::assertNull($installer->namespacePath);
         self::assertSame([], $installer->sections);
         self::assertSame([], $installer->targets);
+        self::assertFalse($installer->upgrade);
+    }
+
+    public function testDetectsUpgradeMethod(): void
+    {
+        $xml = '<extension type="module" method="upgrade"><name>mod_x</name></extension>';
+
+        self::assertTrue($this->parser->parse($xml, 'mod_x.xml')->installer->upgrade);
     }
 
     public function testBuildsPlanForSiteModule(): void

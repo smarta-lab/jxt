@@ -57,7 +57,7 @@ final class SyncCommandTest extends TestCase
         $command = new SyncCommand(
             $this->temporaryDirectory . '/project',
             new ConfigurationLoader(null),
-            new SyncExecutor(false),
+            new SyncExecutor(),
         );
         $application = new Application();
         $application->setAutoExit(false);
@@ -101,7 +101,7 @@ final class SyncCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('updateservers', self::display($tester));
-        self::assertStringContainsString('jxt build', self::display($tester));
+        self::assertStringContainsString('jxt install', self::display($tester));
     }
 
     public function testWarnsAboutUnlistedLanguageFile(): void
@@ -163,39 +163,15 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('configuration.php', self::display($tester));
     }
 
-    public function testWarnsWhenOwnerIsConfiguredWithoutRoot(): void
-    {
-        $this->writeFile(
-            'project/.jxt.json',
-            (string) json_encode(['joomla_root' => $this->joomla(), 'owner' => 'www-data']),
-        );
-        $tester = $this->tester();
-
-        self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertStringContainsString('sudo', self::display($tester));
-    }
-
-    public function testDoesNotWarnAboutOwnerInDryRun(): void
-    {
-        $this->writeFile(
-            'project/.jxt.json',
-            (string) json_encode(['joomla_root' => $this->joomla(), 'owner' => 'www-data']),
-        );
-        $tester = $this->tester();
-
-        self::assertSame(Command::SUCCESS, $tester->execute(['--dry-run' => true]));
-        self::assertStringNotContainsString('sudo', self::display($tester));
-    }
-
     /**
-     * Creates the command without global configuration and without root privileges.
+     * Creates the command without global configuration.
      */
     private function tester(): CommandTester
     {
         return new CommandTester(new SyncCommand(
             $this->temporaryDirectory . '/project',
             new ConfigurationLoader(null),
-            new SyncExecutor(false),
+            new SyncExecutor(),
         ));
     }
 

@@ -37,13 +37,13 @@ final class ConfigurationFileTest extends TestCase
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/sub/dir/config.json');
 
-        $file->write(['file_mode' => '0664', 'owner' => null, 'joomla_root' => '/var/www/html']);
+        $file->write(['file_mode' => '0664', 'web_user' => null, 'joomla_root' => '/var/www/html']);
 
         self::assertSame(
-            "{\n    \"joomla_root\": \"/var/www/html\",\n    \"owner\": null,\n    \"file_mode\": \"0664\"\n}\n",
+            "{\n    \"joomla_root\": \"/var/www/html\",\n    \"web_user\": null,\n    \"file_mode\": \"0664\"\n}\n",
             file_get_contents($file->path),
         );
-        self::assertSame(['joomla_root' => '/var/www/html', 'owner' => null, 'file_mode' => '0664'], $file->read());
+        self::assertSame(['joomla_root' => '/var/www/html', 'web_user' => null, 'file_mode' => '0664'], $file->read());
     }
 
     public function testWritesEmptyObject(): void

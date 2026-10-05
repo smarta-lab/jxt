@@ -58,44 +58,6 @@ final class Filesystem
     }
 
     /**
-     * Sets owner and group if given and different; requires root privileges.
-     */
-    public function changeOwner(string $path, ?string $owner, ?string $group): void
-    {
-        clearstatcache(true, $path);
-
-        if ($owner !== null && $this->ownerName($path) !== $owner) {
-            $this->run(static fn (): bool => chown($path, $owner), sprintf('Cannot set the owner of %s', $path));
-        }
-
-        if ($group !== null && $this->groupName($path) !== $group) {
-            $this->run(static fn (): bool => chgrp($path, $group), sprintf('Cannot set the group of %s', $path));
-        }
-    }
-
-    /**
-     * Returns the name of the owner.
-     */
-    private function ownerName(string $path): ?string
-    {
-        $owner = fileowner($path);
-        $entry = $owner === false ? false : posix_getpwuid($owner);
-
-        return $entry === false ? null : $entry['name'];
-    }
-
-    /**
-     * Returns the name of the group.
-     */
-    private function groupName(string $path): ?string
-    {
-        $group = filegroup($path);
-        $entry = $group === false ? false : posix_getgrgid($group);
-
-        return $entry === false ? null : $entry['name'];
-    }
-
-    /**
      * Runs an operation and turns a failure, including PHP's warning, into an exception.
      *
      * @param Closure(): bool $operation

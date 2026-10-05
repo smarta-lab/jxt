@@ -21,16 +21,78 @@ Manifests. `.jxt.json` und `dist/` bleiben im Projektordner.
 
 Die Ausgabe von jxt ist englisch; die Beispiele unten zeigen sie unverändert.
 
-## jxt sync – auf den Testserver übertragen
+## jxt install – auf dem Testserver installieren
 
 ```bash
-sudo vendor/bin/jxt sync            # übertragen
-sudo vendor/bin/jxt sync --dry-run  # nur anzeigen, nichts ändern
+vendor/bin/jxt install
 ```
 
-`vendor/bin/sjxt` ist eine Kurzform für `sudo vendor/bin/jxt` (Linux und macOS).
-sudo setzt `PATH` zurück, deshalb findet `sudo jxt` jxt nicht, auch wenn
-`vendor/bin` z. B. über direnv im `PATH` liegt; `sjxt sync` funktioniert.
+`jxt install` erstellt die ZIP-Datei wie `jxt build` und installiert sie mit dem
+Joomla-Installer, ohne dass das Backend im Browser aufgerufen werden muss:
+
+1. Die ZIP-Datei wird mit den Rechten 0644 nach `/tmp` kopiert, damit der
+   Webserver-Benutzer sie lesen kann, ohne Zugriff auf das Projekt zu haben.
+2. Die Joomla-CLI installiert sie als Webserver-Benutzer:
+   `sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…`
+3. Die Kopie in `/tmp` wird gelöscht.
+
+```
+mod_example-1.1.0.zip → /var/www/html
+Install Extension
+=================
+
+ [OK] Extension installed successfully.
+
+ [OK] mod_example 1.1.0 installed.
+```
+
+Das ist eine echte Installation bzw. ein echtes Update: Installationsskripte und
+SQL-Dateien laufen, Update-Server werden eingetragen, die Version im
+Erweiterungsmanager und der Namespace-Cache stimmen. Dateien, die im alten
+Manifest standen und im neuen fehlen, löscht Joomla selbst. Altlasten, die in
+keinem Manifest stehen, bleiben dagegen liegen.
+
+Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla die
+Installation über eine vorhandene Erweiterung ab. Schlägt die Installation fehl
+und fehlt das Attribut, weist `jxt install` darauf hin.
+
+### Einrichtung: sudo ohne Passwort für den Joomla-Installer
+
+Damit die Dateien dem Webserver-Benutzer gehören, läuft die Joomla-CLI als
+dieser Benutzer (`web_user`, Standard `www-data`). `sudo -n` fragt nie nach einem
+Passwort; nötig ist einmalig eine sudoers-Regel:
+
+```bash
+sudo visudo -f /etc/sudoers.d/jxt
+```
+
+```
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:install *
+```
+
+Benutzername (hier `user`), PHP-Binary und Pfad müssen genau zu dem Aufruf
+passen; fehlt die Regel, gibt `jxt install` die passende Zeile aus. Der
+Doppelpunkt muss in sudoers maskiert werden.
+
+Die Regel erlaubt nur, als `www-data` zu arbeiten, nicht als root. Über ein
+Installationsskript lässt sich damit beliebiger Code als `www-data` ausführen;
+das ist gewollt, denn genau dieser Code wird auf dem Testserver entwickelt. Der
+Webserver erhält dabei keinen Zugriff auf das Home-Verzeichnis.
+
+Läuft PHP auf dem Testserver ohnehin unter dem eigenen Benutzer (z. B. in einem
+Container), schaltet `jxt config set web_user null` sudo ab.
+
+## jxt sync – Dateien direkt übertragen
+
+```bash
+vendor/bin/jxt sync            # übertragen
+vendor/bin/jxt sync --dry-run  # nur anzeigen, nichts ändern
+```
+
+`jxt sync` kopiert die Dateien ohne den Joomla-Installer. Das ist schneller und
+räumt auch Altlasten auf, setzt aber voraus, dass der aufrufende Benutzer in den
+Zielordnern schreiben darf (siehe [Rechte](#rechte)). Gehören die Dateien
+dem Webserver-Benutzer, ist `jxt install` der richtige Befehl.
 
 `jxt sync` gleicht das Projekt mit dem Testserver ab und listet die Änderungen
 auf:
@@ -82,43 +144,36 @@ Vor dem ersten Lauf auf einem bestehenden Server lohnt sich ein Blick auf
 
 `jxt sync` aktualisiert nur eine bereits installierte Erweiterung. Fehlt das
 installierte Manifest, bricht es mit einer Fehlermeldung ab. Die Erweiterung
-einmal im Joomla-Backend mit der ZIP-Datei aus `jxt build` installieren, danach
-alle weiteren Änderungen mit `jxt sync` übertragen.
+einmal mit `jxt install` installieren.
 
-### Rechte und sudo
+### Rechte
 
-Die Dateien auf dem Testserver gehören meist dem Webserver-Benutzer (z. B.
-`www-data`). Zwei Varianten funktionieren:
+`jxt sync` arbeitet mit den Rechten des aufrufenden Benutzers. Die Rechte
+`dir_mode`/`file_mode` (Standard 0755/0644) werden für die Dateien und Ordner
+der Erweiterung und für neu angelegte Ordner gesetzt; bestehende gemeinsame
+Ordner wie `language/de-DE/` bleiben unverändert. `chmod` darf nur der
+Eigentümer einer Datei, Gruppenrechte reichen dafür nicht.
 
-- **Mit sudo (Standard):** `owner` und `group` konfigurieren; `jxt sync` setzt
-  sie sowie die Rechte `dir_mode`/`file_mode` (Standard 0755/0644).
-- **Ohne sudo:** Der eigene Benutzer ist Mitglied der Webserver-Gruppe, und die
-  Rechte erlauben der Gruppe Schreibzugriff, z. B. `dir_mode` 0775 und
-  `file_mode` 0664. `owner` und `group` bleiben leer.
-
-Die Rechte werden für die Dateien und Ordner der Erweiterung immer gesetzt,
-Eigentümer und Gruppe nur als root. Sind `owner` oder `group` konfiguriert und
-läuft `jxt sync` ohne sudo, gibt es eine Warnung; scheitert ohne sudo eine
-Dateioperation, folgt der Hinweis, `jxt sync` mit sudo auszuführen.
+Scheitert eine Dateioperation, weist `jxt sync` auf `jxt install` hin.
 
 ### Warnungen und Hinweise
 
 Kopieren ist nicht dasselbe wie eine Installation über den Joomla-Installer.
 `jxt sync` meldet daher:
 
-- **Geänderte Version:** Der Erweiterungsmanager zeigt die alte Version, bis sie
-  unter „System → Verwalten → Erweiterungen“ mit „Cache aktualisieren“
-  aufgefrischt wird.
+- **Geänderte Version:** Der Erweiterungsmanager zeigt die alte Version, bis
+  `jxt install` läuft oder sie unter „System → Verwalten → Erweiterungen“ mit
+  „Cache aktualisieren“ aufgefrischt wird.
 - **Geänderter Namespace:** `administrator/cache/autoload_psr4.php` wird
   gelöscht, Joomla erzeugt die Datei neu.
 - **Geänderte Installer-Abschnitte** (`<scriptfile>`, `<install>`,
   `<uninstall>`, `<update>`, `<updateservers>`) oder **neue/geänderte
   Installationsskripte und SQL-Dateien:** Diese wertet nur der Joomla-Installer
-  aus. Stattdessen die ZIP-Datei aus `jxt build` im Backend installieren.
+  aus. Stattdessen `jxt install` ausführen.
 - **Dateien, die nicht im Manifest stehen:** Dateien in den Quellordnern von
   `<media>`, `<languages>` (und `<files folder="…">`), die das Manifest nicht
   aufführt, z. B. ein neuer Ordner `media/svg/`. Sie würden auf dem Server und
-  im ZIP fehlen.
+  im ZIP fehlen. Diese Warnung geben auch `jxt install` und `jxt build` aus.
 
 Standardwerte neuer Modulparameter werden nicht in bestehende Modulinstanzen
 geschrieben. Das gilt auch bei einem echten Upgrade, deshalb Parameter immer mit
@@ -149,15 +204,13 @@ vendor/bin/jxt config unset <key> [--global]        # Wert entfernen
 
 Ohne `--global` ändern `set` und `unset` die Projektdatei `.jxt.json`, mit
 `--global` die globale Datei `~/.config/jxt/config.json`. `set <key> null`
-speichert ein ausdrückliches `null`, z. B. um einen globalen `owner` für ein
-Projekt abzuschalten. `jxt config` ohne sudo aufrufen, sonst gehörte die Datei
-root; unter sudo verweigert es das Schreiben.
+speichert ein ausdrückliches `null`. `jxt config` ohne sudo aufrufen, sonst
+gehörte die Datei root; unter sudo verweigert es das Schreiben.
 
 ```
 Key         Value         Origin
 joomla_root /var/www/html global
-owner       www-data      global
-group       www-data      global
+web_user    www-data      default
 manifest    –             not set
 dist_dir    dist          default
 dir_mode    0775          project
@@ -182,24 +235,22 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `joomla_root` | Absoluter Pfad des Joomla-Testservers; muss `configuration.php` enthalten | – (für `jxt sync` erforderlich) |
-| `owner` | Eigentümer der übertragenen Dateien, nur als root wirksam | – |
-| `group` | Gruppe der übertragenen Dateien, nur als root wirksam | – |
+| `joomla_root` | Absoluter Pfad des Joomla-Testservers; muss `configuration.php` enthalten | – (für `jxt install` und `jxt sync` erforderlich) |
+| `web_user` | Benutzer, als der `jxt install` die Joomla-CLI per sudo ausführt; `null` für einen Aufruf ohne sudo | `www-data` |
 | `manifest` | Manifest-Datei relativ zum Projektordner; nur in `.jxt.json` | – (wird im Projektordner gesucht) |
-| `dist_dir` | Zielordner von `jxt build`, relativ zum Projekt oder absolut | `dist` |
-| `dir_mode` | Rechte für Ordner | `0755` |
-| `file_mode` | Rechte für Dateien | `0644` |
+| `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
+| `dir_mode` | Rechte für Ordner bei `jxt sync` | `0755` |
+| `file_mode` | Rechte für Dateien bei `jxt sync` | `0644` |
 
-Alle Werte sind Texte oder `null`. Rechte werden vierstellig gespeichert (`775`
-wird zu `0775`). Unbekannte Schlüssel werden abgewiesen, damit Tippfehler
-auffallen.
+Alle Werte sind Texte oder `null`. `null` setzt einen Schlüssel auf seinen
+Standardwert zurück, nur bei `web_user` bedeutet es „ohne sudo“. Rechte werden
+vierstellig gespeichert (`775` wird zu `0775`). Unbekannte Schlüssel werden
+abgewiesen, damit Tippfehler auffallen.
 
 Beispiel `~/.config/jxt/config.json`:
 
 ```json
 {
-    "joomla_root": "/var/www/html",
-    "owner": "www-data",
-    "group": "www-data"
+    "joomla_root": "/var/www/html"
 }
 ```

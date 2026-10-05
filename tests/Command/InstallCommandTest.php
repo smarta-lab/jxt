@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SmartA\Jxt\Tests\Command;
+
+use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Command\InstallCommand;
+use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\JoomlaInstaller;
+use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
+use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Tester\CommandTester;
+
+/**
+ * Tests for the `jxt install` command.
+ */
+final class InstallCommandTest extends TestCase
+{
+    use CommandDisplayTrait;
+    use TemporaryDirectoryTrait;
+
+    private const string MANIFEST = '<extension type="module" method="upgrade"><name>mod_x</name>'
+        . '<version>1.0.0</version><files><folder module="mod_x">tmpl</folder></files></extension>';
+
+    #[\Override]
+    protected function setUp(): void
+    {
+        $this->createTemporaryDirectory();
+        $this->writeFile('project/mod_x.xml', self::MANIFEST);
+        $this->writeFile('project/tmpl/default.php', '<?php');
+        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));
+        $this->writeFile('joomla/configuration.php', '<?php');
+        mkdir($this->temporaryDirectory . '/tmp');
+    }
+
+    #[\Override]
+    protected function tearDown(): void
+    {
+        $this->removeTemporaryDirectory();
+    }
+
+    public function testBuildsTheZipAndInstallsItAsWebUser(): void
+    {
+        $runner = new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertFileExists($this->temporaryDirectory . '/project/dist/mod_x-1.0.0.zip');
+        self::assertSame(['sudo', '-n', '-u', 'www-data'], array_slice($runner->command, 0, 4));
+        self::assertSame($this->joomla() . '/cli/joomla.php', $runner->command[5]);
+        self::assertNotNull($runner->packageContent);
+        self::assertStringContainsString('Extension installed successfully', self::display($tester));
+        self::assertStringContainsString('mod_x 1.0.0 installed', self::display($tester));
+    }
+
+    public function testRunsWithoutSudoIfWebUserIsNull(): void
+    {
+        $this->writeFile(
+            'project/.jxt.json',
+            (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => null]),
+        );
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+
+        self::assertSame(Command::SUCCESS, $this->tester($runner)->execute([]));
+        self::assertSame('/usr/bin/php8.5', $runner->command[0]);
+    }
+
+    public function testShowsTheSudoersRuleIfSudoAsksForAPassword(): void
+    {
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, 'sudo: a password is required')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('sudo visudo -f /etc/sudoers.d/jxt', self::display($tester));
+        self::assertStringContainsString('anna ALL=(www-data) NOPASSWD: /usr/bin/php8.5', self::display($tester));
+        self::assertStringContainsString('extension\:install *', self::display($tester));
+    }
+
+    public function testPointsToTheUpgradeMethodIfTheInstallationFails(): void
+    {
+        $this->writeFile('project/mod_x.xml', str_replace(' method="upgrade"', '', self::MANIFEST));
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, '[ERROR] Unable to install extension')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Unable to install extension', self::display($tester));
+        self::assertStringContainsString('method="upgrade"', self::display($tester));
+    }
+
+    public function testDoesNotPointToTheUpgradeMethodIfItIsSet(): void
+    {
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, '[ERROR] Unable to install extension')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringNotContainsString('method="upgrade"', self::display($tester));
+    }
+
+    public function testFailsForDirectoryWithoutJoomla(): void
+    {
+        unlink($this->joomla() . '/configuration.php');
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('configuration.php', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    /**
+     * Creates the command without global configuration for the user `anna`.
+     */
+    private function tester(RecordingProcessRunner $runner): CommandTester
+    {
+        return new CommandTester(new InstallCommand(
+            $this->temporaryDirectory . '/project',
+            new ConfigurationLoader(null),
+            new JoomlaInstaller($runner, '/usr/bin/php8.5', $this->temporaryDirectory . '/tmp'),
+            'anna',
+        ));
+    }
+
+    /**
+     * Returns the Joomla root directory.
+     */
+    private function joomla(): string
+    {
+        return $this->temporaryDirectory . '/joomla';
+    }
+}

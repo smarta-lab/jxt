@@ -7,8 +7,8 @@ namespace SmartA\Jxt\Configuration;
 /**
  * Loads the global configuration and the optional project configuration `.jxt.json`.
  *
- * Values of the project configuration override the global values. `null` resets a value,
- * e.g. `"owner": null` to disable `chown` for a project.
+ * Values of the project configuration override the global values. `null` resets a value to its default;
+ * only for `web_user`, an explicit `null` means running the Joomla CLI without sudo.
  */
 final readonly class ConfigurationLoader
 {
@@ -61,8 +61,9 @@ final readonly class ConfigurationLoader
 
         return new Configuration(
             $joomlaRoot === null ? null : $this->withoutTrailingSlash($joomlaRoot),
-            $value(ConfigurationKey::Owner),
-            $value(ConfigurationKey::Group),
+            array_key_exists(ConfigurationKey::WebUser->value, $values)
+                ? $values[ConfigurationKey::WebUser->value]
+                : ConfigurationKey::WebUser->defaultValue(),
             $this->withoutTrailingSlash(
                 str_starts_with($distDirectory, '/') ? $distDirectory : $projectDirectory . '/' . $distDirectory,
             ),

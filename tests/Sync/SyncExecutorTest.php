@@ -131,9 +131,9 @@ final class SyncExecutorTest extends TestCase
      */
     private function execute(SyncPlan $plan): void
     {
-        $configuration = new Configuration($this->joomla(), null, null, $this->project() . '/dist', 0750, 0640);
+        $configuration = new Configuration($this->joomla(), null, $this->project() . '/dist', 0750, 0640);
 
-        (new SyncExecutor(false))->execute($plan, $this->project(), $this->joomla(), $configuration);
+        (new SyncExecutor())->execute($plan, $this->project(), $this->joomla(), $configuration);
     }
 
     /**

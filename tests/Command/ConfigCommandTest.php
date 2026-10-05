@@ -43,7 +43,7 @@ final class ConfigCommandTest extends TestCase
         self::assertMatchesRegularExpression('/joomla_root\s+\/var\/www\/html\s+global/', $display);
         self::assertMatchesRegularExpression('/dir_mode\s+0775\s+project/', $display);
         self::assertMatchesRegularExpression('/dist_dir\s+dist\s+default/', $display);
-        self::assertMatchesRegularExpression('/owner\s+–\s+not set/', $display);
+        self::assertMatchesRegularExpression('/manifest\s+–\s+not set/', $display);
         self::assertStringContainsString($this->globalFile(), $display);
         self::assertStringContainsString($this->project() . '/.jxt.json', $display);
     }
@@ -52,10 +52,10 @@ final class ConfigCommandTest extends TestCase
     {
         $this->writeFile('project/.jxt.json', '{"dist_dir": "build"}');
 
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'owner', 'value' => 'www-data']));
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'apache']));
         self::assertJsonStringEqualsJsonFile(
             $this->project() . '/.jxt.json',
-            '{"owner": "www-data", "dist_dir": "build"}',
+            '{"web_user": "apache", "dist_dir": "build"}',
         );
     }
 
@@ -75,8 +75,8 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetNullStoresJsonNull(): void
     {
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'owner', 'value' => 'null']));
-        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"owner": null}');
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'null']));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"web_user": null}');
     }
 
     public function testSetWritesModesWithFourDigits(): void
@@ -87,10 +87,10 @@ final class ConfigCommandTest extends TestCase
 
     public function testUnsetRemovesKey(): void
     {
-        $this->writeFile('project/.jxt.json', '{"owner": "www-data", "group": "www-data"}');
+        $this->writeFile('project/.jxt.json', '{"web_user": "apache", "dist_dir": "build"}');
 
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'unset', 'key' => 'owner']));
-        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"group": "www-data"}');
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'unset', 'key' => 'web_user']));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"dist_dir": "build"}');
     }
 
     /**
@@ -115,7 +115,7 @@ final class ConfigCommandTest extends TestCase
         yield 'unknown action' => [['action' => 'delete'], 'delete'];
         yield 'unknown key' => [['action' => 'set', 'key' => 'joomla_rot', 'value' => '/x'], 'joomla_rot'];
         yield 'invalid value' => [['action' => 'set', 'key' => 'file_mode', 'value' => '999'], 'file_mode'];
-        yield 'missing value' => [['action' => 'set', 'key' => 'owner'], 'specify a value'];
+        yield 'missing value' => [['action' => 'set', 'key' => 'web_user'], 'specify a value'];
         yield 'missing key' => [['action' => 'unset'], 'specify a key'];
         yield 'global manifest' => [
             ['action' => 'set', 'key' => 'manifest', 'value' => 'mod_x.xml', '--global' => true],
@@ -127,7 +127,7 @@ final class ConfigCommandTest extends TestCase
     {
         $tester = new CommandTester(new ConfigCommand($this->project(), new ConfigurationLoader($this->globalFile()), true));
 
-        self::assertSame(Command::FAILURE, $tester->execute(['action' => 'set', 'key' => 'owner', 'value' => 'www-data']));
+        self::assertSame(Command::FAILURE, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'apache']));
         self::assertStringContainsString('sudo', self::display($tester));
         self::assertFileDoesNotExist($this->project() . '/.jxt.json');
     }

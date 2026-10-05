@@ -16,12 +16,15 @@ final readonly class InstallerMetadata
      *                                             `<update>` and `<updateservers>`, per section
      * @param list<string>          $targets       Target paths of the install script, SQL files and schema directories
      *                                             (relative to the Joomla root directory)
+     * @param bool                  $upgrade       Whether the root element has `method="upgrade"`, which allows
+     *                                             the Joomla installer to update an installed extension
      */
     public function __construct(
         public ?string $namespace,
         public ?string $namespacePath,
         public array $sections,
         public array $targets,
+        public bool $upgrade,
     ) {
     }
 }

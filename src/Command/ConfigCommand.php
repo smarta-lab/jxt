@@ -110,7 +110,7 @@ final class ConfigCommand extends Command
         $rawValue = $input->getArgument('value');
 
         if (!is_string($rawValue)) {
-            throw new ConfigurationException('Please specify a value, e.g. jxt config set owner www-data.');
+            throw new ConfigurationException('Please specify a value, e.g. jxt config set joomla_root /var/www/html.');
         }
 
         $value = $key->validate($rawValue === 'null' ? null : $rawValue, $file->path);

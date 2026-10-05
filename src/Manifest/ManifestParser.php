@@ -153,6 +153,7 @@ final class ManifestParser
             $namespace === null || trim((string) $namespace['path']) === '' ? null : trim((string) $namespace['path']),
             $sections,
             $targets,
+            strtolower(trim((string) $root['method'])) === 'upgrade',
         );
     }
 

@@ -6,9 +6,11 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Command\ConfigCommand;
+use SmartA\Jxt\Command\InstallCommand;
 use SmartA\Jxt\Command\SyncCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Configuration\HomeDirectoryResolver;
+use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Sync\SyncExecutor;
 use Symfony\Component\Console\Application;
@@ -23,13 +25,14 @@ try {
 }
 
 $projectDirectory = (string) getcwd();
-$runsAsRoot = posix_geteuid() === 0;
-$sudoUser = getenv('SUDO_USER');
+$runsViaSudo = posix_geteuid() === 0 && is_string(getenv('SUDO_USER')) && getenv('SUDO_USER') !== '';
+$currentUser = posix_getpwuid(posix_geteuid())['name'] ?? (string) get_current_user();
 
 $application = new Application('jxt', InstalledVersions::getPrettyVersion('smarta-lab/jxt') ?? 'unknown');
 $application->addCommands([
-    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor($runsAsRoot)),
+    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor()),
+    new InstallCommand($projectDirectory, $configurationLoader, new JoomlaInstaller(), $currentUser),
     new BuildCommand($projectDirectory, $configurationLoader),
-    new ConfigCommand($projectDirectory, $configurationLoader, $runsAsRoot && is_string($sudoUser) && $sudoUser !== ''),
+    new ConfigCommand($projectDirectory, $configurationLoader, $runsViaSudo),
 ]);
 $application->run();

@@ -22,8 +22,7 @@
         }
     ],
     "bin": [
-        "bin/jxt",
-        "bin/sjxt"
+        "bin/jxt"
     ],
     "require": {
         "php": ">=8.4",

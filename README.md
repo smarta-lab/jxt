@@ -2,7 +2,9 @@
 
 Manifest-driven CLI for Joomla!® extension development:
 
-- **`jxt sync`** deploys a module or template to a local Joomla test server. Only the files listed in
+- **`jxt install`** builds the ZIP file and installs it on a local Joomla test server with the Joomla
+  installer, run as the web server user – no backend, no root.
+- **`jxt sync`** copies a module or template directly to the test server. Only the files listed in
   the manifest are copied, and files that no longer belong to the extension are deleted.
 - **`jxt build`** packages the extension as a ZIP file that can be installed in the Joomla backend.
 - **`jxt config`** shows and changes the global and per-project configuration.
@@ -16,7 +18,7 @@ Supported extension types: modules (site and administrator) and templates.
 ## Requirements
 
 - PHP 8.4+ with the extensions `libxml`, `simplexml`, `zip` and `posix`
-- Linux or WSL (file ownership is set via `chown`/`chgrp`)
+- Linux or WSL; `jxt install` uses `sudo` to run the Joomla CLI as the web server user
 
 ## Installation
 
@@ -36,15 +38,17 @@ immediately. Add `/dist/` to the project's `.gitignore`.
 ```bash
 # once: tell the tools where the test server is
 vendor/bin/jxt config set joomla_root /var/www/html --global
-vendor/bin/jxt config set owner www-data --global
-vendor/bin/jxt config set group www-data --global
 
-# build an installable ZIP, e.g. dist/mod_example-1.0.0.zip
+# once: allow running the Joomla installer as www-data without password
+# (jxt install prints the exact line for your system if it is missing)
+sudo visudo -f /etc/sudoers.d/jxt
+#   user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:install *
+
+# build dist/mod_example-1.0.0.zip and install it on the test server
+vendor/bin/jxt install
+
+# only build the ZIP
 vendor/bin/jxt build
-
-# first installation: install the ZIP in the Joomla backend, then deploy changes with
-sudo vendor/bin/jxt sync --dry-run
-sudo vendor/bin/jxt sync
 ```
 
 ## Documentation

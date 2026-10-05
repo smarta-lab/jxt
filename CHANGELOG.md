@@ -12,8 +12,24 @@ project follows [Semantic Versioning](https://semver.org/).
   of the project or projects with more than one manifest. All paths of the
   manifest are relative to its directory; the error messages for a missing or
   ambiguous manifest point to the new key.
-- `vendor/bin/sjxt` as a shorthand for `sudo vendor/bin/jxt`; it also works
-  when `vendor/bin` is only in the user's `PATH`, e.g. via direnv.
+- `jxt install`: builds the ZIP file and installs it with the Joomla CLI
+  (`cli/joomla.php extension:install`) as the web server user via
+  `sudo -n -u <web_user>`, so no root privileges and no backend are needed.
+  If sudo asks for a password, the matching sudoers rule is printed.
+- Configuration key `web_user` (default `www-data`); `null` runs the Joomla CLI
+  without sudo.
+
+### Changed
+
+- `jxt sync` no longer suggests sudo; its hints for the first installation and
+  for installer-relevant changes point to `jxt install`.
+
+### Removed
+
+- Configuration keys `owner` and `group` and the `chown`/`chgrp` of `jxt sync`
+  under sudo: running jxt as root executed the whole Composer autoloader of the
+  project, including all dev dependencies, as root. Remove both keys from
+  existing configuration files, unknown keys are rejected.
 
 ### Fixed
 

@@ -13,3 +13,5 @@
 
 - `jxt sync`, `jxt build` and `jxt config`, including `--dry-run`, warnings for
   installer-relevant changes and for files missing from the manifest.
+- `jxt install`: real installation via the Joomla CLI as the web server user;
+  replaces `sjxt` and the sudo/`chown` setup of `jxt sync`.

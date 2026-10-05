@@ -43,10 +43,10 @@ written:
   (level max), PHP_CodeSniffer (PSR-12).
 - Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects use
   it as a Composer `path` or `vcs` repository; Packagist is not needed.
-- A single binary `jxt` with subcommands (`sync`, `build`, `config`) instead of
-  one binary per command, to avoid name collisions in `vendor/bin`. The name
-  does not contain "Joomla" so that it is not mistaken for an official Joomla!
-  project.
+- A single binary `jxt` with subcommands (`install`, `sync`, `build`, `config`)
+  instead of one binary per command, to avoid name collisions in `vendor/bin`.
+  The name does not contain "Joomla" so that it is not mistaken for an official
+  Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
   `client`) and templates. Plugins and components may follow.
 
@@ -81,8 +81,7 @@ paths, paths containing `..`, and invalid element names or language tags.
 file, it uses the manifest installed on the server, e.g.
 `/var/www/html/modules/mod_x/mod_x.xml`. Since `jxt sync` copies the manifest on
 every run, it always describes the last deployed state. If it is missing, the
-extension has not been installed yet, and `jxt sync` asks for an installation
-via the backend.
+extension has not been installed yet, and `jxt sync` asks for `jxt install`.
 
 Deletion rules:
 
@@ -95,7 +94,8 @@ Deletion rules:
 
 ## Copying versus installing
 
-An installation via the Joomla installer also writes to the database and caches:
+`jxt install` runs the real Joomla installer, `jxt sync` only copies files. An
+installation via the Joomla installer also writes to the database and caches:
 
 - `#__extensions`: the extension entry with `manifest_cache` (version, author,
   …) and namespace data
@@ -122,24 +122,48 @@ Consequences when only files are copied after the first installation:
 - Default values of new parameters are not written to existing module instances,
   but that is also true for a real upgrade.
 
-## Permissions and sudo
+## Permissions: installing as the web server user
 
-- Default: `jxt sync` runs with sudo, sets owner and group (e.g. `www-data`) and
-  uses the modes 0755/0644.
-- Alternative without sudo: the user is a member of the web server group, the
-  modes are e.g. 0775/0664.
-- `chown`/`chgrp` only run as root and only if `owner`/`group` are configured;
-  modes are always set for the extension's files and directories and for newly
-  created directories. Existing shared directories such as `language/de-DE/` are
-  left unchanged.
-- Under sudo, `HOME` points to `/root`, so the home directory for the global
-  configuration is determined via `SUDO_USER`.
-- `jxt config` refuses to write under sudo so that configuration files are not
-  owned by root.
-- `bin/sjxt` runs `sudo php …/jxt` and resolves the PHP binary and the jxt
-  proxy beforehand, because sudo replaces `PATH` with `secure_path`. Composer's
-  proxy passes the bin directory in `COMPOSER_RUNTIME_BIN_DIR`, so the jxt
-  proxy with the project's autoloader is used.
+The files of the test site belong to the web server user (`www-data`), so a
+developer cannot write them directly. Alternatives considered:
+
+- **jxt as root** (`sudo jxt sync` with `chown`, formerly `sjxt`): rejected.
+  It runs the project's Composer autoloader as root, i.e. the `autoload.files`
+  of every installed package including dev dependencies, and every file in
+  `vendor/` is writable by the user. A compromised package or a manipulated
+  file gains root on the next run.
+- **Shared group with setgid directories:** not sufficient. `chmod` requires
+  ownership, the Joomla installer creates directories with a fixed mode 0755
+  (`Folder::create()`), so directories created by a backend installation are
+  not group-writable; a umask or default ACLs do not help against an explicit
+  mode.
+- **PHP-FPM running as the developer:** works without any sudo, but gives the
+  test site, including third-party extensions, access to the developer's home
+  directory.
+- **A custom Joomla extension with an upload endpoint:** needs no sudo, but is
+  an upload-and-execute endpoint that needs authentication and must never reach
+  a production site, plus a second project and protocol to maintain.
+
+Chosen: `jxt install` runs the Joomla CLI shipped with Joomla
+(`cli/joomla.php extension:install`) via `sudo -n -u <web_user>`. A sudoers
+rule allows exactly this command without password. Privileges only go down
+(developer → `www-data`, never root), the web server needs no access to the
+home directory, and the result is a real installation. The ZIP is copied to
+`/tmp` with mode 0644 because `www-data` cannot read the project; the name keeps
+the `.zip` extension, which the Joomla archive handling relies on. `sudo -n`
+makes a missing rule fail instead of prompting, and the command then prints the
+matching rule. The PHP binary is `PHP_BINARY`, which must match the rule
+exactly, since sudo compares the command path.
+
+`jxt sync` runs with the developer's own permissions and is meant for test
+sites the developer can write to. Modes are set for the extension's files and
+directories and for newly created directories; existing shared directories such
+as `language/de-DE/` are left unchanged.
+
+If jxt is still started via sudo, `HOME` points to `/root`, so the home
+directory for the global configuration is determined via `SUDO_USER`, and
+`jxt config` refuses to write so that configuration files are not owned by
+root.
 
 ## Code structure
 
@@ -152,13 +176,15 @@ Namespaces below `SmartA\Jxt`:
   directories into files; `UnlistedSourceFinder` finds files missing from the
   manifest.
 - **`Build`:** `PackageBuilder` creates the ZIP.
+- **`Install`:** `JoomlaInstaller` hands the ZIP to the Joomla CLI via a
+  `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
   `SyncPlan`; `SyncExecutor` applies it via `Filesystem`.
 - **`Configuration`:** `ConfigurationLoader` merges the global and project files
   (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules;
   `HomeDirectoryResolver` handles sudo.
-- **`Command`:** Symfony Console commands `jxt sync`, `jxt build`, `jxt config`;
-  entry point `bin/jxt`.
+- **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
+  `jxt build`, `jxt config`; entry point `bin/jxt`.
 
 Conventions:
 
