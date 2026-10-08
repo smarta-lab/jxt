@@ -171,7 +171,8 @@ Namespaces below `SmartA\Jxt`:
 
 - **`Manifest`:** `ManifestLocator` finds the manifest; `ManifestParser` creates
   `Manifest` (type, client, element, version, `DeploymentPlan`,
-  `InstallerMetadata`); `RelativePath` validates paths.
+  `InstallerMetadata`); `PackageManifestReader` reads the manifest of an
+  existing ZIP (`jxt install --zip`); `RelativePath` validates paths.
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
   directories into files; `UnlistedSourceFinder` finds files missing from the
   manifest.

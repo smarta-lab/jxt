@@ -36,3 +36,6 @@
   installer-relevant changes and for files missing from the manifest.
 - `jxt install`: real installation via the Joomla CLI as the web server user;
   replaces `sjxt` and the sudo/`chown` setup of `jxt sync`.
+- `jxt install --zip`: installs an existing ZIP file. An option instead of a
+  positional argument, so that an argument stays free for later features
+  (e.g. a project directory or a version as shorthand).

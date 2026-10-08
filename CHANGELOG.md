@@ -6,6 +6,12 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `jxt install --zip <file>`: installs an existing ZIP file (e.g. of an older
+  version) instead of building a new one; name and version are read from the
+  manifest in the ZIP.
+
 ## [0.2.0] - 2026-10-06
 
 ### Added

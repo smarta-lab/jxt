@@ -13,6 +13,7 @@ use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use ZipArchive;
 
 /**
  * Tests for the `jxt install` command.
@@ -105,6 +106,74 @@ final class InstallCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $tester->execute([]));
         self::assertStringContainsString('configuration.php', self::display($tester));
         self::assertSame([], $runner->command);
+    }
+
+    public function testInstallsAnExistingZipWithoutBuilding(): void
+    {
+        $this->writeZip('project/old/mod_x-0.9.0.zip', str_replace('1.0.0', '0.9.0', self::MANIFEST));
+        $runner = new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--zip' => 'old/mod_x-0.9.0.zip']));
+        self::assertDirectoryDoesNotExist($this->temporaryDirectory . '/project/dist');
+        self::assertSame(file_get_contents($this->temporaryDirectory . '/project/old/mod_x-0.9.0.zip'), $runner->packageContent);
+        self::assertStringContainsString('mod_x-0.9.0.zip →', self::display($tester));
+        self::assertStringContainsString('mod_x 0.9.0 installed', self::display($tester));
+    }
+
+    public function testInstallsAZipWithAnAbsolutePathWithoutProjectManifest(): void
+    {
+        unlink($this->temporaryDirectory . '/project/mod_x.xml');
+        $this->writeZip('elsewhere/mod_x.zip', self::MANIFEST);
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+
+        $exitCode = $this->tester($runner)->execute(['--zip' => $this->temporaryDirectory . '/elsewhere/mod_x.zip']);
+
+        self::assertSame(Command::SUCCESS, $exitCode);
+        self::assertNotNull($runner->packageContent);
+    }
+
+    public function testTakesTheUpgradeHintFromTheManifestInTheZip(): void
+    {
+        $this->writeZip('project/old.zip', str_replace(' method="upgrade"', '', self::MANIFEST));
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, '[ERROR] Unable to install extension')));
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--zip' => 'old.zip']));
+        self::assertStringContainsString('method="upgrade"', self::display($tester));
+    }
+
+    public function testFailsForAMissingZip(): void
+    {
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--zip' => 'missing.zip']));
+        self::assertStringContainsString('ZIP file missing.zip not found.', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    public function testFailsForAFileWithoutZipExtension(): void
+    {
+        $this->writeZip('project/mod_x.tar', self::MANIFEST);
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--zip' => 'mod_x.tar']));
+        self::assertStringContainsString('mod_x.tar has no .zip extension', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    /**
+     * Writes a ZIP file with the manifest and a layout relative to the temporary directory.
+     */
+    private function writeZip(string $relativePath, string $manifest): void
+    {
+        $this->writeFile($relativePath);
+        $zip = new ZipArchive();
+        $zip->open($this->temporaryDirectory . '/' . $relativePath, ZipArchive::OVERWRITE);
+        $zip->addFromString('mod_x.xml', $manifest);
+        $zip->addFromString('tmpl/default.php', '<?php');
+        $zip->close();
     }
 
     /**

@@ -56,6 +56,25 @@ Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla d
 Installation über eine vorhandene Erweiterung ab. Schlägt die Installation fehl
 und fehlt das Attribut, weist `jxt install` darauf hin.
 
+### Vorhandene ZIP-Datei installieren
+
+```bash
+vendor/bin/jxt install --zip dist/mod_example-1.0.0.zip
+```
+
+Mit `--zip` installiert `jxt install` eine vorhandene ZIP-Datei, statt eine neue
+zu erstellen, z. B. eine ältere Version, um das Update von einem früheren Release
+zu testen oder zu ihm zurückzukehren. Relative Pfade beziehen sich auf das
+Projektverzeichnis. Das Manifest des Projekts wird nicht gebraucht; Name der
+Erweiterung, Version in der Erfolgsmeldung und der Hinweis auf
+`method="upgrade"` stammen aus dem Manifest im Hauptverzeichnis der ZIP-Datei.
+Die Datei muss die Endung `.zip` haben, auf die sich der Joomla-Installer
+verlässt.
+
+Joomla prüft die Version nicht: Eine ältere ZIP-Datei über eine neuere
+Installation zu installieren ist ein Downgrade, SQL-Updates der neueren Version
+werden dabei nicht zurückgenommen.
+
 ### Einrichtung: sudo ohne Passwort für den Joomla-Installer
 
 Damit die Dateien dem Webserver-Benutzer gehören, läuft die Joomla-CLI als
