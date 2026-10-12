@@ -2,14 +2,12 @@
 
 ## Ideas
 
-- `jxt build --tag v1.1.0`: build from a Git tag (e.g. via `git archive`) so
-  that uncommitted changes do not end up in the ZIP.
-- `jxt build`: report "Replaced" instead of "Created" when an existing ZIP is
-  overwritten. A `--force` option is not planned: the ZIP can always be
-  rebuilt, and repeated builds of the same version are the normal case.
 - Support plugins and components.
-- `jxt check` (vague idea): mechanical pre-release checks based on the
-  manifest jxt already parses, e.g. version consistency between the manifest,
+- `jxt build --tag v1.1.0` and `jxt install --tag v1.1.0`: build from a Git
+  tag (e.g. via `git archive`) so that uncommitted changes do not end up in
+  the ZIP.
+- `jxt check`: mechanical pre-release checks based on the manifest
+  jxt already parses, e.g. version consistency between the manifest,
   `CHANGELOG.md` and other files, language files, whitespace (indentation,
   line endings, final newline) and files in the ZIP that do not belong in a
   release. With tests and a non-zero exit code, so it can also run in CI.
@@ -38,4 +36,4 @@
   replaces `sjxt` and the sudo/`chown` setup of `jxt sync`.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
-  (e.g. a project directory or a version as shorthand).
+  (e.g. a project directory).
