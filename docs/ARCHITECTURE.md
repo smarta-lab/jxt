@@ -41,14 +41,23 @@ written:
 
 - PHP 8.4+, `symfony/console` 8.x, `ZipArchive`; quality tools: PHPUnit, PHPStan
   (level max), PHP_CodeSniffer (PSR-12).
-- Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects use
-  it as a Composer `path` or `vcs` repository; Packagist is not needed.
+- Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects
+  require it as a Composer dev dependency; until it is published on Packagist,
+  via a `path` or `vcs` repository.
+- Linux or WSL only: `ext-posix` is needed to find the developer's home
+  directory when jxt is started via sudo, and `jxt install` relies on `sudo`
+  unless `web_user` is `null`.
 - A single binary `jxt` with subcommands (`install`, `sync`, `build`, `config`)
   instead of one binary per command, to avoid name collisions in `vendor/bin`.
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
-  `client`) and templates. Plugins and components may follow.
+  `client`) and templates. Plugins fit the current model (one install
+  directory `plugins/<group>/<element>/` plus `media/`). Components have
+  several install directories with their own `<files>` sections
+  (`administrator/components/`, `components/`, `api/`) and SQL files, so the
+  deployment plan would need more than one install directory; packages
+  (`pkg_`) consist of several manifests.
 
 ## Core idea: the deployment plan
 
