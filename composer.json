@@ -1,6 +1,6 @@
 {
     "name": "smarta-lab/jxt",
-    "description": "Manifest-driven CLI for Joomla!® extension development: sync to a local test site, build installable ZIP packages.",
+    "description": "Manifest-driven CLI for Joomla!® extension development: sync to a local test site, build installable ZIP packages, check before a release.",
     "keywords": [
         "joomla",
         "joomla-extension",

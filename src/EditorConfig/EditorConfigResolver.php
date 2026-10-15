@@ -48,6 +48,14 @@ final class EditorConfigResolver
     }
 
     /**
+     * Checks whether any `.editorconfig` file applies to files in the absolute `$directory`.
+     */
+    public function hasFiles(string $directory): bool
+    {
+        return $this->applicableFiles(rtrim($directory, '/')) !== [];
+    }
+
+    /**
      * Returns the `.editorconfig` files that apply to files in `$directory`, the outermost first.
      *
      * @return list<EditorConfigFile>

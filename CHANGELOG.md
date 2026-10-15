@@ -11,6 +11,18 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt install --zip <file>`: installs an existing ZIP file (e.g. of an older
   version) instead of building a new one; name and version are read from the
   manifest in the ZIP.
+- `jxt check`: checks the extension before a release – manifest (semantic
+  version, missing, unlisted and junk files), whitespace according to
+  `.editorconfig`, `CHANGELOG.md` in the format of Keep a Changelog, asset
+  versions against the last release tag and language files. Whether the
+  manifest version is already tagged decides between pre-check and final
+  check. Exit code 1 for errors (`--strict`: also for warnings), 2 for an
+  invalid call; `--release` turns problems that only matter for a release
+  (notices otherwise) into errors.
+- `jxt check --exclude/--include` and the configuration keys `check_exclude`
+  and `check_include` in `.jxt.json` to skip checks or groups.
+- `jxt config set` accepts several values, also comma-separated, for list
+  keys.
 
 ## [0.2.0] - 2026-10-06
 

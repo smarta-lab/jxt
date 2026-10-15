@@ -190,11 +190,20 @@ Namespaces below `SmartA\Jxt`:
   `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
   `SyncPlan`; `SyncExecutor` applies it via `Filesystem`.
+- **`Check`:** `CheckContextFactory` collects the `CheckContext` (manifest,
+  expanded files of the plan, `GitRepository`, `Changelog`, `ReleaseState` from
+  the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
+  `CheckReport`, which drops the checks excluded by `CheckSelection`. All
+  checks are cases of `CheckName`.
+- **`EditorConfig`:** `EditorConfigResolver` reads `.editorconfig` files
+  (`EditorConfigFile`) and resolves the properties of a file; `GlobTranslator`
+  turns section names into regular expressions as the reference implementation
+  does.
 - **`Configuration`:** `ConfigurationLoader` merges the global and project files
-  (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules;
-  `HomeDirectoryResolver` handles sudo.
+  (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
+  including list keys; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
-  `jxt build`, `jxt config`; entry point `bin/jxt`.
+  `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
 
 Conventions:
 

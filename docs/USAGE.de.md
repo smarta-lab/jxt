@@ -213,27 +213,117 @@ nicht im Manifest stehen.
 Das ZIP wird aus der Arbeitskopie erstellt, also einschließlich nicht
 committeter Änderungen.
 
+## jxt check – vor einem Release prüfen
+
+```bash
+vendor/bin/jxt check            # Vor- oder Endprüfung, siehe unten
+vendor/bin/jxt check --release  # Endprüfung vor dem Taggen eines Releases
+vendor/bin/jxt check --strict   # Warnungen zählen als Fehler, z. B. in der CI
+```
+
+Mechanische Prüfungen der Erweiterung, abgeleitet aus dem Manifest und aus
+Dateien, die es im Projekt schon gibt (`.editorconfig`, `CHANGELOG.md`,
+Git-Tags). Es muss nichts eingeschaltet werden: Prüfungen ohne Grundlage
+entfallen mit einem Hinweis. Die inhaltliche Bewertung (Einträge im Changelog,
+README) bleibt Handarbeit.
+
+Ob die Manifest-Version schon veröffentlicht ist, bestimmt den Modus, den die
+erste Zeile der Ausgabe nennt:
+
+- **Vorprüfung:** Die Version hat einen Git-Tag (`v1.2.0` oder `1.2.0`, je
+  nach den vorhandenen Tags), es wird also an der nächsten Version gearbeitet.
+- **Endprüfung:** Die Version hat noch keinen Tag und soll veröffentlicht
+  werden. Vor dem ersten Release ist das immer so.
+- Ohne Git entscheidet `CHANGELOG.md`: Eine datierte Überschrift für die
+  Version gilt als veröffentlicht.
+
+Probleme, die nur für ein Release zählen (fehlende Überschrift in
+`CHANGELOG.md`, Einträge unter `[Unreleased]`, geänderte Asset-Datei ohne neue
+Version), sind in der Endprüfung Hinweise und werden mit `--release` zu Fehlern.
+`--strict` betrifft also den Zustand des Codes, `--release` die Vorbereitung des
+Releases: Ein CI-Lauf bei jedem Push nutzt `jxt check --strict`, ohne vor der
+Vorbereitung des Releases zu scheitern, der Lauf auf einem Tag `jxt check
+--strict --release`. In der Vorprüfung hat `--release` keine Wirkung, darauf
+weist die Ausgabe hin.
+
+Exit-Codes: `0` ohne Fehler, `1` mit Fehlern (mit `--strict` auch mit
+Warnungen), `2` bei falschem Aufruf, falscher Konfiguration oder fehlerhaftem
+Manifest. Hinweise lassen die Prüfung nie scheitern.
+
+| Prüfung | Meldung bei | Vor | End |
+|---|---|---|---|
+| `manifest/version-semver` | `<version>` fehlt oder ist keine [semantische Version](https://semver.org/lang/de/) | Fehler | Fehler |
+| `manifest/listed-files` | eine im Manifest genannte Datei oder ein Ordner fehlt | Fehler | Fehler |
+| `manifest/unlisted-files` | eine Datei in einem Quellordner steht nicht im Manifest | Warnung | Warnung |
+| `manifest/stray-files` | eine Müll-Datei in einem gelisteten Ordner käme ins ZIP (`.DS_Store`, `*~`, `*.orig`, versteckte Dateien) | Warnung | Warnung |
+| `editorconfig/missing` | es gibt keine `.editorconfig`; die Gruppe entfällt | Hinweis | Hinweis |
+| `editorconfig/indent-style` | Einrückung entgegen `indent_style` | Fehler | Fehler |
+| `editorconfig/end-of-line` | Zeilenenden entgegen `end_of_line` | Fehler | Fehler |
+| `editorconfig/final-newline` | Dateiende entgegen `insert_final_newline` | Fehler | Fehler |
+| `editorconfig/trailing-whitespace` | Leerzeichen am Zeilenende entgegen `trim_trailing_whitespace` | Fehler | Fehler |
+| `editorconfig/max-line-length` | eine Zeile ist länger als `max_line_length` (in Markdown entfallen Codeblöcke, Tabellen, Überschriften und Zeilen mit Links) | Warnung | Warnung |
+| `editorconfig/charset` | ungültiges UTF-8 oder ein Byte Order Mark entgegen `charset` | Fehler | Fehler |
+| `changelog/format` | `CHANGELOG.md` fehlt oder folgt nicht [Keep a Changelog](https://keepachangelog.com/de/); die Gruppe entfällt | Hinweis | Hinweis |
+| `changelog/last-release` | die Manifest-Version ist nicht das letzte Release im Changelog | Warnung | – |
+| `changelog/unreleased` | Vorprüfung: Anzahl der Einträge unter `[Unreleased]`; Endprüfung: `[Unreleased]` ist nicht leer | Hinweis | Hinweis, mit `--release` Fehler |
+| `changelog/release-heading` | es gibt keine Überschrift `## [X.Y.Z] - YYYY-MM-DD` für die Version | – | Hinweis, mit `--release` Fehler |
+| `assets/json` | eine `joomla.asset.json` ist kein gültiges JSON | Fehler | Fehler |
+| `assets/uri` | die URI eines Assets passt zu keiner Datei der Erweiterung (externe URIs und Medien anderer Erweiterungen entfallen) | Warnung | Warnung |
+| `assets/version-changed` | die Datei des Assets hat sich seit dem letzten Release-Tag geändert, seine `version` nicht | Hinweis | Hinweis, mit `--release` Fehler |
+| `assets/version-coupled` | eine Version war beim letzten Release gleich der Erweiterungsversion, ist es jetzt aber nicht | – | Hinweis |
+| `assets/baseline` | kein Git oder noch kein Release-Tag, Asset-Versionen werden nicht verglichen | Hinweis | Hinweis |
+| `language/parse` | eine Sprachdatei lässt sich nicht lesen | Fehler | Fehler |
+| `language/files` | eine Sprachdatei fehlt in einer Sprache | Fehler | Fehler |
+| `language/keys` | ein Schlüssel fehlt in einer Sprache | Fehler | Fehler |
+| `language/undefined` | eine in PHP, XML oder JS verwendete Sprachkonstante ist nicht definiert | Fehler | Fehler |
+| `language/unused` | eine definierte Konstante steht nicht im Code (sie kann zur Laufzeit zusammengesetzt werden; Name der Erweiterung, Template-Positionen und Layouts werden nie gemeldet) | Hinweis | Hinweis |
+| `composer/version-field` | `composer.json` hat ein `version`-Feld | Warnung | Warnung |
+
+Die Whitespace-Prüfungen umfassen die versionierten und die nicht versionierten,
+nicht ignorierten Dateien des Git-Repositorys, ohne Git die Dateien des
+Manifests und die nicht versteckten Dateien im Projektordner. Binärdateien
+entfallen. Dateien wie Fremdbibliotheken nimmt man in der `.editorconfig` mit
+`unset` aus.
+
+### Prüfungen abschalten
+
+```bash
+vendor/bin/jxt check --exclude=editorconfig --include=editorconfig/charset
+vendor/bin/jxt config set check_exclude assets/uri,editorconfig/max-line-length
+```
+
+`--exclude` und `--include` nehmen eine Gruppe (`manifest`) oder eine einzelne
+Prüfung (`manifest/stray-files`), mehrfach oder mit Komma getrennt. In
+`.jxt.json` tun `check_exclude` und `check_include` dasselbe dauerhaft für das
+Projekt. Der genauere Name gewinnt, so lässt sich eine einzelne Prüfung aus
+einer abgeschalteten Gruppe wieder einschalten; beim selben Namen gewinnt die
+Kommandozeile über `.jxt.json`. Unbekannte Namen werden abgewiesen.
+
 ## jxt config – Konfiguration anzeigen und ändern
 
 ```bash
 vendor/bin/jxt config                               # Werte und Herkunft zeigen
 vendor/bin/jxt config set <key> <value> [--global]  # Wert setzen
+vendor/bin/jxt config set <key> <value>...          # Liste setzen, auch mit Komma
 vendor/bin/jxt config unset <key> [--global]        # Wert entfernen
 ```
 
 Ohne `--global` ändern `set` und `unset` die Projektdatei `.jxt.json`, mit
 `--global` die globale Datei `~/.config/jxt/config.json`. `set <key> null`
-speichert ein ausdrückliches `null`. `jxt config` ohne sudo aufrufen, sonst
-gehörte die Datei root; unter sudo verweigert es das Schreiben.
+speichert ein ausdrückliches `null`. Bei Listen nimmt `set` mehrere Werte, auch
+mit Komma getrennt, und ersetzt die ganze Liste. `jxt config` ohne sudo
+aufrufen, sonst gehörte die Datei root; unter sudo verweigert es das Schreiben.
 
 ```
-Key         Value         Origin
-joomla_root /var/www/html global
-web_user    www-data      default
-manifest    –             not set
-dist_dir    dist          default
-dir_mode    0775          project
-file_mode   0644          default
+Key           Value         Origin
+joomla_root   /var/www/html global
+web_user      www-data      default
+manifest      –             not set
+dist_dir      dist          default
+dir_mode      0775          project
+file_mode     0644          default
+check_exclude assets/uri    project
+check_include –             not set
 ```
 
 Die Herkunft (`Origin`) ist die Projektdatei (`project`), die globale Datei
@@ -260,8 +350,11 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
 | `dir_mode` | Rechte für Ordner bei `jxt sync` | `0755` |
 | `file_mode` | Rechte für Dateien bei `jxt sync` | `0644` |
+| `check_exclude` | Liste der Prüfungen oder Gruppen, die `jxt check` auslässt; nur in `.jxt.json` | – |
+| `check_include` | Liste der Prüfungen oder Gruppen, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
 
-Alle Werte sind Texte oder `null`. `null` setzt einen Schlüssel auf seinen
+Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`)
+oder `null`. `null` setzt einen Schlüssel auf seinen
 Standardwert zurück, nur bei `web_user` bedeutet es „ohne sudo“. Rechte werden
 vierstellig gespeichert (`775` wird zu `0775`). Unbekannte Schlüssel werden
 abgewiesen, damit Tippfehler auffallen.

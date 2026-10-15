@@ -207,27 +207,114 @@ in the manifest.
 
 The ZIP is built from the working copy, including uncommitted changes.
 
+## jxt check – check before a release
+
+```bash
+vendor/bin/jxt check            # pre-check or final check, see below
+vendor/bin/jxt check --release  # final check before tagging a release
+vendor/bin/jxt check --strict   # warnings count as errors, e.g. in CI
+```
+
+Mechanical checks of the extension, derived from the manifest and from files
+that already exist in the project (`.editorconfig`, `CHANGELOG.md`, Git tags).
+There is nothing to switch on: checks without a basis are skipped with a
+notice. Judging the content (changelog entries, README) stays a manual review.
+
+Whether the manifest version is already released decides the mode, shown in
+the first line of the output:
+
+- **Pre-check:** the version has a Git tag (`v1.2.0` or `1.2.0`, depending on
+  the existing tags), so work on the next version is in progress.
+- **Final check:** the version has no tag yet and is about to be released.
+  Before the first release, this is always the case.
+- Without Git, `CHANGELOG.md` decides: a dated heading for the version counts
+  as released.
+
+Problems that only matter for a release (missing `CHANGELOG.md` heading, entries
+left under `[Unreleased]`, asset file changed without a new version) are notices
+in the final check and become errors with `--release`. So `--strict` covers the
+state of the code and `--release` the preparation of the release: a CI run on
+every push uses `jxt check --strict` without failing before the release is
+prepared, the run on a tag uses `jxt check --strict --release`. In a pre-check,
+`--release` has no effect, which the output points out.
+
+Exit codes: `0` without errors, `1` with errors (with `--strict` also with
+warnings), `2` for an invalid call, configuration or manifest. Notices never
+fail the check.
+
+| Check | Reported when | Pre | Final |
+|---|---|---|---|
+| `manifest/version-semver` | `<version>` is missing or not a [semantic version](https://semver.org) | error | error |
+| `manifest/listed-files` | a file or directory listed in the manifest is missing | error | error |
+| `manifest/unlisted-files` | a file in a source directory is not listed in the manifest | warning | warning |
+| `manifest/stray-files` | a junk file in a listed directory would end up in the ZIP (`.DS_Store`, `*~`, `*.orig`, hidden files) | warning | warning |
+| `editorconfig/missing` | there is no `.editorconfig`; the group is skipped | notice | notice |
+| `editorconfig/indent-style` | indentation contradicts `indent_style` | error | error |
+| `editorconfig/end-of-line` | line endings contradict `end_of_line` | error | error |
+| `editorconfig/final-newline` | the end of the file contradicts `insert_final_newline` | error | error |
+| `editorconfig/trailing-whitespace` | trailing whitespace contradicts `trim_trailing_whitespace` | error | error |
+| `editorconfig/max-line-length` | a line is longer than `max_line_length` (in Markdown, code blocks, tables, headings and lines with links are skipped) | warning | warning |
+| `editorconfig/charset` | invalid UTF-8, or a byte order mark contradicts `charset` | error | error |
+| `changelog/format` | `CHANGELOG.md` is missing or does not follow [Keep a Changelog](https://keepachangelog.com); the group is skipped | notice | notice |
+| `changelog/last-release` | the manifest version is not the last release in the changelog | warning | – |
+| `changelog/unreleased` | pre-check: number of entries under `[Unreleased]`; final check: `[Unreleased]` is not empty | notice | notice, error with `--release` |
+| `changelog/release-heading` | there is no heading `## [X.Y.Z] - YYYY-MM-DD` for the version | – | notice, error with `--release` |
+| `assets/json` | a `joomla.asset.json` is not valid JSON | error | error |
+| `assets/uri` | the URI of an asset matches no file of the extension (external URIs and other extensions' media are skipped) | warning | warning |
+| `assets/version-changed` | the asset's file changed since the last release tag, its `version` did not | notice | notice, error with `--release` |
+| `assets/version-coupled` | a version equalled the extension version at the last release, but not the new one | – | notice |
+| `assets/baseline` | no Git or no release tag yet, so asset versions are not compared | notice | notice |
+| `language/parse` | a language file cannot be parsed | error | error |
+| `language/files` | a language file is missing in one language | error | error |
+| `language/keys` | a key is missing in one language | error | error |
+| `language/undefined` | a language constant used in PHP, XML or JS is not defined | error | error |
+| `language/unused` | a defined constant is not found in the code (it may be built at runtime; the extension name, template positions and layouts are never reported) | notice | notice |
+| `composer/version-field` | `composer.json` has a `version` field | warning | warning |
+
+The whitespace checks cover the tracked and untracked, not ignored files of
+the Git repository; without Git, the files of the manifest and the non-hidden
+files in the project directory. Binary files are skipped. Exclude files such as
+third-party libraries in the `.editorconfig` with `unset`.
+
+### Excluding checks
+
+```bash
+vendor/bin/jxt check --exclude=editorconfig --include=editorconfig/charset
+vendor/bin/jxt config set check_exclude assets/uri,editorconfig/max-line-length
+```
+
+`--exclude` and `--include` take a group (`manifest`) or a single check
+(`manifest/stray-files`), several times or comma-separated. In `.jxt.json`,
+`check_exclude` and `check_include` do the same permanently for the project.
+The more specific name wins, so a single check can be included from an
+excluded group; for the same name, the command line wins over `.jxt.json`.
+Unknown names are rejected.
+
 ## jxt config – show and change the configuration
 
 ```bash
 vendor/bin/jxt config                               # show values and origin
 vendor/bin/jxt config set <key> <value> [--global]  # set a value
+vendor/bin/jxt config set <key> <value>...          # set a list, also comma-separated
 vendor/bin/jxt config unset <key> [--global]        # remove a value
 ```
 
 Without `--global`, `set` and `unset` change the project file `.jxt.json`; with
 `--global`, the global file `~/.config/jxt/config.json`. `set <key> null` stores
-an explicit `null`. Run `jxt config` without sudo, otherwise the file would be
-owned by root; it refuses to write under sudo.
+an explicit `null`. For lists, `set` takes several values, also comma-separated,
+and replaces the whole list. Run `jxt config` without sudo, otherwise the file
+would be owned by root; it refuses to write under sudo.
 
 ```
-Key         Value         Origin
-joomla_root /var/www/html global
-web_user    www-data      default
-manifest    –             not set
-dist_dir    dist          default
-dir_mode    0775          project
-file_mode   0644          default
+Key           Value         Origin
+joomla_root   /var/www/html global
+web_user      www-data      default
+manifest      –             not set
+dist_dir      dist          default
+dir_mode      0775          project
+file_mode     0644          default
+check_exclude assets/uri    project
+check_include –             not set
 ```
 
 The origin is one of: project file (`project`), global file (`global`), default
@@ -253,8 +340,11 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories in `jxt sync` | `0755` |
 | `file_mode` | Mode for files in `jxt sync` | `0644` |
+| `check_exclude` | List of checks or groups that `jxt check` skips; only in `.jxt.json` | – |
+| `check_include` | List of checks or groups that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
-All values are strings or `null`. `null` resets a key to its default; only for
+All values are strings, lists of strings (`check_exclude`, `check_include`) or
+`null`. `null` resets a key to its default; only for
 `web_user` it means "without sudo". Modes are stored with four digits (`775`
 becomes `0775`). Unknown keys are rejected, so typos do not go unnoticed.
 

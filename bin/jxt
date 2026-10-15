@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use SmartA\Jxt\Command\BuildCommand;
+use SmartA\Jxt\Command\CheckCommand;
 use SmartA\Jxt\Command\ConfigCommand;
 use SmartA\Jxt\Command\InstallCommand;
 use SmartA\Jxt\Command\SyncCommand;
@@ -33,6 +34,7 @@ $application->addCommands([
     new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor()),
     new InstallCommand($projectDirectory, $configurationLoader, new JoomlaInstaller(), $currentUser),
     new BuildCommand($projectDirectory, $configurationLoader),
+    new CheckCommand($projectDirectory, $configurationLoader),
     new ConfigCommand($projectDirectory, $configurationLoader, $runsViaSudo),
 ]);
 $application->run();

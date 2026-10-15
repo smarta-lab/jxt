@@ -10,6 +10,9 @@ Manifest-driven CLI for Joomla!® extension development:
   to the extension are deleted.
 - **`jxt build`** packages the extension as a ZIP file that can be installed in
   the Joomla backend.
+- **`jxt check`** checks the extension before a release: manifest, whitespace
+  according to `.editorconfig`, `CHANGELOG.md`, asset versions and language
+  files. With exit codes for CI.
 - **`jxt config`** shows and changes the global and per-project configuration.
 
 All commands run in the project directory of an extension, like
@@ -54,6 +57,9 @@ vendor/bin/jxt install
 
 # only build the ZIP
 vendor/bin/jxt build
+
+# check before a release (--release before tagging, --strict in CI)
+vendor/bin/jxt check
 ```
 
 ## Documentation
