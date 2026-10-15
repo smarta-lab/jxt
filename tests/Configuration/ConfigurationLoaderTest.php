@@ -45,6 +45,8 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame(0755, $configuration->directoryMode);
         self::assertSame(0644, $configuration->fileMode);
         self::assertNull($configuration->manifestFile);
+        self::assertSame([], $configuration->checkExclude);
+        self::assertSame([], $configuration->checkInclude);
     }
 
     public function testWorksWithoutGlobalConfigurationFile(): void
@@ -91,7 +93,37 @@ final class ConfigurationLoaderTest extends TestCase
             new ConfigurationEntry(ConfigurationKey::DistDirectory, 'dist', ConfigurationSource::Default),
             new ConfigurationEntry(ConfigurationKey::DirectoryMode, '0770', ConfigurationSource::Project),
             new ConfigurationEntry(ConfigurationKey::FileMode, '0644', ConfigurationSource::Default),
+            new ConfigurationEntry(ConfigurationKey::CheckExclude, null, ConfigurationSource::None),
+            new ConfigurationEntry(ConfigurationKey::CheckInclude, null, ConfigurationSource::None),
         ], $entries);
+    }
+
+    public function testReadsCheckListsWithoutDuplicates(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'check_exclude' => ['manifest', 'editorconfig/max-line-length', 'manifest'],
+            'check_include' => ['manifest/version-semver'],
+        ]));
+
+        $loader = new ConfigurationLoader(null);
+        $configuration = $loader->load($this->project());
+
+        self::assertSame(['manifest', 'editorconfig/max-line-length'], $configuration->checkExclude);
+        self::assertSame(['manifest/version-semver'], $configuration->checkInclude);
+        self::assertEquals(
+            new ConfigurationEntry(ConfigurationKey::CheckInclude, ['manifest/version-semver'], ConfigurationSource::Project),
+            $loader->describe($this->project())[7],
+        );
+    }
+
+    public function testRejectsCheckListsInGlobalConfiguration(): void
+    {
+        $this->writeFile('config.json', '{"check_exclude": ["manifest"]}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessageMatches('/check_exclude can only be set in the project configuration/');
+
+        (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
     }
 
     public function testResolvesManifestRelativeToProjectDirectory(): void
@@ -150,6 +182,12 @@ final class ConfigurationLoaderTest extends TestCase
         yield 'invalid mode' => ['{"file_mode": "0999"}', 'file_mode'];
         yield 'mode as number' => ['{"dir_mode": 755}', 'dir_mode'];
         yield 'absolute manifest path' => ['{"manifest": "/srv/mod_x.xml"}', 'Invalid value "/srv/mod_x.xml" for "manifest"'];
+        yield 'list for a string key' => ['{"web_user": ["apache"]}', 'web_user'];
+        yield 'string for a list' => ['{"check_exclude": "manifest"}', 'must be a list of check names'];
+        yield 'object for a list' => ['{"check_exclude": {"a": "manifest"}}', 'must be a list of check names'];
+        yield 'number in a list' => ['{"check_include": [1]}', 'must be a list of check names'];
+        yield 'invalid check name' => ['{"check_exclude": ["Manifest"]}', 'Invalid check name "Manifest" for "check_exclude"'];
+        yield 'check name with three parts' => ['{"check_exclude": ["a/b/c"]}', 'Invalid check name "a/b/c"'];
     }
 
     /**

@@ -46,6 +46,19 @@ final class ConfigurationFileTest extends TestCase
         self::assertSame(['joomla_root' => '/var/www/html', 'web_user' => null, 'file_mode' => '0664'], $file->read());
     }
 
+    public function testWritesLists(): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/.jxt.json');
+
+        $file->write(['check_exclude' => ['manifest', 'assets/uri']]);
+
+        self::assertSame(
+            "{\n    \"check_exclude\": [\n        \"manifest\",\n        \"assets/uri\"\n    ]\n}\n",
+            file_get_contents($file->path),
+        );
+        self::assertSame(['check_exclude' => ['manifest', 'assets/uri']], $file->read());
+    }
+
     public function testWritesEmptyObject(): void
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/config.json');

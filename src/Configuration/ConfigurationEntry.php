@@ -9,9 +9,12 @@ namespace SmartA\Jxt\Configuration;
  */
 final readonly class ConfigurationEntry
 {
+    /**
+     * @param string|list<string>|null $value
+     */
     public function __construct(
         public ConfigurationKey $key,
-        public ?string $value,
+        public string|array|null $value,
         public ConfigurationSource $source,
     ) {
     }

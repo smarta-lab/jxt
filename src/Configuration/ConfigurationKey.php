@@ -15,8 +15,12 @@ enum ConfigurationKey: string
     case DistDirectory = 'dist_dir';
     case DirectoryMode = 'dir_mode';
     case FileMode = 'file_mode';
+    case CheckExclude = 'check_exclude';
+    case CheckInclude = 'check_include';
 
     private const string MODE_PATTERN = '/^0?[0-7]{3}$/';
+
+    private const string CHECK_NAME_PATTERN = '#^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$#';
 
     /**
      * Returns the default value, or null if the key is unset when not specified.
@@ -37,24 +41,87 @@ enum ConfigurationKey: string
      */
     public function isProjectOnly(): bool
     {
-        return $this === self::Manifest;
+        return in_array($this, [self::Manifest, self::CheckExclude, self::CheckInclude], true);
     }
 
     /**
-     * Validates a value and returns it normalized. Allowed are non-empty strings or null.
+     * Checks whether the value is a list of strings instead of a single string.
+     */
+    public function isList(): bool
+    {
+        return in_array($this, [self::CheckExclude, self::CheckInclude], true);
+    }
+
+    /**
+     * Validates a value and returns it normalized; null is always allowed.
      *
-     * Modes are returned with four digits, e.g. `775` as `0775`.
+     * Single values must be non-empty strings; modes are returned with four digits, e.g. `775` as
+     * `0775`. Lists must contain check names (`group` or `group/check`) and are returned without
+     * duplicates.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
      *
+     * @return string|list<string>|null
+     *
      * @throws ConfigurationException for an invalid value
      */
-    public function validate(mixed $value, string $source): ?string
+    public function validate(mixed $value, string $source): string|array|null
     {
         if ($value === null) {
             return null;
         }
 
+        return $this->isList() ? $this->validateList($value, $source) : $this->validateString($value, $source);
+    }
+
+    /**
+     * Returns the key for the name.
+     *
+     * @throws ConfigurationException for an unknown key
+     */
+    public static function fromName(string $name, string $source): self
+    {
+        return self::tryFrom($name) ?? throw new ConfigurationException(sprintf(
+            'Unknown key "%s" in %s. Allowed: %s.',
+            $name,
+            $source,
+            implode(', ', array_map(static fn (self $key): string => $key->value, self::cases())),
+        ));
+    }
+
+    /**
+     * Validates a list of check names.
+     *
+     * @return list<string>
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validateList(mixed $value, string $source): array
+    {
+        if (!is_array($value) || !array_is_list($value) || array_filter($value, is_string(...)) !== $value) {
+            throw new ConfigurationException(
+                sprintf('Value of "%s" in %s must be a list of check names.', $this->value, $source),
+            );
+        }
+
+        foreach ($value as $name) {
+            if (preg_match(self::CHECK_NAME_PATTERN, $name) !== 1) {
+                throw new ConfigurationException(
+                    sprintf('Invalid check name "%s" for "%s" in %s.', $name, $this->value, $source),
+                );
+            }
+        }
+
+        return array_values(array_unique($value));
+    }
+
+    /**
+     * Validates a single value.
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validateString(mixed $value, string $source): string
+    {
         if (!is_string($value) || trim($value) === '') {
             throw new ConfigurationException(
                 sprintf('Value of "%s" in %s must be a non-empty string.', $this->value, $source),
@@ -76,20 +143,5 @@ enum ConfigurationKey: string
             self::DirectoryMode, self::FileMode => '0' . substr($value, -3),
             default => $value,
         };
-    }
-
-    /**
-     * Returns the key for the name.
-     *
-     * @throws ConfigurationException for an unknown key
-     */
-    public static function fromName(string $name, string $source): self
-    {
-        return self::tryFrom($name) ?? throw new ConfigurationException(sprintf(
-            'Unknown key "%s" in %s. Allowed: %s.',
-            $name,
-            $source,
-            implode(', ', array_map(static fn (self $key): string => $key->value, self::cases())),
-        ));
     }
 }

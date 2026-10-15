@@ -53,7 +53,7 @@ final readonly class ConfigurationLoader
     public function load(string $projectDirectory): Configuration
     {
         $values = [...($this->globalFile()?->read() ?? []), ...$this->projectFile($projectDirectory)->read()];
-        $value = static fn (ConfigurationKey $key): ?string => $values[$key->value] ?? $key->defaultValue();
+        $value = fn (ConfigurationKey $key): ?string => $this->stringValue($values, $key) ?? $key->defaultValue();
 
         $joomlaRoot = $value(ConfigurationKey::JoomlaRoot);
         $manifest = $value(ConfigurationKey::Manifest);
@@ -62,7 +62,7 @@ final readonly class ConfigurationLoader
         return new Configuration(
             $joomlaRoot === null ? null : $this->withoutTrailingSlash($joomlaRoot),
             array_key_exists(ConfigurationKey::WebUser->value, $values)
-                ? $values[ConfigurationKey::WebUser->value]
+                ? $this->stringValue($values, ConfigurationKey::WebUser)
                 : ConfigurationKey::WebUser->defaultValue(),
             $this->withoutTrailingSlash(
                 str_starts_with($distDirectory, '/') ? $distDirectory : $projectDirectory . '/' . $distDirectory,
@@ -70,6 +70,8 @@ final readonly class ConfigurationLoader
             (int) octdec((string) $value(ConfigurationKey::DirectoryMode)),
             (int) octdec((string) $value(ConfigurationKey::FileMode)),
             $manifest === null ? null : $projectDirectory . '/' . $manifest,
+            $this->listValue($values, ConfigurationKey::CheckExclude),
+            $this->listValue($values, ConfigurationKey::CheckInclude),
         );
     }
 
@@ -97,6 +99,32 @@ final readonly class ConfigurationLoader
             },
             ConfigurationKey::cases(),
         );
+    }
+
+    /**
+     * Returns the value of a single-value key, or null if it is not set.
+     *
+     * @param array<string, string|list<string>|null> $values Validated values by key name
+     */
+    private function stringValue(array $values, ConfigurationKey $key): ?string
+    {
+        $value = $values[$key->value] ?? null;
+
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Returns the value of a list key, or an empty list if it is not set.
+     *
+     * @param array<string, string|list<string>|null> $values Validated values by key name
+     *
+     * @return list<string>
+     */
+    private function listValue(array $values, ConfigurationKey $key): array
+    {
+        $value = $values[$key->value] ?? null;
+
+        return is_array($value) ? $value : [];
     }
 
     /**

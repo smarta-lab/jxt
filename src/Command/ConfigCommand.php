@@ -42,7 +42,11 @@ final class ConfigCommand extends Command
         $this
             ->addArgument('action', InputArgument::OPTIONAL, 'show, set or unset', ConfigAction::Show->value)
             ->addArgument('key', InputArgument::OPTIONAL, 'Key, e.g. joomla_root')
-            ->addArgument('value', InputArgument::OPTIONAL, 'New value; "null" overrides a global value with null in the project')
+            ->addArgument(
+                'value',
+                InputArgument::OPTIONAL | InputArgument::IS_ARRAY,
+                'New value; "null" overrides a global value with null in the project; lists take several values, also comma-separated',
+            )
             ->addOption('global', null, InputOption::VALUE_NONE, 'Change the global instead of the project configuration');
     }
 
@@ -91,7 +95,8 @@ final class ConfigCommand extends Command
         $table->setHeaders(['Key', 'Value', 'Origin']);
 
         foreach ($this->configurationLoader->describe($this->projectDirectory) as $entry) {
-            $table->addRow([$entry->key->value, $entry->value ?? '–', $entry->source->value]);
+            $value = $entry->value === null || $entry->value === [] ? '–' : $this->format($entry->value);
+            $table->addRow([$entry->key->value, $value, $entry->source->value]);
         }
 
         $table->render();
@@ -107,16 +112,70 @@ final class ConfigCommand extends Command
     {
         $file = $this->targetFile($input);
         $key = $this->key($input, $file);
-        $rawValue = $input->getArgument('value');
+        $arguments = $this->valueArguments($input);
+        $value = $key->validate($key->isList() ? $this->listValue($arguments) : $this->singleValue($key, $arguments), $file->path);
+        $file->write([...$file->read(), $key->value => $value]);
 
-        if (!is_string($rawValue)) {
+        $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($value), $file->path));
+    }
+
+    /**
+     * Returns the value arguments; at least one is required.
+     *
+     * @return non-empty-list<string>
+     */
+    private function valueArguments(InputInterface $input): array
+    {
+        $arguments = array_values(array_filter((array) $input->getArgument('value'), is_string(...)));
+
+        if ($arguments === []) {
             throw new ConfigurationException('Please specify a value, e.g. jxt config set joomla_root /var/www/html.');
         }
 
-        $value = $key->validate($rawValue === 'null' ? null : $rawValue, $file->path);
-        $file->write([...$file->read(), $key->value => $value]);
+        return $arguments;
+    }
 
-        $io->success(sprintf('Saved %s = %s in %s.', $key->value, $value ?? 'null', $file->path));
+    /**
+     * Returns the value of a single-value key; "null" stands for null.
+     *
+     * @param non-empty-list<string> $arguments
+     */
+    private function singleValue(ConfigurationKey $key, array $arguments): ?string
+    {
+        if (count($arguments) > 1) {
+            throw new ConfigurationException(sprintf('%s takes exactly one value.', $key->value));
+        }
+
+        return $arguments[0] === 'null' ? null : $arguments[0];
+    }
+
+    /**
+     * Returns the entries of a list key from all arguments, split at commas.
+     *
+     * @param non-empty-list<string> $arguments
+     *
+     * @return list<string>
+     */
+    private function listValue(array $arguments): array
+    {
+        $entries = array_map(trim(...), explode(',', implode(',', $arguments)));
+        $entries = array_values(array_filter($entries, static fn (string $entry): bool => $entry !== ''));
+
+        if ($entries === []) {
+            throw new ConfigurationException('Please specify a value, e.g. jxt config set check_exclude manifest.');
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Formats a value for the output; lists are comma-separated.
+     *
+     * @param string|list<string>|null $value
+     */
+    private function format(string|array|null $value): string
+    {
+        return is_array($value) ? implode(', ', $value) : $value ?? 'null';
     }
 
     /**

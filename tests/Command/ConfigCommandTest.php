@@ -52,7 +52,7 @@ final class ConfigCommandTest extends TestCase
     {
         $this->writeFile('project/.jxt.json', '{"dist_dir": "build"}');
 
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'apache']));
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['apache']]));
         self::assertJsonStringEqualsJsonFile(
             $this->project() . '/.jxt.json',
             '{"web_user": "apache", "dist_dir": "build"}',
@@ -66,7 +66,7 @@ final class ConfigCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->execute([
             'action' => 'set',
             'key' => 'joomla_root',
-            'value' => '/var/www/html',
+            'value' => ['/var/www/html'],
             '--global' => true,
         ]));
         self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"joomla_root": "/var/www/html"}');
@@ -75,14 +75,41 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetNullStoresJsonNull(): void
     {
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'null']));
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['null']]));
         self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"web_user": null}');
     }
 
     public function testSetWritesModesWithFourDigits(): void
     {
-        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'dir_mode', 'value' => '775']));
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'dir_mode', 'value' => ['775']]));
         self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"dir_mode": "0775"}');
+    }
+
+    public function testSetListFromArgumentsAndCommas(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"check_exclude": ["language"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([
+            'action' => 'set',
+            'key' => 'check_exclude',
+            'value' => ['manifest, editorconfig/max-line-length', 'assets/uri'],
+        ]));
+        self::assertJsonStringEqualsJsonFile(
+            $this->project() . '/.jxt.json',
+            '{"check_exclude": ["manifest", "editorconfig/max-line-length", "assets/uri"]}',
+        );
+        self::assertStringContainsString('check_exclude = manifest, editorconfig/max-line-length, assets/uri', self::display($tester));
+    }
+
+    public function testShowsListsCommaSeparated(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"check_exclude": ["manifest", "assets/uri"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertMatchesRegularExpression('/check_exclude\s+manifest, assets\/uri\s+project/', $tester->getDisplay());
+        self::assertMatchesRegularExpression('/check_include\s+–\s+not set/', $tester->getDisplay());
     }
 
     public function testUnsetRemovesKey(): void
@@ -94,8 +121,8 @@ final class ConfigCommandTest extends TestCase
     }
 
     /**
-     * @param array<string, string|bool> $input
-     * @param non-empty-string           $expectedMessage
+     * @param array<string, string|bool|list<string>> $input
+     * @param non-empty-string                        $expectedMessage
      */
     #[\PHPUnit\Framework\Attributes\DataProvider('invalidInput')]
     public function testRejectsInvalidInput(array $input, string $expectedMessage): void
@@ -108,17 +135,27 @@ final class ConfigCommandTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{array<string, string|bool>, non-empty-string}>
+     * @return iterable<string, array{array<string, string|bool|list<string>>, non-empty-string}>
      */
     public static function invalidInput(): iterable
     {
         yield 'unknown action' => [['action' => 'delete'], 'delete'];
-        yield 'unknown key' => [['action' => 'set', 'key' => 'joomla_rot', 'value' => '/x'], 'joomla_rot'];
-        yield 'invalid value' => [['action' => 'set', 'key' => 'file_mode', 'value' => '999'], 'file_mode'];
+        yield 'unknown key' => [['action' => 'set', 'key' => 'joomla_rot', 'value' => ['/x']], 'joomla_rot'];
+        yield 'invalid value' => [['action' => 'set', 'key' => 'file_mode', 'value' => ['999']], 'file_mode'];
         yield 'missing value' => [['action' => 'set', 'key' => 'web_user'], 'specify a value'];
         yield 'missing key' => [['action' => 'unset'], 'specify a key'];
         yield 'global manifest' => [
-            ['action' => 'set', 'key' => 'manifest', 'value' => 'mod_x.xml', '--global' => true],
+            ['action' => 'set', 'key' => 'manifest', 'value' => ['mod_x.xml'], '--global' => true],
+            'project configuration',
+        ];
+        yield 'several values for a string key' => [
+            ['action' => 'set', 'key' => 'web_user', 'value' => ['apache', 'nginx']],
+            'web_user takes exactly one value',
+        ];
+        yield 'empty list' => [['action' => 'set', 'key' => 'check_exclude', 'value' => [',']], 'specify a value'];
+        yield 'invalid check name' => [['action' => 'set', 'key' => 'check_exclude', 'value' => ['Manifest']], 'Manifest'];
+        yield 'global check list' => [
+            ['action' => 'set', 'key' => 'check_exclude', 'value' => ['manifest'], '--global' => true],
             'project configuration',
         ];
     }
@@ -127,7 +164,7 @@ final class ConfigCommandTest extends TestCase
     {
         $tester = new CommandTester(new ConfigCommand($this->project(), new ConfigurationLoader($this->globalFile()), true));
 
-        self::assertSame(Command::FAILURE, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => 'apache']));
+        self::assertSame(Command::FAILURE, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['apache']]));
         self::assertStringContainsString('sudo', self::display($tester));
         self::assertFileDoesNotExist($this->project() . '/.jxt.json');
     }
