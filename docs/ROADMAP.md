@@ -12,6 +12,10 @@
   extension's exclusive directories that no manifest lists (e.g. from earlier
   rsync deployments). Planning works as the developer, since the site is
   world-readable; deleting needs the web server user, see the next item.
+  First step without the helper: `jxt clean --dry-run` lists the leftovers
+  (exit code 0, as `jxt sync --dry-run`), while `jxt clean` itself fails with
+  "not supported yet" (exit code 2). Deleting can then be added later without
+  changing what an existing call does.
 - Server-side helper for `jxt sync` and `jxt clean`: a Joomla console plugin
   (`plg_console_jxt`, group `console`, loaded by `cli/joomla.php`) adds
   commands such as `jxt:apply`, run via `sudo -n -u www-data` like
