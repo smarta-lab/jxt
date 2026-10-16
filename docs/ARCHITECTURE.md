@@ -174,6 +174,64 @@ directory for the global configuration is determined via `SUDO_USER`, and
 `jxt config` refuses to write so that configuration files are not owned by
 root.
 
+## Checks: design decisions
+
+`jxt check` only runs checks that hold for any extension or derive their
+convention from files that already exist (`.editorconfig`, the changelog
+format, Git tags). There are no opt-in checks, since hardly anyone finds them;
+a check that rests on a guess (`language/unused`) only reports notices.
+
+- **Mode from the tags:** jxt does not ask for a version, it looks whether the
+  manifest version already has a tag (`ReleaseDetector`); without Git, a dated
+  heading in `CHANGELOG.md` counts as released.
+- **`--release` separate from `--strict`:** `--strict` is about the state of
+  the code, `--release` about the preparation of the release. Release-only
+  problems are notices without `--release`
+  (`CheckContext::releaseSeverity()`). As warnings, `--strict` would turn them
+  into errors, and a CI run on every push would fail whenever the release is
+  not prepared yet.
+- **Asset versions against the last release tag:** what holds in general is
+  only that the `version` of an asset must change with its file (cache
+  busting). Whether it equals the extension version is a convention, so
+  `assets/version-coupled` only reports a notice.
+- **Asset URIs via the targets of the plan** instead of `<media destination>`:
+  this covers modules (`mod_x/file.js`) and templates (`template.css`) alike,
+  including `.min` variants.
+- **Files of the whitespace checks:** without Git, hidden files in the project
+  directory are skipped; they are mostly tool files that Git would ignore
+  (`.envrc`, `.phpunit.result.cache`).
+- **`indent_style = tab`:** two or more spaces at the start of the indentation
+  are a violation, a single one (` * ` in doc comments) is not.
+- **Implicit language constants:** the bare prefix (the extension name) and
+  `<PREFIX>_POSITION_…`/`<PREFIX>_LAYOUT_…` are used by Joomla itself and never
+  reported as unused.
+- **Selecting checks** works as in Ruff, ShellCheck or PHP_CodeSniffer:
+  `--exclude` and `--include`, the more specific name wins, the order does not
+  matter. Alternatives considered:
+  - one list with signs in the given order (`-manifest,+manifest/…`): Symfony
+    Console reads values starting with `-` as options, quotes do not help;
+  - a map from check to setting as in ESLint: only needed if projects should
+    change severities;
+  - global lists: the result would depend on the machine, so the lists exist
+    only in `.jxt.json` and CI checks the same as a local run.
+- **No manifest is not a check:** without a readable manifest nothing can be
+  checked, so it is an invalid call (exit code 2) and cannot be excluded.
+
+### EditorConfig parser
+
+jxt has its own parser instead of a Composer package.
+`idiosyncratic/editorconfig` (unchanged since 2021) does not follow the
+specification: `*` also matches `/`, `{a,b}` and `{n..m}` do not match, and
+`[[ab].md]` makes the whole file unreadable. `armin/editorconfig-cli` builds on it, and
+`editorconfig-checker/editorconfig-checker` only wraps the Go program.
+
+`GlobTranslator` follows editorconfig-core-py; the glob cases come from
+editorconfig-core-test. `ReferenceImplementationTest` compares them with the C
+core (program `editorconfig`, skipped if it is not installed). Deliberate
+deviations from the C core: `?` matches one character instead of one byte, and
+an unclosed `[` as well as `*` inside `[...]` are literal instead of matching
+nothing.
+
 ## Code structure
 
 Namespaces below `SmartA\Jxt`:
