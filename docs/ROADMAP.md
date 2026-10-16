@@ -18,11 +18,13 @@
   `jxt install`. jxt plans as the developer and stages the files and a plan
   (copies, deletions) in `/tmp`, because `www-data` cannot read the home
   directory (mode 750); the plugin validates and applies the plan and could
-  also refresh `manifest_cache`. Installed and updated with `jxt install`,
-  only acts when called via the CLI, so there is no web endpoint. Open: worth
-  it only if `jxt install` turns out too slow or leftovers are frequent; needs
-  plugin support in jxt and a versioned plan format shared by jxt and the
-  plugin.
+  also refresh `manifest_cache`. It only acts when called via the CLI, so
+  there is no web endpoint. The plugin is shipped inside the jxt package
+  (`plugin/`, outside the PSR-4 autoload); jxt builds it and installs it via
+  the Joomla installer when it is missing or has a different version, so the
+  plan format always matches the jxt release. Open: worth it only if
+  `jxt install` turns out too slow or leftovers are frequent; needs plugin
+  support in jxt.
 
 ## Done
 
