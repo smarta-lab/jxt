@@ -300,7 +300,7 @@ Manifest. Hinweise lassen die Prüfung nie scheitern.
 | `changelog/unreleased` | Vorprüfung: Anzahl der Einträge unter `[Unreleased]`; Endprüfung: `[Unreleased]` ist nicht leer | Hinweis | Hinweis, mit `--release` Fehler |
 | `changelog/release-heading` | es gibt keine Überschrift `## [X.Y.Z] - YYYY-MM-DD` für die Version | – | Hinweis, mit `--release` Fehler |
 | `assets/json` | eine `joomla.asset.json` ist kein gültiges JSON | Fehler | Fehler |
-| `assets/uri` | die URI eines Assets passt zu keiner Datei der Erweiterung (externe URIs und Medien anderer Erweiterungen entfallen) | Warnung | Warnung |
+| `assets/uri` | die URI eines Assets passt zu keiner Datei der Erweiterung (externe URIs und Medien anderer Erweiterungen entfallen); bei `user.css` und `user.js` von Templates, die Websitebetreiber selbst anlegen (wie in Cassiopeia), nur ein Hinweis | Warnung | Warnung |
 | `assets/version-changed` | die Datei des Assets hat sich seit dem letzten Release-Tag geändert, seine `version` nicht | Hinweis | Hinweis, mit `--release` Fehler |
 | `assets/version-coupled` | eine Version war beim letzten Release gleich der Erweiterungsversion, ist es jetzt aber nicht | – | Hinweis |
 | `assets/baseline` | kein Git oder noch kein Release-Tag, Asset-Versionen werden nicht verglichen | Hinweis | Hinweis |

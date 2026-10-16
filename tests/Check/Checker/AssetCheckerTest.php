@@ -67,6 +67,45 @@ final class AssetCheckerTest extends TestCase
         );
     }
 
+    public function testMissingUserFilesOfTemplatesAreNotices(): void
+    {
+        $this->writeFile('templateDetails.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="template" client="site">
+                <name>example</name>
+                <version>1.0.0</version>
+                <files><filename>joomla.asset.json</filename></files>
+                <media destination="templates/site/example" folder="media"><folder>css</folder></media>
+            </extension>
+            XML);
+        $this->writeFile('joomla.asset.json', (string) json_encode(['assets' => [
+            ['name' => 'template.user.style', 'type' => 'style', 'uri' => 'user.css'],
+            ['name' => 'template.user.script', 'type' => 'script', 'uri' => 'user.js'],
+            ['name' => 'template.missing', 'type' => 'style', 'uri' => 'missing.css'],
+        ]]));
+
+        self::assertSame(
+            [
+                'INFO assets/uri: joomla.asset.json: asset template.user.style: user.css is not shipped, site owners may create it',
+                'INFO assets/uri: joomla.asset.json: asset template.user.script: user.js is not shipped, site owners may create it',
+                'WARN assets/uri: joomla.asset.json: asset template.missing: URI missing.css does not match a file of the extension',
+            ],
+            array_slice($this->findings(new AssetChecker(), $this->context(manifest: 'templateDetails.xml')), 1),
+        );
+    }
+
+    public function testMissingUserFilesOfModulesAreWarnings(): void
+    {
+        $this->writeFile('media/joomla.asset.json', (string) json_encode(['assets' => [
+            ['name' => 'mod_example.user', 'type' => 'style', 'uri' => 'mod_example/user.css'],
+        ]]));
+
+        self::assertSame(
+            ['WARN assets/uri: ' . self::FILE . ': asset mod_example.user: URI mod_example/user.css does not match a file of the extension'],
+            array_slice($this->findings(new AssetChecker()), 1),
+        );
+    }
+
     public function testFirstReleaseHasNoBaseline(): void
     {
         $this->initGit();

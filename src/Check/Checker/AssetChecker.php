@@ -11,6 +11,7 @@ use SmartA\Jxt\Check\CheckReport;
 use SmartA\Jxt\Check\GitRepository;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
+use SmartA\Jxt\Manifest\ExtensionType;
 
 /**
  * Checks the `joomla.asset.json` files of the extension.
@@ -19,12 +20,17 @@ use SmartA\Jxt\Deployment\PlanEntry;
  * Each asset with a fixed version is compared with the last release tag: a changed file with an
  * unchanged version is reported. In the final check, versions that used to equal the extension
  * version but no longer do are pointed out as well.
+ *
+ * Templates like Cassiopeia declare `user.css` and `user.js` without shipping them, so that site owners
+ * can create them; for templates, these missing files are only notices.
  */
 final readonly class AssetChecker implements Checker
 {
     private const string FILE_NAME = 'joomla.asset.json';
 
     private const array TYPE_FOLDERS = ['style' => 'css', 'script' => 'js'];
+
+    private const array USER_FILES = ['user.css', 'user.js', 'user.min.css', 'user.min.js'];
 
     #[\Override]
     public function group(): string
@@ -78,7 +84,14 @@ final readonly class AssetChecker implements Checker
         foreach ($assets as $name => $asset) {
             $source = $this->source($context, $asset);
 
-            if ($source === false) {
+            if ($source === false && $this->isUserFile($context, $asset)) {
+                $report->add(CheckName::AssetsUri, Severity::Notice, sprintf(
+                    '%s: asset %s: %s is not shipped, site owners may create it',
+                    $path,
+                    $name,
+                    basename($this->string($asset, 'uri')),
+                ));
+            } elseif ($source === false) {
                 $report->add(CheckName::AssetsUri, Severity::Warning, sprintf(
                     '%s: asset %s: URI %s does not match a file of the extension',
                     $path,
@@ -232,6 +245,17 @@ final readonly class AssetChecker implements Checker
         }
 
         return false;
+    }
+
+    /**
+     * Tells whether the asset is a template's file for the site owner's own CSS or JavaScript.
+     *
+     * @param array<mixed> $asset
+     */
+    private function isUserFile(CheckContext $context, array $asset): bool
+    {
+        return $context->manifest->type === ExtensionType::Template
+            && in_array(basename($this->string($asset, 'uri')), self::USER_FILES, true);
     }
 
     /**
