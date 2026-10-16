@@ -47,7 +47,7 @@ written:
 - Linux or WSL only: `ext-posix` is needed to find the developer's home
   directory when jxt is started via sudo, and `jxt install` relies on `sudo`
   unless `web_user` is `null`.
-- A single binary `jxt` with subcommands (`install`, `sync`, `build`, `config`)
+- A single binary `jxt` with subcommands (`install`, `sync`, `build`, …)
   instead of one binary per command, to avoid name collisions in `vendor/bin`.
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
@@ -247,7 +247,9 @@ Namespaces below `SmartA\Jxt`:
 - **`Install`:** `JoomlaInstaller` hands the ZIP to the Joomla CLI via a
   `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
-  `SyncPlan`; `SyncExecutor` applies it via `Filesystem`.
+  `SyncPlan`; `SyncExecutor` applies it via `Filesystem`. `LeftoverFinder`
+  finds the entries in the exclusive directories that do not belong to the
+  plan, for the deletions of `jxt sync` and for `jxt clean --dry-run`.
 - **`Check`:** `CheckContextFactory` collects the `CheckContext` (manifest,
   expanded files of the plan, `GitRepository`, `Changelog`, `ReleaseState` from
   the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
@@ -261,7 +263,7 @@ Namespaces below `SmartA\Jxt`:
   (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
   including list keys; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
-  `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
+  `jxt clean`, `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
 
 Conventions:
 

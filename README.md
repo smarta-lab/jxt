@@ -13,6 +13,8 @@ Manifest-driven CLI for Joomla!® extension development:
 - **`jxt check`** checks the extension before a release: manifest, whitespace
   according to `.editorconfig`, `CHANGELOG.md`, asset versions and language
   files. With exit codes for CI.
+- **`jxt clean --dry-run`** lists files on the test server that no longer
+  belong to the extension and that `jxt install` keeps.
 - **`jxt config`** shows and changes the global and per-project configuration.
 
 All commands run in the project directory of an extension, like

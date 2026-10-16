@@ -21,6 +21,10 @@ project follows [Semantic Versioning](https://semver.org/).
   (notices otherwise) into errors.
 - `jxt check --exclude/--include` and the configuration keys `check_exclude`
   and `check_include` in `.jxt.json` to skip checks or groups.
+- `jxt clean --dry-run`: lists leftovers on the test server, i.e. entries in
+  the extension's own directories that the manifest does not list and that
+  `jxt install` keeps. Deleting is not supported yet; `jxt clean` without
+  `--dry-run` fails with exit code 2.
 - `jxt config set` accepts several values, also comma-separated, for list
   keys.
 

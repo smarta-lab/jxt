@@ -22,8 +22,10 @@ final readonly class SyncPlanner
 {
     public const string AUTOLOAD_CACHE = 'administrator/cache/autoload_psr4.php';
 
-    public function __construct(private PlanExpander $planExpander = new PlanExpander())
-    {
+    public function __construct(
+        private PlanExpander $planExpander = new PlanExpander(),
+        private LeftoverFinder $leftoverFinder = new LeftoverFinder(),
+    ) {
     }
 
     /**
@@ -38,7 +40,7 @@ final readonly class SyncPlanner
     {
         $files = $this->planExpander->expand($new->plan, $extensionDirectory);
         $targets = array_fill_keys(array_map(static fn (PlanEntry $file): string => $file->target, $files), true);
-        $directories = $this->managedDirectories($new, $files);
+        $directories = $this->leftoverFinder->managedDirectories($new, $files);
         $comparison = $this->compare($old, $new);
         $syncFiles = array_map(
             fn (PlanEntry $file): SyncFile => new SyncFile($file, $this->status($file, $extensionDirectory, $joomlaRoot)),
@@ -46,7 +48,7 @@ final readonly class SyncPlanner
         );
 
         $deletions = [
-            ...$this->exclusiveDeletions($new, $old, $joomlaRoot, $targets, $directories),
+            ...$this->leftoverFinder->find($new, $old, $files, $joomlaRoot),
             ...$this->sharedDeletions($old, $joomlaRoot, $targets),
         ];
 
@@ -100,102 +102,6 @@ final readonly class SyncPlanner
     }
 
     /**
-     * Returns all directories inside the exclusive directories that must exist after the sync.
-     *
-     * @param list<PlanEntry> $files
-     *
-     * @return list<string>
-     */
-    private function managedDirectories(Manifest $new, array $files): array
-    {
-        $directories = array_fill_keys($new->plan->exclusiveDirectories, true);
-
-        foreach ($files as $file) {
-            $exclusiveDirectory = $this->exclusiveDirectoryOf($file->target, $new->plan->exclusiveDirectories);
-
-            if ($exclusiveDirectory === null) {
-                continue;
-            }
-
-            for ($directory = dirname($file->target); $directory !== $exclusiveDirectory; $directory = dirname($directory)) {
-                $directories[$directory] = true;
-            }
-        }
-
-        $directories = array_keys($directories);
-        sort($directories, SORT_STRING);
-
-        return $directories;
-    }
-
-    /**
-     * Determines the entries to delete in the exclusive directories of the old and the new manifest.
-     *
-     * @param array<string, true> $targets     Target paths of all files in the new plan
-     * @param list<string>        $directories Directories that must be kept
-     *
-     * @return list<Deletion>
-     */
-    private function exclusiveDeletions(Manifest $new, Manifest $old, string $joomlaRoot, array $targets, array $directories): array
-    {
-        $neededDirectories = array_fill_keys($directories, true);
-        $deletions = [];
-
-        foreach (array_unique([...$new->plan->exclusiveDirectories, ...$old->plan->exclusiveDirectories]) as $exclusiveDirectory) {
-            if (!is_dir($joomlaRoot . '/' . $exclusiveDirectory)) {
-                continue;
-            }
-
-            $deletions = [
-                ...$deletions,
-                ...$this->staleEntries($joomlaRoot, $exclusiveDirectory, $targets, $neededDirectories),
-            ];
-
-            if (!isset($neededDirectories[$exclusiveDirectory])) {
-                $deletions[] = new Deletion($exclusiveDirectory, EntryKind::Directory);
-            }
-        }
-
-        return $deletions;
-    }
-
-    /**
-     * Recursively returns all entries of a server directory that do not belong to the new plan.
-     *
-     * Symbolic links are treated like files and not followed.
-     *
-     * @param array<string, true> $targets
-     * @param array<string, true> $neededDirectories
-     *
-     * @return list<Deletion>
-     */
-    private function staleEntries(string $joomlaRoot, string $directory, array $targets, array $neededDirectories): array
-    {
-        $deletions = [];
-
-        foreach (scandir($joomlaRoot . '/' . $directory) ?: [] as $name) {
-            if ($name === '.' || $name === '..') {
-                continue;
-            }
-
-            $path = $directory . '/' . $name;
-            $absolutePath = $joomlaRoot . '/' . $path;
-
-            if (is_dir($absolutePath) && !is_link($absolutePath)) {
-                $deletions = [...$deletions, ...$this->staleEntries($joomlaRoot, $path, $targets, $neededDirectories)];
-
-                if (!isset($neededDirectories[$path])) {
-                    $deletions[] = new Deletion($path, EntryKind::Directory);
-                }
-            } elseif (!isset($targets[$path])) {
-                $deletions[] = new Deletion($path, EntryKind::File);
-            }
-        }
-
-        return $deletions;
-    }
-
-    /**
      * Determines files of the old manifest outside the exclusive directories that are missing from the new plan.
      *
      * @param array<string, true> $targets
@@ -209,7 +115,7 @@ final readonly class SyncPlanner
         foreach ($old->plan->entries as $entry) {
             if (
                 $entry->kind === EntryKind::File
-                && $this->exclusiveDirectoryOf($entry->target, $old->plan->exclusiveDirectories) === null
+                && LeftoverFinder::exclusiveDirectoryOf($entry->target, $old->plan->exclusiveDirectories) === null
                 && !isset($targets[$entry->target])
                 && is_file($joomlaRoot . '/' . $entry->target)
             ) {
@@ -240,22 +146,6 @@ final readonly class SyncPlanner
         }
 
         return $changed;
-    }
-
-    /**
-     * Returns the exclusive directory containing the path, or null.
-     *
-     * @param list<string> $exclusiveDirectories
-     */
-    private function exclusiveDirectoryOf(string $path, array $exclusiveDirectories): ?string
-    {
-        foreach ($exclusiveDirectories as $directory) {
-            if (str_starts_with($path, $directory . '/')) {
-                return $directory;
-            }
-        }
-
-        return null;
     }
 
     /**

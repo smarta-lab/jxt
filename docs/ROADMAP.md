@@ -8,14 +8,9 @@
   the ZIP.
 - `jxt check --format=json`: machine-readable output, e.g. for annotations in
   CI.
-- `jxt clean`: remove leftovers that `jxt install` keeps, i.e. files in the
-  extension's exclusive directories that no manifest lists (e.g. from earlier
-  rsync deployments). Planning works as the developer, since the site is
-  world-readable; deleting needs the web server user, see the next item.
-  First step without the helper: `jxt clean --dry-run` lists the leftovers
-  (exit code 0, as `jxt sync --dry-run`), while `jxt clean` itself fails with
-  "not supported yet" (exit code 2). Deleting can then be added later without
-  changing what an existing call does.
+- `jxt clean` without `--dry-run`: delete the leftovers that
+  `jxt clean --dry-run` lists. Planning works as the developer, since the site
+  is world-readable; deleting needs the web server user, see the next item.
 - Server-side helper for `jxt sync` and `jxt clean`: a Joomla console plugin
   (`plg_console_jxt`, group `console`, loaded by `cli/joomla.php`) adds
   commands such as `jxt:apply`, run via `sudo -n -u www-data` like
@@ -41,6 +36,11 @@
   core), `CHANGELOG.md`, asset versions against the last release tag and
   language files, with exit codes for CI. Judging the content (changelog,
   README) stays a manual review.
+- `jxt clean --dry-run`: lists leftovers that `jxt install` keeps, i.e. files
+  in the extension's exclusive directories that the manifest does not list
+  (exit code 0, as `jxt sync --dry-run`). `jxt clean` itself fails with "not
+  supported yet" (exit code 2), so that deleting can be added later without
+  changing what an existing call does.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

@@ -198,6 +198,38 @@ Standardwerte neuer Modulparameter werden nicht in bestehende Modulinstanzen
 geschrieben. Das gilt auch bei einem echten Upgrade, deshalb Parameter immer mit
 Standardwert lesen: `$params->get('x', default)`.
 
+## jxt clean – Überbleibsel auf dem Testserver auflisten
+
+```bash
+vendor/bin/jxt clean --dry-run
+```
+
+`jxt install` entfernt nur, was der Joomla-Installer kennt. Dateien in den
+Ordnern, die der Erweiterung gehören (`modules/<element>/`,
+`media/<destination>/`), die das Manifest nicht aufführt, bleiben auf dem
+Server, z. B. eine aus `src/` gelöschte Klasse oder Dateien aus früheren
+Übertragungen mit anderen Werkzeugen. `jxt clean --dry-run` listet sie auf,
+nach denselben Regeln wie die Löschungen von `jxt sync` in diesen Ordnern; ein
+übrig gebliebener Ordner erscheint einmal mit abschließendem `/` statt mit
+seinem Inhalt:
+
+```
+mod_example → /var/www/html (dry run)
+  - modules/mod_example/helper/
+  - modules/mod_example/tmpl/old.php
+
+ ! [NOTE] jxt clean cannot delete yet. Remove the leftovers as www-data, e.g.
+ !        with sudo -u www-data rm -r.
+
+ [OK] Dry run, nothing changed: 2 leftovers found.
+```
+
+Der Exit-Code ist 0, mit und ohne Funde. Löschen wird noch nicht unterstützt,
+da die Dateien dem Webserver-Benutzer gehören: `jxt clean` ohne `--dry-run`
+bricht mit Exit-Code 2 ab, damit eine spätere Version das Löschen ergänzen
+kann, ohne zu ändern, was ein bestehender Aufruf tut. Wie `jxt sync` braucht
+`jxt clean` das installierte Manifest.
+
 ## jxt build – installierbare ZIP-Datei erstellen
 
 ```bash
