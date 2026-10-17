@@ -3,8 +3,10 @@
 ## Ideas
 
 - Support plugins and components.
-- `jxt check --format=json`: machine-readable output, e.g. for annotations in
-  CI.
+- Machine-readable output of `jxt check`, e.g. `--format=github` for
+  annotations in GitHub Actions (workflow commands, as PHPStan's
+  `--error-format=github`), JSON only for a concrete need. Requires file and
+  line as fields of `Finding`; today they are part of the message.
 - `jxt install --clean`: delete the leftovers that `jxt install` lists.
   Planning works as the developer, since the site is world-readable; deleting
   needs the web server user, see the next item.
