@@ -55,6 +55,18 @@ For an update, the manifest needs `method="upgrade"`; otherwise Joomla refuses
 to install over an existing extension. If the installation fails and the
 attribute is missing, `jxt install` points this out.
 
+### Installing a Git tag
+
+```bash
+vendor/bin/jxt install --tag v1.0.0
+```
+
+With `--tag`, `jxt install` builds the ZIP from the committed files of a Git
+tag, as `jxt build --tag` does (see
+[jxt build](#jxt-build--build-an-installable-zip)), and installs it. This tests
+exactly the released state, e.g. the update from the last release to the
+working copy. `--tag` and `--zip` cannot be combined (exit code 2).
+
 ### Installing an existing ZIP file
 
 ```bash

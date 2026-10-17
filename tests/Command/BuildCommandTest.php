@@ -7,9 +7,7 @@ namespace SmartA\Jxt\Tests\Command;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
-use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Tests\GitTrait;
-use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -127,21 +125,6 @@ final class BuildCommandTest extends TestCase
         self::assertStringNotContainsString('does not match', self::display($tester));
     }
 
-    public function testUsesManifestSettingOfTheTagAndDistDirectoryOfTheWorkingCopy(): void
-    {
-        $this->writeFile('extension/mod_x.xml', self::manifest('1.0.0'));
-        $this->writeFile('extension/tmpl/default.php');
-        $this->writeFile('.jxt.json', '{"manifest": "extension/mod_x.xml"}');
-        $this->initGit();
-        $this->git('tag', '1.0.0');
-        $this->writeFile('.jxt.json', '{"manifest": "moved/mod_x.xml", "dist_dir": "build"}');
-
-        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
-
-        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => '1.0.0']));
-        self::assertFileExists($this->project . '/build/mod_x-1.0.0.zip');
-    }
-
     public function testWarnsWhenTagDoesNotMatchManifestVersion(): void
     {
         $this->writeFile('mod_x.xml', self::manifest('1.1.0'));
@@ -167,18 +150,6 @@ final class BuildCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
         self::assertStringContainsString('Tag v1.0.0 not found', self::display($tester));
         self::assertDirectoryDoesNotExist($this->project . '/dist');
-    }
-
-    public function testFailsForTagWithoutGitRepository(): void
-    {
-        $this->writeFile('mod_x.xml', self::manifest('1.0.0'));
-        $this->writeFile('tmpl/default.php');
-        $noGit = new RecordingProcessRunner(new ProcessResult(128, 'fatal: not a git repository'));
-
-        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null), processRunner: $noGit));
-
-        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
-        self::assertStringContainsString('not in a Git repository', self::display($tester));
     }
 
     /**

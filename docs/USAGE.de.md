@@ -56,6 +56,19 @@ Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla d
 Installation über eine vorhandene Erweiterung ab. Schlägt die Installation fehl
 und fehlt das Attribut, weist `jxt install` darauf hin.
 
+### Git-Tag installieren
+
+```bash
+vendor/bin/jxt install --tag v1.0.0
+```
+
+Mit `--tag` erstellt `jxt install` die ZIP-Datei aus den committeten Dateien
+eines Git-Tags wie `jxt build --tag` (siehe
+[jxt build](#jxt-build--installierbare-zip-datei-erstellen)) und installiert
+sie. So lässt sich genau der veröffentlichte Stand testen, z. B. das Update vom
+letzten Release auf die Arbeitskopie. `--tag` und `--zip` lassen sich nicht
+kombinieren (Exit-Code 2).
+
 ### Vorhandene ZIP-Datei installieren
 
 ```bash

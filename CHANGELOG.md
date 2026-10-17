@@ -29,6 +29,9 @@ project follows [Semantic Versioning](https://semver.org/).
   Git tag (via `git archive`) instead of the working copy, so uncommitted
   changes do not end up in a release ZIP. Warns if the tag does not name the
   manifest version.
+- `jxt install --tag <tag>`: builds the ZIP file from a Git tag like
+  `jxt build --tag` and installs it, e.g. to test the update from the last
+  release.
 - `jxt config set` accepts several values, also comma-separated, for list
   keys.
 

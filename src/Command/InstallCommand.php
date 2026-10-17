@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
-use SmartA\Jxt\Build\PackageBuilder;
+use SmartA\Jxt\Build\ProjectBuild;
+use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
-use SmartA\Jxt\Deployment\UnlistedSourceFinder;
 use SmartA\Jxt\Install\InstallException;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\Manifest;
-use SmartA\Jxt\Manifest\ManifestLocator;
-use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Manifest\PackageManifestReader;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -26,11 +24,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Command `jxt install`: builds the ZIP file and installs it on the test server with the Joomla installer.
  *
- * With `--zip`, an existing ZIP file (e.g. of an older version) is installed instead of building a new one.
+ * With `--tag`, the ZIP file is built from the committed files of a Git tag; with `--zip`, an existing ZIP
+ * file (e.g. of an older version) is installed instead of building a new one.
  */
 #[AsCommand(name: 'install', description: 'Builds the ZIP file and installs it on the local Joomla test site.')]
 final class InstallCommand extends Command
 {
+    private readonly ProjectBuilder $projectBuilder;
+
     /**
      * @param string $projectDirectory Project directory of the extension, usually the current directory
      * @param string $currentUser      Name of the calling user, for the sudoers rule in the error hint
@@ -40,18 +41,22 @@ final class InstallCommand extends Command
         private readonly ConfigurationLoader $configurationLoader,
         private readonly JoomlaInstaller $installer,
         private readonly string $currentUser,
-        private readonly ManifestLocator $manifestLocator = new ManifestLocator(),
-        private readonly ManifestParser $manifestParser = new ManifestParser(),
-        private readonly PackageBuilder $packageBuilder = new PackageBuilder(),
-        private readonly UnlistedSourceFinder $unlistedSourceFinder = new UnlistedSourceFinder(),
+        ?ProjectBuilder $projectBuilder = null,
         private readonly PackageManifestReader $packageManifestReader = new PackageManifestReader(),
     ) {
+        $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader);
         parent::__construct();
     }
 
     #[\Override]
     protected function configure(): void
     {
+        $this->addOption(
+            'tag',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'Build the ZIP file from a Git tag instead of the working copy, e.g. v1.0.0',
+        );
         $this->addOption('zip', null, InputOption::VALUE_REQUIRED, 'Install this ZIP file instead of building a new one.');
     }
 
@@ -62,14 +67,21 @@ final class InstallCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        $tag = $input->getOption('tag');
+        $zip = $input->getOption('zip');
+
+        if (is_string($tag) && is_string($zip)) {
+            $io->error('--tag and --zip cannot be combined.');
+
+            return Command::INVALID;
+        }
 
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
             $joomlaRoot = $configuration->validJoomlaRoot();
-            $zip = $input->getOption('zip');
             [$manifest, $packagePath] = is_string($zip)
                 ? $this->existingPackage($zip)
-                : $this->newPackage($io, $configuration);
+                : $this->newPackage($io, $configuration, is_string($tag) ? $tag : null);
 
             $io->writeln(sprintf('<info>%s</info> → %s', basename($packagePath), $joomlaRoot));
             $result = $this->installer->install($packagePath, $joomlaRoot, $configuration->webUser);
@@ -87,27 +99,30 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
-        $io->success(trim($manifest->element . ' ' . ($manifest->version ?? '')) . ' installed.');
+        $io->success(sprintf(
+            '%s installed%s.',
+            trim($manifest->element . ' ' . ($manifest->version ?? '')),
+            is_string($tag) ? ' from tag ' . $tag : '',
+        ));
 
         return Command::SUCCESS;
     }
 
     /**
-     * Builds the ZIP file from the project and returns its manifest and path.
+     * Builds the ZIP file from the working copy or the tag and returns its manifest and path.
      *
      * @return array{Manifest, string}
      *
-     * @throws JxtException if the manifest is missing or invalid or the ZIP file cannot be created
+     * @throws JxtException if the manifest or the tag is missing or invalid or the ZIP file cannot be created
      */
-    private function newPackage(SymfonyStyle $io, Configuration $configuration): array
+    private function newPackage(SymfonyStyle $io, Configuration $configuration, ?string $tag): array
     {
-        $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
-        $manifest = $this->manifestParser->parseFile($manifestFile);
-        $extensionDirectory = dirname($manifestFile);
-        $package = $this->packageBuilder->build($manifest, $extensionDirectory, $configuration->distDirectory);
-        $this->warnAboutUnlistedSources($io, $manifest, $extensionDirectory);
+        $build = $tag === null
+            ? $this->projectBuilder->build($this->projectDirectory, $configuration->distDirectory)
+            : $this->projectBuilder->buildTag($this->projectDirectory, $tag, $configuration->distDirectory);
+        $this->showBuildWarnings($io, $build);
 
-        return [$manifest, $package->path];
+        return [$build->manifest, $build->package->path];
     }
 
     /**
@@ -133,15 +148,15 @@ final class InstallCommand extends Command
     }
 
     /**
-     * Warns about files in the source directories that are not listed in the manifest.
+     * Warns about files that are not listed in the manifest and about a tag that does not name the version.
      */
-    private function warnAboutUnlistedSources(SymfonyStyle $io, Manifest $manifest, string $extensionDirectory): void
+    private function showBuildWarnings(SymfonyStyle $io, ProjectBuild $build): void
     {
-        $unlisted = $this->unlistedSourceFinder->find($manifest->plan, $extensionDirectory);
-
-        if ($unlisted !== []) {
-            $io->warning(implode("\n", ['Not listed in the manifest, therefore not installed:', ...$unlisted]));
+        if ($build->unlisted !== []) {
+            $io->warning(implode("\n", ['Not listed in the manifest, therefore not installed:', ...$build->unlisted]));
         }
+
+        TagWarning::show($io, $build);
     }
 
     /**

@@ -9,6 +9,7 @@ use SmartA\Jxt\Command\InstallCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
@@ -21,6 +22,7 @@ use ZipArchive;
 final class InstallCommandTest extends TestCase
 {
     use CommandDisplayTrait;
+    use GitTrait;
     use TemporaryDirectoryTrait;
 
     private const string MANIFEST = '<extension type="module" method="upgrade"><name>mod_x</name>'
@@ -160,6 +162,52 @@ final class InstallCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute(['--zip' => 'mod_x.tar']));
         self::assertStringContainsString('mod_x.tar has no .zip extension', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    public function testBuildsTheZipFromATagAndInstallsIt(): void
+    {
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $this->writeFile('project/mod_x.xml', str_replace('1.0.0', '1.1.0', self::MANIFEST));
+        $runner = new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertFileExists($this->temporaryDirectory . '/project/dist/mod_x-1.0.0.zip');
+        self::assertSame(file_get_contents($this->temporaryDirectory . '/project/dist/mod_x-1.0.0.zip'), $runner->packageContent);
+        self::assertStringContainsString('mod_x 1.0.0 installed from tag v1.0.0', self::display($tester));
+        self::assertStringNotContainsString('does not match', self::display($tester));
+    }
+
+    public function testWarnsWhenTheTagDoesNotMatchTheManifestVersion(): void
+    {
+        $this->initGit();
+        $this->git('tag', 'v0.9.0');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => 'v0.9.0']));
+        self::assertStringContainsString('Tag v0.9.0 does not match the manifest version 1.0.0', self::display($tester));
+    }
+
+    public function testFailsForAnUnknownTag(): void
+    {
+        $this->initGit();
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertStringContainsString('Tag v1.0.0 not found', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    public function testRejectsTagTogetherWithZip(): void
+    {
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::INVALID, $tester->execute(['--tag' => 'v1.0.0', '--zip' => 'old.zip']));
+        self::assertStringContainsString('--tag and --zip cannot be combined', self::display($tester));
         self::assertSame([], $runner->command);
     }
 

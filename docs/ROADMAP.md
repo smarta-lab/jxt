@@ -3,8 +3,6 @@
 ## Ideas
 
 - Support plugins and components.
-- `jxt install --tag v1.1.0`: install a tagged version like
-  `jxt build --tag`, e.g. to test the update from the last release.
 - `jxt check --tag v1.1.0`: check the files of a tag, e.g. in CI on tags,
   including that the tag names the manifest version.
 - `jxt check --format=json`: machine-readable output, e.g. for annotations in
@@ -42,8 +40,9 @@
   (exit code 0, as `jxt sync --dry-run`). `jxt clean` itself fails with "not
   supported yet" (exit code 2), so that deleting can be added later without
   changing what an existing call does.
-- `jxt build --tag`: builds the ZIP from the committed files of a Git tag
-  (`git archive`), so that uncommitted changes do not end up in a release ZIP.
+- `jxt build --tag` and `jxt install --tag`: build the ZIP from the committed
+  files of a Git tag (`git archive`), so that uncommitted changes do not end up
+  in a release ZIP.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

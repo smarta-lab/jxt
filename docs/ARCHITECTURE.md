@@ -176,9 +176,9 @@ root.
 
 ## Building from a tag
 
-`jxt build --tag` exports the project directory of the tag with `git archive`
-into a temporary directory and runs the normal build there, so the plan, the
-ZIP and the warnings work as for the working copy.
+`jxt build --tag` and `jxt install --tag` export the project directory of the
+tag with `git archive` into a temporary directory and run the normal build
+there, so the plan, the ZIP and the warnings work as for the working copy.
 
 - **`git archive` instead of a checkout:** it does not touch the index or the
   work tree and needs no `git worktree` that would have to be cleaned up. It
@@ -261,10 +261,12 @@ Namespaces below `SmartA\Jxt`:
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
   directories into files; `UnlistedSourceFinder` finds files missing from the
   manifest.
-- **`Build`:** `PackageBuilder` creates the ZIP; `TagExporter` exports a Git
-  tag into a temporary directory for `jxt build --tag`.
+- **`Build`:** `ProjectBuilder` builds the ZIP of the project from the working
+  copy or a Git tag (`ProjectBuild`) for `jxt build` and `jxt install`;
+  `PackageBuilder` creates the ZIP, `TagExporter` exports a tag into a
+  temporary directory.
 - **`Git`:** `GitRepository` reads tags, files and file states and archives
-  tags, used by `jxt check` and `jxt build --tag`.
+  tags, used by `jxt check` and `--tag`.
 - **`Install`:** `JoomlaInstaller` hands the ZIP to the Joomla CLI via a
   `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
