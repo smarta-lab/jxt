@@ -364,15 +364,30 @@ ein Projekt ohne Git ist ein falscher Aufruf (Exit-Code 2).
 
 ```bash
 vendor/bin/jxt check --exclude=editorconfig --include=editorconfig/charset
+vendor/bin/jxt check --exclude=all --include=language  # nur eine Gruppe
 vendor/bin/jxt config set check_exclude assets/uri,editorconfig/max-line-length
 ```
 
-`--exclude` und `--include` nehmen eine Gruppe (`manifest`) oder eine einzelne
-Prüfung (`manifest/stray-files`), mehrfach oder mit Komma getrennt. In
+`--exclude` und `--include` nehmen `all`, eine Gruppe (`manifest`) oder eine
+einzelne Prüfung (`manifest/stray-files`), mehrfach oder mit Komma getrennt. In
 `.jxt.json` tun `check_exclude` und `check_include` dasselbe dauerhaft für das
-Projekt. Der genauere Name gewinnt, so lässt sich eine einzelne Prüfung aus
-einer abgeschalteten Gruppe wieder einschalten; beim selben Namen gewinnt die
-Kommandozeile über `.jxt.json`. Unbekannte Namen werden abgewiesen.
+Projekt.
+
+Die Kommandozeile überlagert `.jxt.json`. Innerhalb einer Quelle gewinnt der
+genauere Name (`all` < Gruppe < Prüfung), so lässt sich eine einzelne Prüfung
+aus einer abgeschalteten Gruppe wieder einschalten; beim selben Namen gewinnt
+das Einschließen:
+
+| `.jxt.json` | Kommandozeile | Ergebnis |
+|---|---|---|
+| exclude `editorconfig/charset` | – | charset entfällt |
+| exclude `editorconfig/charset` | `--include=editorconfig` oder `--include=all` | charset läuft |
+| include `editorconfig/charset` | `--exclude=editorconfig` | charset entfällt |
+| – | `--exclude=all --include=editorconfig/charset` | nur charset läuft |
+
+Mit `check_exclude: ["all"]` in `.jxt.json` wird die include-Liste zur
+vollständigen Auswahl; Prüfungen, die spätere jxt-Versionen ergänzen, laufen in
+dem Projekt dann nicht. Unbekannte Namen werden abgewiesen.
 
 ## jxt config – Konfiguration anzeigen und ändern
 
@@ -425,8 +440,8 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
 | `dir_mode` | Rechte für Ordner bei `jxt sync` | `0755` |
 | `file_mode` | Rechte für Dateien bei `jxt sync` | `0644` |
-| `check_exclude` | Liste der Prüfungen oder Gruppen, die `jxt check` auslässt; nur in `.jxt.json` | – |
-| `check_include` | Liste der Prüfungen oder Gruppen, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
+| `check_exclude` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` auslässt; nur in `.jxt.json` | – |
+| `check_include` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
 
 Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`)
 oder `null`. `null` setzt einen Schlüssel auf seinen

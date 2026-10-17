@@ -7,9 +7,9 @@ namespace SmartA\Jxt\Check;
 /**
  * Decides which checks run, from `check_exclude`/`check_include` of the project and `--exclude`/`--include`.
  *
- * All checks run by default. A name denotes a group (`manifest`) or a single check
- * (`manifest/version-semver`). The most specific name wins; for the same name the command line wins
- * over the project, and within one source an include wins over an exclude.
+ * All checks run by default. A name denotes all checks (`all`), a group (`manifest`) or a single check
+ * (`manifest/version-semver`). The command line overrides the project; within one source the most specific
+ * name wins, and for the same name an include wins over an exclude.
  */
 final readonly class CheckSelection
 {
@@ -58,13 +58,14 @@ final readonly class CheckSelection
 
         foreach ($this->rules as [$name, $source, $enabled]) {
             $specificity = match ($name) {
-                $check->value => 2,
-                $check->group() => 1,
+                $check->value => 3,
+                $check->group() => 2,
+                CheckName::ALL => 1,
                 default => 0,
             };
 
             if ($specificity > 0) {
-                $score = [$specificity, $source, (int) $enabled];
+                $score = [$source, $specificity, (int) $enabled];
                 $best = $best === null || $score > $best[0] ? [$score, $enabled] : $best;
             }
         }
@@ -100,8 +101,9 @@ final readonly class CheckSelection
         foreach ($names as $name) {
             if (!CheckName::isKnown($name)) {
                 throw new CheckException(sprintf(
-                    'Unknown check "%s". Allowed are the groups %s or a single check such as %s.',
+                    'Unknown check "%s". Allowed are %s, the groups %s or a single check such as %s.',
                     $name,
+                    CheckName::ALL,
                     implode(', ', CheckName::groups()),
                     CheckName::ManifestVersionSemver->value,
                 ));

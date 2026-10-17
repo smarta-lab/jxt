@@ -353,15 +353,28 @@ needs the earlier tags for the comparison of asset versions (in GitHub Actions
 
 ```bash
 vendor/bin/jxt check --exclude=editorconfig --include=editorconfig/charset
+vendor/bin/jxt check --exclude=all --include=language  # only one group
 vendor/bin/jxt config set check_exclude assets/uri,editorconfig/max-line-length
 ```
 
-`--exclude` and `--include` take a group (`manifest`) or a single check
+`--exclude` and `--include` take `all`, a group (`manifest`) or a single check
 (`manifest/stray-files`), several times or comma-separated. In `.jxt.json`,
 `check_exclude` and `check_include` do the same permanently for the project.
-The more specific name wins, so a single check can be included from an
-excluded group; for the same name, the command line wins over `.jxt.json`.
-Unknown names are rejected.
+
+The command line overrides `.jxt.json`. Within one source, the more specific
+name wins (`all` < group < check), so a single check can be included from an
+excluded group, and for the same name an include wins over an exclude:
+
+| `.jxt.json` | Command line | Result |
+|---|---|---|
+| exclude `editorconfig/charset` | – | charset is skipped |
+| exclude `editorconfig/charset` | `--include=editorconfig` or `--include=all` | charset runs |
+| include `editorconfig/charset` | `--exclude=editorconfig` | charset is skipped |
+| – | `--exclude=all --include=editorconfig/charset` | only charset runs |
+
+`check_exclude: ["all"]` in `.jxt.json` turns the include list into the
+complete selection; checks added in later jxt versions then do not run in the
+project. Unknown names are rejected.
 
 ## jxt config – show and change the configuration
 
@@ -413,8 +426,8 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories in `jxt sync` | `0755` |
 | `file_mode` | Mode for files in `jxt sync` | `0644` |
-| `check_exclude` | List of checks or groups that `jxt check` skips; only in `.jxt.json` | – |
-| `check_include` | List of checks or groups that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
+| `check_exclude` | List of checks, groups or `all` that `jxt check` skips; only in `.jxt.json` | – |
+| `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
 All values are strings, lists of strings (`check_exclude`, `check_include`) or
 `null`. `null` resets a key to its default; only for

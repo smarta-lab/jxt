@@ -111,6 +111,19 @@ final class CheckCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $this->tester()->execute(['--include' => ['editorconfig/final-newline']]));
     }
 
+    public function testExcludeAllRunsOnlyTheIncludedChecks(): void
+    {
+        $this->writeFile('tmpl/default.php', '<?php');
+        $this->writeFile('.jxt.json', '{"check_exclude": ["editorconfig/final-newline"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--exclude' => ['all'], '--include' => ['editorconfig/charset']]));
+        self::assertStringContainsString('manifest -------- excluded', self::display($tester));
+        self::assertStringContainsString('editorconfig ------------ OK', self::display($tester));
+
+        self::assertSame(Command::FAILURE, $this->tester()->execute(['--include' => ['all']]));
+    }
+
     public function testUnknownCheckIsAnInvalidCall(): void
     {
         $tester = $this->tester();

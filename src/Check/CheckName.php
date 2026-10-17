@@ -40,6 +40,11 @@ enum CheckName: string
     case ComposerVersionField = 'composer/version-field';
 
     /**
+     * Name that selects all checks, less specific than a group.
+     */
+    public const string ALL = 'all';
+
+    /**
      * Returns the group, e.g. `manifest` for `manifest/version-semver`.
      */
     public function group(): string
@@ -58,10 +63,10 @@ enum CheckName: string
     }
 
     /**
-     * Checks whether a name denotes a group or a single check.
+     * Checks whether a name denotes all checks, a group or a single check.
      */
     public static function isKnown(string $name): bool
     {
-        return self::tryFrom($name) !== null || in_array($name, self::groups(), true);
+        return $name === self::ALL || self::tryFrom($name) !== null || in_array($name, self::groups(), true);
     }
 }

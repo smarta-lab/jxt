@@ -23,7 +23,8 @@ project follows [Semantic Versioning](https://semver.org/).
   final check of that release, e.g. in CI on tags; the tag must name the
   manifest version (`manifest/tag-version`).
 - `jxt check --exclude/--include` and the configuration keys `check_exclude`
-  and `check_include` in `.jxt.json` to skip checks or groups.
+  and `check_include` in `.jxt.json` to skip checks, groups or `all`; the
+  command line overrides `.jxt.json`.
 - `jxt install` lists leftovers after a successful installation: entries in
   the extension's own directories that the installed ZIP file does not
   contain, e.g. a class deleted from a folder listed in the manifest, which the

@@ -56,9 +56,35 @@ final class CheckSelectionTest extends TestCase
         self::assertFalse(CheckSelection::create([], ['assets'], ['assets'])->isEnabled(CheckName::AssetsUri));
     }
 
-    public function testCommandLineGroupDoesNotOverrideProjectCheck(): void
+    public function testCommandLineOverridesMoreSpecificProjectNames(): void
     {
-        self::assertFalse(CheckSelection::create(['assets/uri'], [], [], ['assets'])->isEnabled(CheckName::AssetsUri));
+        self::assertTrue(CheckSelection::create(['assets/uri'], [], [], ['assets'])->isEnabled(CheckName::AssetsUri));
+        self::assertFalse(CheckSelection::create([], ['assets/uri'], ['assets'])->isEnabled(CheckName::AssetsUri));
+        self::assertTrue(CheckSelection::create(['assets/uri', 'editorconfig'], [], [], ['all'])->isEnabled(CheckName::AssetsUri));
+    }
+
+    public function testAllIsLessSpecificThanGroupsAndChecks(): void
+    {
+        $selection = CheckSelection::create([], [], ['all'], ['editorconfig/charset', 'assets']);
+
+        self::assertTrue($selection->isEnabled(CheckName::EditorConfigCharset));
+        self::assertFalse($selection->isEnabled(CheckName::EditorConfigEndOfLine));
+        self::assertTrue($selection->isEnabled(CheckName::AssetsUri));
+        self::assertFalse($selection->isGroupEnabled('manifest'));
+
+        $selection = CheckSelection::create(['all'], ['manifest/version-semver']);
+
+        self::assertTrue($selection->isEnabled(CheckName::ManifestVersionSemver));
+        self::assertFalse($selection->isEnabled(CheckName::ManifestListedFiles));
+    }
+
+    public function testExcludingAllRunsNothing(): void
+    {
+        $selection = CheckSelection::create([], [], ['all']);
+
+        foreach (CheckName::groups() as $group) {
+            self::assertFalse($selection->isGroupEnabled($group), $group);
+        }
     }
 
     public function testIncludeWinsWithinTheSameSource(): void
@@ -69,7 +95,7 @@ final class CheckSelectionTest extends TestCase
     public function testRejectsUnknownNames(): void
     {
         $this->expectException(CheckException::class);
-        $this->expectExceptionMessageMatches('/Unknown check "manifest\/foo"/');
+        $this->expectExceptionMessageMatches('/Unknown check "manifest\/foo". Allowed are all, the groups manifest, /');
 
         CheckSelection::create([], [], ['manifest/foo']);
     }

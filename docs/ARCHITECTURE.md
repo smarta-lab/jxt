@@ -257,8 +257,17 @@ a check that rests on a guess (`language/unused`) only reports notices.
   `<PREFIX>_POSITION_…`/`<PREFIX>_LAYOUT_…` are used by Joomla itself and never
   reported as unused.
 - **Selecting checks** works as in Ruff, ShellCheck or PHP_CodeSniffer:
-  `--exclude` and `--include`, the more specific name wins, the order does not
-  matter. Alternatives considered:
+  `--exclude` and `--include` with `all`, a group or a single check; the order
+  does not matter. The command line overrides `.jxt.json`, within one source
+  the more specific name wins. So `--include=all` runs everything the project
+  excludes, and `--exclude=all --include=<check>` runs only that check.
+  Alternatives considered:
+  - the more specific name first, the source only for the same name (the first
+    implementation): a single check excluded in `.jxt.json` could not be
+    switched back on with `--include=all` or with its group, which is what
+    such a call means;
+  - `<group>/all` instead of the bare group: groups never contain `/`, so the
+    bare name is unambiguous, and the question which rule wins is the same;
   - one list with signs in the given order (`-manifest,+manifest/…`): Symfony
     Console reads values starting with `-` as options, quotes do not help;
   - a map from check to setting as in ESLint: only needed if projects should
