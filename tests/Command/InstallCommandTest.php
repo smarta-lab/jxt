@@ -211,6 +211,110 @@ final class InstallCommandTest extends TestCase
         self::assertSame([], $runner->command);
     }
 
+    public function testReportsLeftoversAfterInstallingWithoutDeleting(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $this->writeFile('joomla/modules/mod_x/helper/a.php');
+        $this->writeFile('joomla/modules/mod_x/helper/b.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString(
+            'Not removed by the Joomla installer: modules/mod_x/helper/ modules/mod_x/tmpl/old.php',
+            self::display($tester),
+        );
+        self::assertStringNotContainsString('helper/a.php', self::display($tester));
+        self::assertStringContainsString('sudo -u www-data rm -r', self::display($tester));
+        self::assertStringContainsString('mod_x 1.0.0 installed', self::display($tester));
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertFileExists($this->joomla() . '/modules/mod_x/helper/a.php');
+    }
+
+    public function testReportsNoLeftoversIfTheSiteMatchesThePackage(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringNotContainsString('Not removed', self::display($tester));
+    }
+
+    public function testSuggestsPlainRmWithoutWebUser(): void
+    {
+        $this->writeFile(
+            'project/.jxt.json',
+            (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => null]),
+        );
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('Remove them by hand', self::display($tester));
+        self::assertStringNotContainsString('sudo', self::display($tester));
+    }
+
+    public function testComparesWithTheTagInsteadOfTheWorkingCopy(): void
+    {
+        $this->writeFile('project/tmpl/old.php');
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        unlink($this->temporaryDirectory . '/project/tmpl/old.php');
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+
+        $fromTag = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+        self::assertSame(Command::SUCCESS, $fromTag->execute(['--tag' => 'v1.0.0']));
+        self::assertStringNotContainsString('Not removed', self::display($fromTag));
+
+        $fromWorkingCopy = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+        self::assertSame(Command::SUCCESS, $fromWorkingCopy->execute([]));
+        self::assertStringContainsString('modules/mod_x/tmpl/old.php', self::display($fromWorkingCopy));
+    }
+
+    public function testComparesWithTheContentOfAnExistingZip(): void
+    {
+        $this->writeZip('project/old.zip', self::MANIFEST);
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/extra.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--zip' => 'old.zip']));
+        self::assertStringContainsString('Not removed by the Joomla installer: modules/mod_x/tmpl/extra.php', self::display($tester));
+    }
+
+    public function testReportsTheMediaDirectoryOfThePreviouslyInstalledManifest(): void
+    {
+        $this->writeInstalledExtension(
+            str_replace('</extension>', '<media destination="mod_x" folder="media"/></extension>', self::MANIFEST),
+        );
+        $this->writeFile('joomla/media/mod_x/css/x.css');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('Not removed by the Joomla installer: media/mod_x/', self::display($tester));
+    }
+
+    public function testDoesNotReportLeftoversIfTheInstallationFails(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, '[ERROR] Unable to install extension')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringNotContainsString('Not removed', self::display($tester));
+    }
+
+    /**
+     * Writes the installed manifest and the template file of `mod_x` to the Joomla directory.
+     */
+    private function writeInstalledExtension(string $manifest): void
+    {
+        $this->writeFile('joomla/modules/mod_x/mod_x.xml', $manifest);
+        $this->writeFile('joomla/modules/mod_x/tmpl/default.php', '<?php');
+    }
+
     /**
      * Writes a ZIP file with the manifest and a layout relative to the temporary directory.
      */

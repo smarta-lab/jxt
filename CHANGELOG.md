@@ -21,10 +21,10 @@ project follows [Semantic Versioning](https://semver.org/).
   (notices otherwise) into errors.
 - `jxt check --exclude/--include` and the configuration keys `check_exclude`
   and `check_include` in `.jxt.json` to skip checks or groups.
-- `jxt clean --dry-run`: lists leftovers on the test server, i.e. entries in
-  the extension's own directories that the manifest does not list and that
-  `jxt install` keeps. Deleting is not supported yet; `jxt clean` without
-  `--dry-run` fails with exit code 2.
+- `jxt install` lists leftovers after a successful installation: entries in
+  the extension's own directories that the installed ZIP file does not
+  contain, e.g. a class deleted from a folder listed in the manifest, which the
+  Joomla installer keeps. Nothing is deleted.
 - `jxt build --tag <tag>`: builds the ZIP file from the committed files of a
   Git tag (via `git archive`) instead of the working copy, so uncommitted
   changes do not end up in a release ZIP. Warns if the tag does not name the

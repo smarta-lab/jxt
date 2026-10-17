@@ -174,6 +174,26 @@ directory for the global configuration is determined via `SUDO_USER`, and
 `jxt config` refuses to write so that configuration files are not owned by
 root.
 
+## Leftovers after an installation
+
+The Joomla installer does not remove files from folders listed as a whole
+(`<folder>src</folder>`), so leftovers accumulate, especially when switching
+between a release (`--tag`, `--zip`) and the working copy. Only the files of
+the installed ZIP tell which entries belong to the extension: the installed
+manifest lists the folder but not its files, and the working copy can differ
+from the installed state even with the same version (commits after the tag,
+uncommitted changes). A separate command such as `jxt clean` could therefore
+only compare against a guessed state.
+
+So `jxt install` reports the leftovers itself, right after a successful
+installation: `PackagePlanExpander` expands the plan of the manifest in the ZIP
+against the ZIP entries, and `LeftoverFinder` compares the exclusive
+directories of this manifest and of the manifest installed before with the
+site. Reporting only needs read access and is the default; deleting needs the
+web server user and is not supported yet. If it comes, it will be an option
+(`--clean`), since making a harmless default call delete files would change
+what an existing call does.
+
 ## Building from a tag
 
 `jxt build --tag` and `jxt install --tag` export the project directory of the
@@ -259,8 +279,8 @@ Namespaces below `SmartA\Jxt`:
   `InstallerMetadata`); `PackageManifestReader` reads the manifest of an
   existing ZIP (`jxt install --zip`); `RelativePath` validates paths.
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
-  directories into files; `UnlistedSourceFinder` finds files missing from the
-  manifest.
+  directories into files, `PackagePlanExpander` into the files of a ZIP;
+  `UnlistedSourceFinder` finds files missing from the manifest.
 - **`Build`:** `ProjectBuilder` builds the ZIP of the project from the working
   copy or a Git tag (`ProjectBuild`) for `jxt build` and `jxt install`;
   `PackageBuilder` creates the ZIP, `TagExporter` exports a tag into a
@@ -272,7 +292,8 @@ Namespaces below `SmartA\Jxt`:
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
   `SyncPlan`; `SyncExecutor` applies it via `Filesystem`. `LeftoverFinder`
   finds the entries in the exclusive directories that do not belong to the
-  plan, for the deletions of `jxt sync` and for `jxt clean --dry-run`.
+  plan, for the deletions of `jxt sync` and the leftover report of
+  `jxt install`.
 - **`Check`:** `CheckContextFactory` collects the `CheckContext` (manifest,
   expanded files of the plan, `GitRepository`, `Changelog`, `ReleaseState` from
   the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
@@ -286,7 +307,7 @@ Namespaces below `SmartA\Jxt`:
   (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
   including list keys; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
-  `jxt clean`, `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
+  `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
 
 Conventions:
 

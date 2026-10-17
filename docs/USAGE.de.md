@@ -49,8 +49,8 @@ Install Extension
 Das ist eine echte Installation bzw. ein echtes Update: Installationsskripte und
 SQL-Dateien laufen, Update-Server werden eingetragen, die Version im
 Erweiterungsmanager und der Namespace-Cache stimmen. Dateien, die im alten
-Manifest standen und im neuen fehlen, löscht Joomla selbst. Altlasten, die in
-keinem Manifest stehen, bleiben dagegen liegen.
+Manifest standen und im neuen fehlen, löscht Joomla selbst; andere Altlasten
+bleiben liegen (siehe [Altlasten](#altlasten)).
 
 Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla die
 Installation über eine vorhandene Erweiterung ab. Schlägt die Installation fehl
@@ -88,6 +88,31 @@ Joomla prüft die Version nicht: Eine ältere ZIP-Datei über eine neuere
 Installation zu installieren ist ein Downgrade, SQL-Updates der neueren Version
 werden dabei nicht zurückgenommen.
 
+### Altlasten
+
+Aus Ordnern, die das Manifest als Ganzes aufführt (`<folder>src</folder>`),
+entfernt der Joomla-Installer keine Dateien, z. B. eine aus `src/` gelöschte
+Klasse, ebenso wenig Dateien aus früheren Übertragungen mit anderen Werkzeugen.
+Nach einer erfolgreichen Installation vergleicht `jxt install` deshalb die
+Ordner, die der Erweiterung gehören (`modules/<element>/`,
+`media/<destination>/`, auch die des zuvor installierten Manifests), mit dem
+Inhalt der eben installierten ZIP-Datei und listet alles andere auf; ein übrig
+gebliebener Ordner erscheint einmal mit abschließendem `/`:
+
+```
+ [WARNING] Not removed by the Joomla installer:
+           modules/mod_example/helper/
+           modules/mod_example/tmpl/old.php
+
+ ! [NOTE] They no longer belong to the extension. Remove them as www-data,
+ !        e.g. with sudo -u www-data rm -r.
+```
+
+Gelöscht wird nichts, der Exit-Code bleibt 0. Maßstab ist die ZIP-Datei, nicht
+die Arbeitskopie, daher stimmt der Vergleich auch mit `--tag` und `--zip`. Beim
+Wechsel zwischen einem Release und der Arbeitskopie listet das nächste
+`jxt install` auf, was der andere Stand hinterlassen hat.
+
 ### Einrichtung: sudo ohne Passwort für den Joomla-Installer
 
 Damit die Dateien dem Webserver-Benutzer gehören, läuft die Joomla-CLI als
@@ -122,7 +147,7 @@ vendor/bin/jxt sync --dry-run  # nur anzeigen, nichts ändern
 ```
 
 `jxt sync` kopiert die Dateien ohne den Joomla-Installer. Das ist schneller und
-räumt auch Altlasten auf, setzt aber voraus, dass der aufrufende Benutzer in den
+löscht auch Altlasten, setzt aber voraus, dass der aufrufende Benutzer in den
 Zielordnern schreiben darf (siehe [Rechte](#rechte)). Gehören die Dateien
 dem Webserver-Benutzer, ist `jxt install` der richtige Befehl.
 
@@ -210,38 +235,6 @@ Kopieren ist nicht dasselbe wie eine Installation über den Joomla-Installer.
 Standardwerte neuer Modulparameter werden nicht in bestehende Modulinstanzen
 geschrieben. Das gilt auch bei einem echten Upgrade, deshalb Parameter immer mit
 Standardwert lesen: `$params->get('x', default)`.
-
-## jxt clean – Überbleibsel auf dem Testserver auflisten
-
-```bash
-vendor/bin/jxt clean --dry-run
-```
-
-`jxt install` entfernt nur, was der Joomla-Installer kennt. Dateien in den
-Ordnern, die der Erweiterung gehören (`modules/<element>/`,
-`media/<destination>/`), die das Manifest nicht aufführt, bleiben auf dem
-Server, z. B. eine aus `src/` gelöschte Klasse oder Dateien aus früheren
-Übertragungen mit anderen Werkzeugen. `jxt clean --dry-run` listet sie auf,
-nach denselben Regeln wie die Löschungen von `jxt sync` in diesen Ordnern; ein
-übrig gebliebener Ordner erscheint einmal mit abschließendem `/` statt mit
-seinem Inhalt:
-
-```
-mod_example → /var/www/html (dry run)
-  - modules/mod_example/helper/
-  - modules/mod_example/tmpl/old.php
-
- ! [NOTE] jxt clean cannot delete yet. Remove the leftovers as www-data, e.g.
- !        with sudo -u www-data rm -r.
-
- [OK] Dry run, nothing changed: 2 leftovers found.
-```
-
-Der Exit-Code ist 0, mit und ohne Funde. Löschen wird noch nicht unterstützt,
-da die Dateien dem Webserver-Benutzer gehören: `jxt clean` ohne `--dry-run`
-bricht mit Exit-Code 2 ab, damit eine spätere Version das Löschen ergänzen
-kann, ohne zu ändern, was ein bestehender Aufruf tut. Wie `jxt sync` braucht
-`jxt clean` das installierte Manifest.
 
 ## jxt build – installierbare ZIP-Datei erstellen
 

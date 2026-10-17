@@ -11,7 +11,7 @@ use SmartA\Jxt\Manifest\Manifest;
 /**
  * Finds entries on the server in the exclusive directories of an extension that do not belong to its plan.
  *
- * Used by `jxt sync` to delete them and by `jxt clean --dry-run` to list them.
+ * Used by `jxt sync` to delete them and by `jxt install` to report those that the Joomla installer keeps.
  */
 final class LeftoverFinder
 {
@@ -48,6 +48,35 @@ final class LeftoverFinder
         }
 
         return $leftovers;
+    }
+
+    /**
+     * Drops the entries inside leftover directories, so that each directory is listed only once, and sorts the rest.
+     *
+     * @param list<Deletion> $leftovers
+     *
+     * @return list<Deletion>
+     */
+    public function topLevel(array $leftovers): array
+    {
+        $directories = array_map(
+            static fn (Deletion $leftover): string => $leftover->target . '/',
+            array_filter($leftovers, static fn (Deletion $leftover): bool => $leftover->kind === EntryKind::Directory),
+        );
+
+        $topLevel = array_filter($leftovers, static function (Deletion $leftover) use ($directories): bool {
+            foreach ($directories as $directory) {
+                if (str_starts_with($leftover->target, $directory)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        usort($topLevel, static fn (Deletion $a, Deletion $b): int => strcmp($a->target, $b->target));
+
+        return $topLevel;
     }
 
     /**

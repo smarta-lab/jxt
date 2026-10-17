@@ -8,12 +8,18 @@ use SmartA\Jxt\Build\ProjectBuild;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Deployment\EntryKind;
+use SmartA\Jxt\Deployment\PackagePlanExpander;
 use SmartA\Jxt\Install\InstallException;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\Manifest;
+use SmartA\Jxt\Manifest\ManifestException;
+use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Manifest\PackageManifestReader;
+use SmartA\Jxt\Sync\Deletion;
+use SmartA\Jxt\Sync\LeftoverFinder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -26,6 +32,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * With `--tag`, the ZIP file is built from the committed files of a Git tag; with `--zip`, an existing ZIP
  * file (e.g. of an older version) is installed instead of building a new one.
+ *
+ * Afterwards it reports leftovers: entries in the exclusive directories of the extension that the installed ZIP
+ * file does not contain, since the Joomla installer does not remove files from listed folders. The ZIP file is
+ * the only reliable record of what was installed, so there is no separate command for this.
  */
 #[AsCommand(name: 'install', description: 'Builds the ZIP file and installs it on the local Joomla test site.')]
 final class InstallCommand extends Command
@@ -43,6 +53,9 @@ final class InstallCommand extends Command
         private readonly string $currentUser,
         ?ProjectBuilder $projectBuilder = null,
         private readonly PackageManifestReader $packageManifestReader = new PackageManifestReader(),
+        private readonly ManifestParser $manifestParser = new ManifestParser(),
+        private readonly PackagePlanExpander $packagePlanExpander = new PackagePlanExpander(),
+        private readonly LeftoverFinder $leftoverFinder = new LeftoverFinder(),
     ) {
         $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader);
         parent::__construct();
@@ -83,6 +96,8 @@ final class InstallCommand extends Command
                 ? $this->existingPackage($zip)
                 : $this->newPackage($io, $configuration, is_string($tag) ? $tag : null);
 
+            $previous = $this->installedManifest($manifest, $joomlaRoot);
+
             $io->writeln(sprintf('<info>%s</info> → %s', basename($packagePath), $joomlaRoot));
             $result = $this->installer->install($packagePath, $joomlaRoot, $configuration->webUser);
         } catch (JxtException $exception) {
@@ -99,6 +114,7 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
+        $this->reportLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $configuration, $joomlaRoot);
         $io->success(sprintf(
             '%s installed%s.',
             trim($manifest->element . ' ' . ($manifest->version ?? '')),
@@ -145,6 +161,65 @@ final class InstallCommand extends Command
         }
 
         return [$this->packageManifestReader->read($path), $path];
+    }
+
+    /**
+     * Returns the manifest installed before, which may name other exclusive directories, or null if there is none
+     * or it is invalid.
+     */
+    private function installedManifest(Manifest $manifest, string $joomlaRoot): ?Manifest
+    {
+        $path = $joomlaRoot . '/' . $manifest->installedManifest();
+
+        try {
+            return is_file($path) ? $this->manifestParser->parseFile($path) : null;
+        } catch (ManifestException) {
+            return null;
+        }
+    }
+
+    /**
+     * Lists the leftovers of the installed ZIP file on the site, each leftover directory once, with a hint on
+     * removing them.
+     */
+    private function reportLeftovers(
+        SymfonyStyle $io,
+        Manifest $manifest,
+        Manifest $previous,
+        string $packagePath,
+        Configuration $configuration,
+        string $joomlaRoot,
+    ): void {
+        try {
+            $files = $this->packagePlanExpander->expand($manifest->plan, $packagePath);
+            $leftovers = $this->leftoverFinder->topLevel(
+                $this->leftoverFinder->find($manifest, $previous, $files, $joomlaRoot),
+            );
+        } catch (JxtException $exception) {
+            $io->warning('Cannot check for leftovers: ' . $exception->getMessage());
+
+            return;
+        }
+
+        if ($leftovers === []) {
+            return;
+        }
+
+        $io->warning(implode("\n", [
+            'Not removed by the Joomla installer:',
+            ...array_map(
+                static fn (Deletion $leftover): string => $leftover->target
+                    . ($leftover->kind === EntryKind::Directory ? '/' : ''),
+                $leftovers,
+            ),
+        ]));
+        $io->note(match ($configuration->webUser) {
+            null => 'They no longer belong to the extension. Remove them by hand, e.g. with rm -r.',
+            default => sprintf(
+                'They no longer belong to the extension. Remove them as %1$s, e.g. with sudo -u %1$s rm -r.',
+                $configuration->webUser,
+            ),
+        });
     }
 
     /**

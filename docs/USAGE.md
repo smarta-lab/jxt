@@ -48,8 +48,8 @@ Install Extension
 This is a real installation or update: install scripts and SQL files run,
 update servers are registered, and the version in the extension manager and the
 namespace cache are up to date. Joomla itself deletes files that were listed in
-the old manifest and are missing from the new one. Leftovers that are not listed
-in any manifest remain.
+the old manifest and are missing from the new one; other leftovers remain (see
+[Leftovers](#leftovers)).
 
 For an update, the manifest needs `method="upgrade"`; otherwise Joomla refuses
 to install over an existing extension. If the installation fails and the
@@ -85,6 +85,30 @@ Joomla itself does not check the version: installing an older ZIP over a newer
 installation is a downgrade, and SQL update files of the newer version are not
 reverted.
 
+### Leftovers
+
+The Joomla installer does not remove files from folders that the manifest
+lists as a whole (`<folder>src</folder>`), e.g. a class deleted from `src/`, nor
+files from earlier deployments by other tools. After a successful installation,
+`jxt install` therefore compares the directories owned by the extension
+(`modules/<element>/`, `media/<destination>/`, including those of the manifest
+installed before) with the content of the ZIP file it just installed and lists
+everything else; a leftover directory is listed once with a trailing `/`:
+
+```
+ [WARNING] Not removed by the Joomla installer:
+           modules/mod_example/helper/
+           modules/mod_example/tmpl/old.php
+
+ ! [NOTE] They no longer belong to the extension. Remove them as www-data,
+ !        e.g. with sudo -u www-data rm -r.
+```
+
+Nothing is deleted, and the exit code stays 0. The comparison uses the ZIP
+file, not the working copy, so it is also correct with `--tag` and `--zip`. When
+switching between a release and the working copy, the next `jxt install` lists
+what the other state left behind.
+
 ### Setup: sudo without password for the Joomla installer
 
 So that the files belong to the web server user, the Joomla CLI runs as that
@@ -119,7 +143,7 @@ vendor/bin/jxt sync --dry-run  # only show what would be copied and deleted
 ```
 
 `jxt sync` copies the files without the Joomla installer. This is faster and
-also cleans up leftovers, but requires that your user may write to the target
+also deletes leftovers, but requires that your user may write to the target
 directories (see [Permissions](#permissions)). If the files belong to the web
 server user, use `jxt install`.
 
@@ -204,37 +228,6 @@ therefore reports:
 Default values of new module parameters are not written to existing module
 instances; this is also true for a real upgrade, so always read parameters with
 a default: `$params->get('x', default)`.
-
-## jxt clean – list leftovers on the test server
-
-```bash
-vendor/bin/jxt clean --dry-run
-```
-
-`jxt install` only removes what the Joomla installer knows about. Files in the
-directories owned by the extension (`modules/<element>/`,
-`media/<destination>/`) that the manifest does not list stay on the server,
-e.g. a class deleted from `src/` or files from earlier deployments by other
-tools. `jxt clean --dry-run` lists them, with the same rules as the deletions
-of `jxt sync` in these directories; a leftover directory is listed once with a
-trailing `/` instead of its content:
-
-```
-mod_example → /var/www/html (dry run)
-  - modules/mod_example/helper/
-  - modules/mod_example/tmpl/old.php
-
- ! [NOTE] jxt clean cannot delete yet. Remove the leftovers as www-data, e.g.
- !        with sudo -u www-data rm -r.
-
- [OK] Dry run, nothing changed: 2 leftovers found.
-```
-
-The exit code is 0 with or without leftovers. Deleting is not supported yet,
-since the files belong to the web server user: `jxt clean` without `--dry-run`
-fails with exit code 2, so that a later version can add deleting without
-changing what an existing call does. Like `jxt sync`, `jxt clean` needs the
-installed manifest.
 
 ## jxt build – build an installable ZIP
 

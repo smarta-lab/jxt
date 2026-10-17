@@ -7,22 +7,21 @@
   including that the tag names the manifest version.
 - `jxt check --format=json`: machine-readable output, e.g. for annotations in
   CI.
-- `jxt clean` without `--dry-run`: delete the leftovers that
-  `jxt clean --dry-run` lists. Planning works as the developer, since the site
-  is world-readable; deleting needs the web server user, see the next item.
-- Server-side helper for `jxt sync` and `jxt clean`: a Joomla console plugin
-  (`plg_console_jxt`, group `console`, loaded by `cli/joomla.php`) adds
+- `jxt install --clean`: delete the leftovers that `jxt install` lists.
+  Planning works as the developer, since the site is world-readable; deleting
+  needs the web server user, see the next item.
+- Server-side helper for `jxt sync` and `jxt install --clean`: a Joomla console
+  plugin (`plg_console_jxt`, group `console`, loaded by `cli/joomla.php`) adds
   commands such as `jxt:apply`, run via `sudo -n -u www-data` like
   `jxt install`. jxt plans as the developer and stages the files and a plan
   (copies, deletions) in `/tmp`, because `www-data` cannot read the home
-  directory (mode 750); the plugin validates and applies the plan and could
-  also refresh `manifest_cache`. It only acts when called via the CLI, so
-  there is no web endpoint. The plugin is shipped inside the jxt package
-  (`plugin/`, outside the PSR-4 autoload); jxt builds it and installs it via
-  the Joomla installer when it is missing or has a different version, so the
-  plan format always matches the jxt release. Open: worth it only if
-  `jxt install` turns out too slow or leftovers are frequent; needs plugin
-  support in jxt.
+  directory (mode 750); the plugin validates and applies the plan and could also
+  refresh `manifest_cache`. It only acts when called via the CLI, so there is no
+  web endpoint. The plugin is shipped inside the jxt package (`plugin/`, outside
+  the PSR-4 autoload); jxt builds it and installs it via the Joomla installer
+  when it is missing or has a different version, so the plan format always
+  matches the jxt release. Open: worth it only if `jxt install` turns out too
+  slow or leftovers are frequent; needs plugin support in jxt.
 
 ## Done
 
@@ -35,11 +34,11 @@
   core), `CHANGELOG.md`, asset versions against the last release tag and
   language files, with exit codes for CI. Judging the content (changelog,
   README) stays a manual review.
-- `jxt clean --dry-run`: lists leftovers that `jxt install` keeps, i.e. files
-  in the extension's exclusive directories that the manifest does not list
-  (exit code 0, as `jxt sync --dry-run`). `jxt clean` itself fails with "not
-  supported yet" (exit code 2), so that deleting can be added later without
-  changing what an existing call does.
+- Leftover report of `jxt install`: after a successful installation, it lists
+  the entries in the extension's exclusive directories that the installed ZIP
+  does not contain. Replaces the unreleased `jxt clean --dry-run`, which
+  compared against the working copy and could not know which state was
+  installed.
 - `jxt build --tag` and `jxt install --tag`: build the ZIP from the committed
   files of a Git tag (`git archive`), so that uncommitted changes do not end up
   in a release ZIP.

@@ -86,6 +86,23 @@ final class LeftoverFinderTest extends TestCase
         );
     }
 
+    public function testTopLevelListsEachLeftoverDirectoryOnceAndSorts(): void
+    {
+        $leftovers = [
+            new Deletion('modules/mod_x/tmpl/old.php', EntryKind::File),
+            new Deletion('modules/mod_x/helper/a/b.php', EntryKind::File),
+            new Deletion('modules/mod_x/helper/a', EntryKind::Directory),
+            new Deletion('modules/mod_x/helper', EntryKind::Directory),
+            new Deletion('modules/mod_x/helpers.php', EntryKind::File),
+        ];
+
+        self::assertEquals([
+            new Deletion('modules/mod_x/helper', EntryKind::Directory),
+            new Deletion('modules/mod_x/helpers.php', EntryKind::File),
+            new Deletion('modules/mod_x/tmpl/old.php', EntryKind::File),
+        ], (new LeftoverFinder())->topLevel($leftovers));
+    }
+
     /**
      * Runs the finder with the project and Joomla directories of the test.
      *
