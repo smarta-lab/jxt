@@ -32,7 +32,11 @@ Joomla installer, without opening the backend in a browser:
 1. The ZIP file is copied to `/tmp` with mode 0644, so the web server user can
    read it without access to the project.
 2. The Joomla CLI installs it as the web server user:
-   `sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…`
+
+   ```bash
+   sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…
+   ```
+
 3. The copy in `/tmp` is deleted.
 
 ```

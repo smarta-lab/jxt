@@ -273,8 +273,8 @@ a check that rests on a guess (`language/unused`) only reports notices.
 jxt has its own parser instead of a Composer package.
 `idiosyncratic/editorconfig` (unchanged since 2021) does not follow the
 specification: `*` also matches `/`, `{a,b}` and `{n..m}` do not match, and
-`[[ab].md]` makes the whole file unreadable. `armin/editorconfig-cli` builds on it, and
-`editorconfig-checker/editorconfig-checker` only wraps the Go program.
+`[[ab].md]` makes the whole file unreadable. `armin/editorconfig-cli` builds on
+it, and `editorconfig-checker/editorconfig-checker` only wraps the Go program.
 
 `GlobTranslator` follows editorconfig-core-py; the glob cases come from
 editorconfig-core-test. `ReferenceImplementationTest` compares them with the C

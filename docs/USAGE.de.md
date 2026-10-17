@@ -33,7 +33,11 @@ Joomla-Installer, ohne dass das Backend im Browser aufgerufen werden muss:
 1. Die ZIP-Datei wird mit den Rechten 0644 nach `/tmp` kopiert, damit der
    Webserver-Benutzer sie lesen kann, ohne Zugriff auf das Projekt zu haben.
 2. Die Joomla-CLI installiert sie als Webserver-Benutzer:
-   `sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…`
+
+   ```bash
+   sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…
+   ```
+
 3. Die Kopie in `/tmp` wird gelöscht.
 
 ```
@@ -52,9 +56,9 @@ Erweiterungsmanager und der Namespace-Cache stimmen. Dateien, die im alten
 Manifest standen und im neuen fehlen, löscht Joomla selbst; andere Altlasten
 bleiben liegen (siehe [Altlasten](#altlasten)).
 
-Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla die
-Installation über eine vorhandene Erweiterung ab. Schlägt die Installation fehl
-und fehlt das Attribut, weist `jxt install` darauf hin.
+Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla
+die Installation über eine vorhandene Erweiterung ab. Schlägt die Installation
+fehl und fehlt das Attribut, weist `jxt install` darauf hin.
 
 ### Git-Tag installieren
 
@@ -76,10 +80,10 @@ vendor/bin/jxt install --zip dist/mod_example-1.0.0.zip
 ```
 
 Mit `--zip` installiert `jxt install` eine vorhandene ZIP-Datei, statt eine neue
-zu erstellen, z. B. eine ältere Version, um das Update von einem früheren Release
-zu testen oder zu ihm zurückzukehren. Relative Pfade beziehen sich auf das
-Projektverzeichnis. Das Manifest des Projekts wird nicht gebraucht; Name der
-Erweiterung, Version in der Erfolgsmeldung und der Hinweis auf
+zu erstellen, z. B. eine ältere Version, um das Update von einem früheren
+Release zu testen oder zu ihm zurückzukehren. Relative Pfade beziehen sich auf
+das Projektverzeichnis. Das Manifest des Projekts wird nicht gebraucht; Name
+der Erweiterung, Version in der Erfolgsmeldung und der Hinweis auf
 `method="upgrade"` stammen aus dem Manifest im Hauptverzeichnis der ZIP-Datei.
 Die Datei muss die Endung `.zip` haben, auf die sich der Joomla-Installer
 verlässt.
@@ -116,8 +120,8 @@ Wechsel zwischen einem Release und der Arbeitskopie listet das nächste
 ### Einrichtung: sudo ohne Passwort für den Joomla-Installer
 
 Damit die Dateien dem Webserver-Benutzer gehören, läuft die Joomla-CLI als
-dieser Benutzer (`web_user`, Standard `www-data`). `sudo -n` fragt nie nach einem
-Passwort; nötig ist einmalig eine sudoers-Regel:
+dieser Benutzer (`web_user`, Standard `www-data`). `sudo -n` fragt nie nach
+einem Passwort; nötig ist einmalig eine sudoers-Regel:
 
 ```bash
 sudo visudo -f /etc/sudoers.d/jxt
