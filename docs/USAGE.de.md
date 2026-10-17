@@ -233,7 +233,8 @@ kann, ohne zu ändern, was ein bestehender Aufruf tut. Wie `jxt sync` braucht
 ## jxt build – installierbare ZIP-Datei erstellen
 
 ```bash
-vendor/bin/jxt build
+vendor/bin/jxt build               # aus der Arbeitskopie
+vendor/bin/jxt build --tag v1.0.0  # aus einem Git-Tag
 ```
 
 Erstellt `dist/<element>-<version>.zip` (Templates:
@@ -243,7 +244,14 @@ gleichen Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor Dateien, die
 nicht im Manifest stehen.
 
 Das ZIP wird aus der Arbeitskopie erstellt, also einschließlich nicht
-committeter Änderungen.
+committeter Änderungen. Mit `--tag` entsteht es stattdessen aus den committeten
+Dateien eines Git-Tags, z. B. für ein Release-ZIP: jxt exportiert den
+Projektordner des Tags mit `git archive` in einen temporären Ordner, daher
+fehlen auch Dateien, die in `.gitattributes` mit `export-ignore` markiert sind.
+Das Manifest und die Einstellung `manifest` stammen aus der `.jxt.json` des
+Tags, der Zielordner aus der Arbeitskopie. Nennt der Tag nicht die
+Manifest-Version (mit oder ohne Präfix `v`), warnt jxt, erstellt das ZIP aber
+trotzdem.
 
 ## jxt check – vor einem Release prüfen
 
