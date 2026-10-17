@@ -57,8 +57,9 @@ sudo visudo -f /etc/sudoers.d/jxt
 # build dist/mod_example-1.0.0.zip and install it on the test server
 vendor/bin/jxt install
 
-# only build the ZIP
+# only build the ZIP, or build it from a Git tag without uncommitted changes
 vendor/bin/jxt build
+vendor/bin/jxt build --tag v1.0.0
 
 # check before a release (--release before tagging, --strict in CI)
 vendor/bin/jxt check

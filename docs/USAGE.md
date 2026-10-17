@@ -227,7 +227,8 @@ installed manifest.
 ## jxt build – build an installable ZIP
 
 ```bash
-vendor/bin/jxt build
+vendor/bin/jxt build               # from the working copy
+vendor/bin/jxt build --tag v1.0.0  # from a Git tag
 ```
 
 Creates `dist/<element>-<version>.zip` (templates:
@@ -236,7 +237,14 @@ with their paths relative to the manifest. An existing file with the same name
 is replaced. Like `jxt sync`, `jxt build` warns about files that are not listed
 in the manifest.
 
-The ZIP is built from the working copy, including uncommitted changes.
+The ZIP is built from the working copy, including uncommitted changes. With
+`--tag`, it is built from the committed files of a Git tag instead, e.g. for a
+release ZIP: jxt exports the project directory of the tag with `git archive`
+into a temporary directory, so files marked `export-ignore` in
+`.gitattributes` are missing as well. The manifest and the `manifest` setting
+come from the `.jxt.json` of the tag, the output directory from the working
+copy. If the tag does not name the manifest version (with or without a `v`
+prefix), jxt warns but still builds the ZIP.
 
 ## jxt check – check before a release
 

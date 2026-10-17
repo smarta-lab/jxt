@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SmartA\Jxt\Check;
+namespace SmartA\Jxt\Git;
 
 use SmartA\Jxt\Install\InstallException;
 use SmartA\Jxt\Install\ProcessResult;
@@ -71,6 +71,28 @@ final readonly class GitRepository
         $result = $this->run('show', $tag . ':./' . $path);
 
         return $result->exitCode === 0 ? $result->output : null;
+    }
+
+    /**
+     * Writes the files of the tag below the directory to a ZIP file via `git archive`.
+     *
+     * Paths in the ZIP are relative to the directory; files marked `export-ignore` in `.gitattributes`
+     * are left out. Only existing tags are accepted, so a branch or an option cannot be passed instead.
+     *
+     * @throws GitException if the tag does not exist or Git fails
+     * @throws InstallException if Git cannot be started
+     */
+    public function archive(string $tag, string $zipPath): void
+    {
+        if (!in_array($tag, $this->tags(), true)) {
+            throw new GitException(sprintf('Tag %s not found.', $tag));
+        }
+
+        $result = $this->run('archive', '--format=zip', '--output=' . $zipPath, 'refs/tags/' . $tag);
+
+        if ($result->exitCode !== 0) {
+            throw new GitException(sprintf('Cannot archive tag %s: %s', $tag, trim($result->output)));
+        }
     }
 
     /**

@@ -174,6 +174,24 @@ directory for the global configuration is determined via `SUDO_USER`, and
 `jxt config` refuses to write so that configuration files are not owned by
 root.
 
+## Building from a tag
+
+`jxt build --tag` exports the project directory of the tag with `git archive`
+into a temporary directory and runs the normal build there, so the plan, the
+ZIP and the warnings work as for the working copy.
+
+- **`git archive` instead of a checkout:** it does not touch the index or the
+  work tree and needs no `git worktree` that would have to be cleaned up. It
+  leaves out files marked `export-ignore`; a file listed in the manifest is
+  then reported as missing.
+- **Configuration:** the `manifest` setting describes the layout of the
+  repository, so it comes from the `.jxt.json` of the tag; the output
+  directory belongs to the working copy.
+- **Only tags:** the value must be an existing tag and is passed as
+  `refs/tags/<tag>`, so neither a branch nor a Git option can be given.
+- **Version mismatch:** a tag that does not name the manifest version is a
+  warning, not an error; the ZIP name always comes from the manifest.
+
 ## Checks: design decisions
 
 `jxt check` only runs checks that hold for any extension or derive their
@@ -243,7 +261,10 @@ Namespaces below `SmartA\Jxt`:
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
   directories into files; `UnlistedSourceFinder` finds files missing from the
   manifest.
-- **`Build`:** `PackageBuilder` creates the ZIP.
+- **`Build`:** `PackageBuilder` creates the ZIP; `TagExporter` exports a Git
+  tag into a temporary directory for `jxt build --tag`.
+- **`Git`:** `GitRepository` reads tags, files and file states and archives
+  tags, used by `jxt check` and `jxt build --tag`.
 - **`Install`:** `JoomlaInstaller` hands the ZIP to the Joomla CLI via a
   `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
 - **`Sync`:** `SyncPlanner` compares project and server and creates a

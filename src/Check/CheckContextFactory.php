@@ -8,6 +8,7 @@ use SmartA\Jxt\Deployment\DeploymentPlan;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Deployment\PlanExpander;
+use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Install\ProcessRunner;
 use SmartA\Jxt\Install\SystemProcessRunner;
 use SmartA\Jxt\Manifest\Manifest;

@@ -7,8 +7,8 @@ namespace SmartA\Jxt\Tests\Check;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Check\Changelog;
 use SmartA\Jxt\Check\CheckMode;
-use SmartA\Jxt\Check\GitRepository;
 use SmartA\Jxt\Check\ReleaseDetector;
+use SmartA\Jxt\Git\GitRepository;
 
 /**
  * Tests for determining the release state from Git tags or the changelog.

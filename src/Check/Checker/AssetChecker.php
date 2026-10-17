@@ -8,9 +8,9 @@ use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckMode;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
-use SmartA\Jxt\Check\GitRepository;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
+use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Manifest\ExtensionType;
 
 /**

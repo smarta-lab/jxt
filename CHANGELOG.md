@@ -25,6 +25,10 @@ project follows [Semantic Versioning](https://semver.org/).
   the extension's own directories that the manifest does not list and that
   `jxt install` keeps. Deleting is not supported yet; `jxt clean` without
   `--dry-run` fails with exit code 2.
+- `jxt build --tag <tag>`: builds the ZIP file from the committed files of a
+  Git tag (via `git archive`) instead of the working copy, so uncommitted
+  changes do not end up in a release ZIP. Warns if the tag does not name the
+  manifest version.
 - `jxt config set` accepts several values, also comma-separated, for list
   keys.
 

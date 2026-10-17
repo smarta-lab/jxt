@@ -7,6 +7,9 @@ namespace SmartA\Jxt\Tests\Command;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\GitTrait;
+use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -18,6 +21,7 @@ use ZipArchive;
 final class BuildCommandTest extends TestCase
 {
     use CommandDisplayTrait;
+    use GitTrait;
     use TemporaryDirectoryTrait;
 
     private string $project;
@@ -102,6 +106,105 @@ final class BuildCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $exitCode);
         self::assertStringContainsString('No Joomla manifest', self::display($tester));
+    }
+
+    public function testBuildsFromTagWithoutUncommittedChanges(): void
+    {
+        $this->writeFile('mod_x.xml', self::manifest('1.0.0'));
+        $this->writeFile('tmpl/default.php', 'tagged');
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $this->writeFile('mod_x.xml', self::manifest('1.1.0'));
+        $this->writeFile('tmpl/default.php', 'changed');
+        $this->writeFile('tmpl/new.php', 'untracked');
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertSame(['mod_x.xml', 'tmpl/default.php'], $this->zipEntries($this->project . '/dist/mod_x-1.0.0.zip'));
+        self::assertSame('tagged', $this->zipContent($this->project . '/dist/mod_x-1.0.0.zip', 'tmpl/default.php'));
+        self::assertStringContainsString('dist/mod_x-1.0.0.zip from tag v1.0.0', self::display($tester));
+        self::assertStringNotContainsString('does not match', self::display($tester));
+    }
+
+    public function testUsesManifestSettingOfTheTagAndDistDirectoryOfTheWorkingCopy(): void
+    {
+        $this->writeFile('extension/mod_x.xml', self::manifest('1.0.0'));
+        $this->writeFile('extension/tmpl/default.php');
+        $this->writeFile('.jxt.json', '{"manifest": "extension/mod_x.xml"}');
+        $this->initGit();
+        $this->git('tag', '1.0.0');
+        $this->writeFile('.jxt.json', '{"manifest": "moved/mod_x.xml", "dist_dir": "build"}');
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => '1.0.0']));
+        self::assertFileExists($this->project . '/build/mod_x-1.0.0.zip');
+    }
+
+    public function testWarnsWhenTagDoesNotMatchManifestVersion(): void
+    {
+        $this->writeFile('mod_x.xml', self::manifest('1.1.0'));
+        $this->writeFile('tmpl/default.php');
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertFileExists($this->project . '/dist/mod_x-1.1.0.zip');
+        self::assertStringContainsString('Tag v1.0.0 does not match the manifest version 1.1.0', self::display($tester));
+    }
+
+    public function testFailsForUnknownTag(): void
+    {
+        $this->writeFile('mod_x.xml', self::manifest('1.0.0'));
+        $this->writeFile('tmpl/default.php');
+        $this->initGit();
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertStringContainsString('Tag v1.0.0 not found', self::display($tester));
+        self::assertDirectoryDoesNotExist($this->project . '/dist');
+    }
+
+    public function testFailsForTagWithoutGitRepository(): void
+    {
+        $this->writeFile('mod_x.xml', self::manifest('1.0.0'));
+        $this->writeFile('tmpl/default.php');
+        $noGit = new RecordingProcessRunner(new ProcessResult(128, 'fatal: not a git repository'));
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null), processRunner: $noGit));
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertStringContainsString('not in a Git repository', self::display($tester));
+    }
+
+    /**
+     * Returns a module manifest with the version and a `tmpl` folder.
+     */
+    private static function manifest(string $version): string
+    {
+        return <<<XML
+            <extension type="module"><name>mod_x</name><version>{$version}</version>
+                <files><folder module="mod_x">tmpl</folder></files>
+            </extension>
+            XML;
+    }
+
+    /**
+     * Returns the content of an entry of a ZIP file.
+     */
+    private function zipContent(string $path, string $entry): string
+    {
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open($path));
+        $content = $zip->getFromName($entry);
+        $zip->close();
+        self::assertIsString($content);
+
+        return $content;
     }
 
     /**

@@ -2,14 +2,17 @@
 
 declare(strict_types=1);
 
-namespace SmartA\Jxt\Tests\Check;
+namespace SmartA\Jxt\Tests\Git;
 
 use PHPUnit\Framework\TestCase;
-use SmartA\Jxt\Check\GitRepository;
+use SmartA\Jxt\Git\GitException;
+use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Install\SystemProcessRunner;
+use SmartA\Jxt\Tests\Check\CheckProjectTrait;
+use ZipArchive;
 
 /**
- * Tests for reading tags, files and file states from a Git repository.
+ * Tests for reading tags, files, file states and archives from a Git repository.
  */
 final class GitRepositoryTest extends TestCase
 {
@@ -62,6 +65,40 @@ final class GitRepositoryTest extends TestCase
         self::assertTrue($git->hasChanged('v1.0.0', 'media/css/site.css'));
         self::assertSame("a {}\n", $git->show('v1.0.0', 'media/css/site.css'));
         self::assertNull($git->show('v1.0.0', 'media/css/missing.css'));
+    }
+
+    public function testArchivesTheFilesOfATagBelowTheDirectory(): void
+    {
+        $this->writeFile('media/.gitattributes', "/build.js export-ignore\n");
+        $this->writeFile('media/build.js');
+        $this->commit('Add build script');
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('media/css/site.css', "b {}\n");
+        $git = GitRepository::open($this->temporaryDirectory . '/media', new SystemProcessRunner());
+        self::assertNotNull($git);
+
+        $git->archive('v1.1.0', $this->temporaryDirectory . '/tag.zip');
+
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open($this->temporaryDirectory . '/tag.zip'));
+        self::assertSame("a {}\n", $zip->getFromName('css/site.css'));
+        self::assertFalse($zip->getFromName('build.js'));
+        $zip->close();
+    }
+
+    public function testArchiveFailsForUnknownTag(): void
+    {
+        $this->expectException(GitException::class);
+        $this->expectExceptionMessage('Tag v9.9.9 not found');
+
+        $this->repository()->archive('v9.9.9', $this->temporaryDirectory . '/tag.zip');
+    }
+
+    public function testArchiveDoesNotTakeBranchesOrOptionsForTags(): void
+    {
+        $this->expectException(GitException::class);
+
+        $this->repository()->archive('--remote=elsewhere', $this->temporaryDirectory . '/tag.zip');
     }
 
     /**

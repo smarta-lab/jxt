@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Check;
 
+use SmartA\Jxt\Git\GitRepository;
+
 /**
  * Determines whether the manifest version is already released.
  *

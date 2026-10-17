@@ -15,6 +15,7 @@ use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Install\ProcessRunner;
 use SmartA\Jxt\Install\SystemProcessRunner;
 use SmartA\Jxt\Manifest\ManifestParser;
+use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 
 /**
@@ -24,6 +25,7 @@ use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
  */
 trait CheckProjectTrait
 {
+    use GitTrait;
     use TemporaryDirectoryTrait;
 
     private const string MANIFEST = <<<'XML'
@@ -55,37 +57,6 @@ trait CheckProjectTrait
         $this->writeFile('mod_example.xml', $manifest . "\n");
 
         return $directory;
-    }
-
-    /**
-     * Creates a Git repository in the project directory with a commit of the current files.
-     */
-    private function initGit(): void
-    {
-        $this->git('init', '--quiet');
-        $this->commit('Initial commit');
-    }
-
-    /**
-     * Commits all files.
-     */
-    private function commit(string $message): void
-    {
-        $this->git('add', '--all');
-        $this->git('commit', '--quiet', '--allow-empty', '-m', $message);
-    }
-
-    /**
-     * Runs Git in the project directory and fails the test on errors.
-     */
-    private function git(string ...$arguments): void
-    {
-        $result = (new SystemProcessRunner())->run([
-            'git', '-C', $this->temporaryDirectory, '-c', 'user.name=Test', '-c', 'user.email=test@example.org',
-            '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...array_values($arguments),
-        ]);
-
-        self::assertSame(0, $result->exitCode, $result->output);
     }
 
     /**
