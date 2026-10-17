@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Build;
 
+use SmartA\Jxt\Git\VersionTag;
 use SmartA\Jxt\Manifest\Manifest;
 
 /**
@@ -31,9 +32,6 @@ final readonly class ProjectBuild
      */
     public function tagMatchesVersion(): bool
     {
-        $version = $this->manifest->version;
-
-        return $this->tag === null
-            || ($version !== null && ($this->tag === $version || $this->tag === 'v' . $version));
+        return $this->tag === null || VersionTag::names($this->tag, $this->manifest->version);
     }
 }

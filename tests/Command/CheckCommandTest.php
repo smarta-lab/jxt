@@ -128,6 +128,77 @@ final class CheckCommandTest extends TestCase
         self::assertStringContainsString('No Joomla manifest found', self::display($tester));
     }
 
+    public function testChecksTheFilesOfATagInsteadOfTheWorkingCopy(): void
+    {
+        $this->initGit();
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('tmpl/default.php', '<?php');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--tag' => 'v1.1.0', '--strict' => true]));
+        self::assertStringContainsString(
+            'Checking mod_example 1.1.0: release check, files of tag v1.1.0.',
+            self::display($tester),
+        );
+        self::assertSame(Command::FAILURE, $this->tester()->execute([]));
+    }
+
+    public function testReportsProblemsInTheFilesOfATag(): void
+    {
+        $this->writeFile('tmpl/default.php', '<?php');
+        $this->initGit();
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('tmpl/default.php', "<?php\n");
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.1.0']));
+        self::assertStringContainsString(
+            'ERROR tmpl/default.php: no newline at end of file [editorconfig/final-newline]',
+            self::display($tester),
+        );
+    }
+
+    public function testTagThatDoesNotNameTheManifestVersionIsAnError(): void
+    {
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
+        self::assertStringContainsString(
+            'ERROR tag v1.0.0 does not name the manifest version 1.1.0 [manifest/tag-version]',
+            self::display($tester),
+        );
+    }
+
+    public function testTakesTheConfigurationFromTheTag(): void
+    {
+        $this->writeFile('tmpl/default.php', '<?php');
+        $this->writeFile('.jxt.json', '{"check_exclude": ["editorconfig/final-newline"]}');
+        $this->initGit();
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('.jxt.json', '{}');
+
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['--tag' => 'v1.1.0']));
+    }
+
+    public function testUnknownTagIsAnInvalidCall(): void
+    {
+        $this->initGit();
+        $tester = $this->tester();
+
+        self::assertSame(Command::INVALID, $tester->execute(['--tag' => 'v9.9.9']));
+        self::assertStringContainsString('Tag v9.9.9 not found', self::display($tester));
+    }
+
+    public function testTagWithoutGitIsAnInvalidCall(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::INVALID, $tester->execute(['--tag' => 'v1.1.0']));
+        self::assertStringContainsString('--tag needs Git', self::display($tester));
+    }
+
     /**
      * Runs the command with the given input and returns the tester.
      *

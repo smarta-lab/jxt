@@ -194,11 +194,12 @@ web server user and is not supported yet. If it comes, it will be an option
 (`--clean`), since making a harmless default call delete files would change
 what an existing call does.
 
-## Building from a tag
+## Building and checking a tag
 
-`jxt build --tag` and `jxt install --tag` export the project directory of the
-tag with `git archive` into a temporary directory and run the normal build
-there, so the plan, the ZIP and the warnings work as for the working copy.
+`jxt build --tag`, `jxt install --tag` and `jxt check --tag` export the project
+directory of the tag with `git archive` into a temporary directory and run the
+normal build or check there, so the plan, the ZIP, the warnings and the checks
+work as for the working copy.
 
 - **`git archive` instead of a checkout:** it does not touch the index or the
   work tree and needs no `git worktree` that would have to be cleaned up. It
@@ -209,8 +210,16 @@ there, so the plan, the ZIP and the warnings work as for the working copy.
   directory belongs to the working copy.
 - **Only tags:** the value must be an existing tag and is passed as
   `refs/tags/<tag>`, so neither a branch nor a Git option can be given.
-- **Version mismatch:** a tag that does not name the manifest version is a
-  warning, not an error; the ZIP name always comes from the manifest.
+- **Version mismatch:** for `build` and `install`, a tag that does not name the
+  manifest version is a warning, not an error; the ZIP name always comes from
+  the manifest. For `check`, it is an error (`manifest/tag-version`), since the
+  check is about the release.
+- **Git for checks:** the checks still need the repository for tags and asset
+  comparisons, so `GitRepository::atTag()` gives a view of the project's
+  repository in which the file list (`git ls-tree`) and the changes since the
+  baseline (`git diff <baseline> <tag>`) refer to the tag. The files listed by
+  Git but left out by `export-ignore` are skipped, since they are missing from
+  the export.
 
 ## Checks: design decisions
 
@@ -221,7 +230,11 @@ a check that rests on a guess (`language/unused`) only reports notices.
 
 - **Mode from the tags:** jxt does not ask for a version, it looks whether the
   manifest version already has a tag (`ReleaseDetector`); without Git, a dated
-  heading in `CHANGELOG.md` counts as released.
+  heading in `CHANGELOG.md` counts as released. `--tag` is always the final
+  check of that tag; on a checkout of the tag itself, the version is tagged,
+  so without `--tag` it would be a pre-check. `--tag` does not imply
+  `--release`: the two stay independent, as `--release` only changes
+  severities.
 - **`--release` separate from `--strict`:** `--strict` is about the state of
   the code, `--release` about the preparation of the release. Release-only
   problems are notices without `--release`

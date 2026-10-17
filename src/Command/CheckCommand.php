@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
+use SmartA\Jxt\Build\BuildException;
+use SmartA\Jxt\Build\TagExporter;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckContextFactory;
 use SmartA\Jxt\Check\Checker\AssetChecker;
@@ -19,6 +21,7 @@ use SmartA\Jxt\Check\CheckReport;
 use SmartA\Jxt\Check\CheckSelection;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
@@ -33,7 +36,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Command `jxt check`: mechanical checks of the extension before a release.
  *
  * Exit code 0 without errors, 1 with errors (or warnings with `--strict`), 2 for an invalid call,
- * configuration or manifest.
+ * configuration or manifest. With `--tag`, the committed files of a Git tag are checked as the final check of
+ * that release, with the configuration from the tag.
  */
 #[AsCommand(name: 'check', description: 'Checks the extension before a release.')]
 final class CheckCommand extends Command
@@ -49,6 +53,7 @@ final class CheckCommand extends Command
         private readonly array $checkers = [],
         private readonly ManifestLocator $manifestLocator = new ManifestLocator(),
         private readonly ManifestParser $manifestParser = new ManifestParser(),
+        private readonly TagExporter $tagExporter = new TagExporter(),
     ) {
         parent::__construct();
     }
@@ -69,6 +74,7 @@ final class CheckCommand extends Command
                 InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY,
                 'Run a group or check despite an exclusion (several or comma-separated)',
             )
+            ->addOption('tag', null, InputOption::VALUE_REQUIRED, 'Check the files of a Git tag instead of the working copy, e.g. v1.0.0')
             ->addOption('release', null, InputOption::VALUE_NONE, 'Treat release-only problems as errors (missing CHANGELOG heading, asset versions)')
             ->addOption('strict', null, InputOption::VALUE_NONE, 'Treat warnings as errors');
     }
@@ -80,24 +86,67 @@ final class CheckCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        $tag = $input->getOption('tag');
 
         try {
-            $configuration = $this->configurationLoader->load($this->projectDirectory);
-            $selection = CheckSelection::create(
-                $configuration->checkExclude,
-                $configuration->checkInclude,
-                $this->names($input, 'exclude'),
-                $this->names($input, 'include'),
-            );
-            $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
-            $manifest = $this->manifestParser->parseFile($manifestFile);
-            $context = $this->contextFactory->create($this->projectDirectory, $manifestFile, $manifest, (bool) $input->getOption('release'));
+            [$context, $selection, $report] = is_string($tag)
+                ? $this->checkTag($input, $tag)
+                : $this->check($input, $this->projectDirectory);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
             return Command::INVALID;
         }
 
+        $this->render($io, $context, $selection, $report);
+
+        return $this->conclude($io, $report, (bool) $input->getOption('strict'));
+    }
+
+    /**
+     * Exports the tag into a temporary directory and checks its files.
+     *
+     * @return array{CheckContext, CheckSelection, CheckReport}
+     *
+     * @throws JxtException if there is no Git repository or tag, or the configuration or manifest is invalid
+     */
+    private function checkTag(InputInterface $input, string $tag): array
+    {
+        $git = $this->contextFactory->repository($this->projectDirectory) ?? throw new BuildException(
+            sprintf('--tag needs Git, but %s is not in a Git repository.', $this->projectDirectory),
+        );
+
+        return $this->tagExporter->export(
+            $git,
+            $tag,
+            fn (string $directory): array => $this->check($input, $directory, $git, $tag),
+        );
+    }
+
+    /**
+     * Runs the enabled checkers on the project in the directory.
+     *
+     * @param GitRepository|null $git Repository of the project directory when the directory holds a tag
+     *
+     * @return array{CheckContext, CheckSelection, CheckReport}
+     *
+     * @throws JxtException if the configuration, the selection of checks or the manifest is invalid
+     */
+    private function check(InputInterface $input, string $directory, ?GitRepository $git = null, ?string $tag = null): array
+    {
+        $configuration = $this->configurationLoader->load($directory);
+        $selection = CheckSelection::create(
+            $configuration->checkExclude,
+            $configuration->checkInclude,
+            $this->names($input, 'exclude'),
+            $this->names($input, 'include'),
+        );
+        $manifestFile = $this->manifestLocator->locate($directory, $configuration->manifestFile);
+        $manifest = $this->manifestParser->parseFile($manifestFile);
+        $release = (bool) $input->getOption('release');
+        $context = $git !== null && $tag !== null
+            ? $this->contextFactory->createForTag($directory, $manifestFile, $manifest, $release, $git, $tag)
+            : $this->contextFactory->create($directory, $manifestFile, $manifest, $release);
         $report = new CheckReport($selection);
 
         foreach ($this->checkers() as $checker) {
@@ -106,9 +155,7 @@ final class CheckCommand extends Command
             }
         }
 
-        $this->render($io, $context, $selection, $report);
-
-        return $this->conclude($io, $report, (bool) $input->getOption('strict'));
+        return [$context, $selection, $report];
     }
 
     /**

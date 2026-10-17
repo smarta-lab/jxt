@@ -19,6 +19,9 @@ project follows [Semantic Versioning](https://semver.org/).
   check. Exit code 1 for errors (`--strict`: also for warnings), 2 for an
   invalid call; `--release` turns problems that only matter for a release
   (notices otherwise) into errors.
+- `jxt check --tag <tag>`: checks the committed files of a Git tag as the
+  final check of that release, e.g. in CI on tags; the tag must name the
+  manifest version (`manifest/tag-version`).
 - `jxt check --exclude/--include` and the configuration keys `check_exclude`
   and `check_include` in `.jxt.json` to skip checks or groups.
 - `jxt install` lists leftovers after a successful installation: entries in

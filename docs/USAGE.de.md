@@ -265,6 +265,7 @@ trotzdem.
 vendor/bin/jxt check            # Vor- oder Endprüfung, siehe unten
 vendor/bin/jxt check --release  # Endprüfung vor dem Taggen eines Releases
 vendor/bin/jxt check --strict   # Warnungen zählen als Fehler, z. B. in der CI
+vendor/bin/jxt check --tag v1.2.0 --release  # Endprüfung eines Tags
 ```
 
 Mechanische Prüfungen der Erweiterung, abgeleitet aus dem Manifest und aus
@@ -282,15 +283,17 @@ erste Zeile der Ausgabe nennt:
   werden. Vor dem ersten Release ist das immer so.
 - Ohne Git entscheidet `CHANGELOG.md`: Eine datierte Überschrift für die
   Version gilt als veröffentlicht.
+- Mit `--tag` ist es immer die Endprüfung dieses Tags (siehe
+  [Git-Tag prüfen](#git-tag-prüfen)).
 
 Probleme, die nur für ein Release zählen (fehlende Überschrift in
 `CHANGELOG.md`, Einträge unter `[Unreleased]`, geänderte Asset-Datei ohne neue
 Version), sind in der Endprüfung Hinweise und werden mit `--release` zu Fehlern.
 `--strict` betrifft also den Zustand des Codes, `--release` die Vorbereitung des
 Releases: Ein CI-Lauf bei jedem Push nutzt `jxt check --strict`, ohne vor der
-Vorbereitung des Releases zu scheitern, der Lauf auf einem Tag `jxt check
---strict --release`. In der Vorprüfung hat `--release` keine Wirkung, darauf
-weist die Ausgabe hin.
+Vorbereitung des Releases zu scheitern, der Lauf auf einem Tag
+`jxt check --tag <tag> --strict --release`. In der Vorprüfung hat `--release`
+keine Wirkung, darauf weist die Ausgabe hin.
 
 Exit-Codes: `0` ohne Fehler, `1` mit Fehlern (mit `--strict` auch mit
 Warnungen), `2` bei falschem Aufruf, falscher Konfiguration oder fehlerhaftem
@@ -299,6 +302,7 @@ Manifest. Hinweise lassen die Prüfung nie scheitern.
 | Prüfung | Meldung bei | Vor | End |
 |---|---|---|---|
 | `manifest/version-semver` | `<version>` fehlt oder ist keine [semantische Version](https://semver.org/lang/de/) | Fehler | Fehler |
+| `manifest/tag-version` | mit `--tag`: der Tag nennt nicht die Manifest-Version (`v1.2.0` oder `1.2.0`) | – | Fehler |
 | `manifest/listed-files` | eine im Manifest genannte Datei oder ein Ordner fehlt | Fehler | Fehler |
 | `manifest/unlisted-files` | eine Datei in einem Quellordner steht nicht im Manifest | Warnung | Warnung |
 | `manifest/stray-files` | eine Müll-Datei in einem gelisteten Ordner käme ins ZIP (`.DS_Store`, `*~`, `*.orig`, versteckte Dateien) | Warnung | Warnung |
@@ -330,6 +334,27 @@ nicht ignorierten Dateien des Git-Repositorys, ohne Git die Dateien des
 Manifests und die nicht versteckten Dateien im Projektordner. Binärdateien
 entfallen. Dateien wie Fremdbibliotheken nimmt man in der `.editorconfig` mit
 `unset` aus.
+
+### Git-Tag prüfen
+
+```bash
+vendor/bin/jxt check --tag v1.2.0 --strict --release
+```
+
+Mit `--tag` prüft `jxt check` die committeten Dateien eines Git-Tags statt der
+Arbeitskopie, exportiert mit `git archive` wie bei `jxt build --tag`. Das ist
+immer die Endprüfung dieses Releases: Der Tag muss die Manifest-Version nennen
+(`manifest/tag-version`), Asset-Versionen werden mit der höchsten getaggten
+Version darunter verglichen. Die Konfiguration samt `check_exclude` und
+`check_include` stammt aus der `.jxt.json` des Tags. Dateien, die in
+`.gitattributes` als `export-ignore` markiert sind, gehören nicht zum Export,
+die Whitespace-Prüfungen lassen sie daher aus.
+
+Ein Prüflauf auf dem Tag selbst, z. B. in der CI, braucht `--tag`: Ohne die
+Option ist die Version schon getaggt, und `jxt check` macht eine Vorprüfung.
+Der Checkout in der CI braucht die früheren Tags für den Vergleich der
+Asset-Versionen (in GitHub Actions `fetch-depth: 0`). Ein unbekannter Tag oder
+ein Projekt ohne Git ist ein falscher Aufruf (Exit-Code 2).
 
 ### Prüfungen abschalten
 

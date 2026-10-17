@@ -257,6 +257,7 @@ prefix), jxt warns but still builds the ZIP.
 vendor/bin/jxt check            # pre-check or final check, see below
 vendor/bin/jxt check --release  # final check before tagging a release
 vendor/bin/jxt check --strict   # warnings count as errors, e.g. in CI
+vendor/bin/jxt check --tag v1.2.0 --release  # final check of a tag
 ```
 
 Mechanical checks of the extension, derived from the manifest and from files
@@ -273,14 +274,16 @@ the first line of the output:
   Before the first release, this is always the case.
 - Without Git, `CHANGELOG.md` decides: a dated heading for the version counts
   as released.
+- With `--tag`, it is always the final check of that tag (see
+  [Checking a Git tag](#checking-a-git-tag)).
 
 Problems that only matter for a release (missing `CHANGELOG.md` heading, entries
 left under `[Unreleased]`, asset file changed without a new version) are notices
 in the final check and become errors with `--release`. So `--strict` covers the
 state of the code and `--release` the preparation of the release: a CI run on
 every push uses `jxt check --strict` without failing before the release is
-prepared, the run on a tag uses `jxt check --strict --release`. In a pre-check,
-`--release` has no effect, which the output points out.
+prepared, the run on a tag uses `jxt check --tag <tag> --strict --release`. In a
+pre-check, `--release` has no effect, which the output points out.
 
 Exit codes: `0` without errors, `1` with errors (with `--strict` also with
 warnings), `2` for an invalid call, configuration or manifest. Notices never
@@ -289,6 +292,7 @@ fail the check.
 | Check | Reported when | Pre | Final |
 |---|---|---|---|
 | `manifest/version-semver` | `<version>` is missing or not a [semantic version](https://semver.org) | error | error |
+| `manifest/tag-version` | with `--tag`: the tag does not name the manifest version (`v1.2.0` or `1.2.0`) | – | error |
 | `manifest/listed-files` | a file or directory listed in the manifest is missing | error | error |
 | `manifest/unlisted-files` | a file in a source directory is not listed in the manifest | warning | warning |
 | `manifest/stray-files` | a junk file in a listed directory would end up in the ZIP (`.DS_Store`, `*~`, `*.orig`, hidden files) | warning | warning |
@@ -319,6 +323,27 @@ The whitespace checks cover the tracked and untracked, not ignored files of
 the Git repository; without Git, the files of the manifest and the non-hidden
 files in the project directory. Binary files are skipped. Exclude files such as
 third-party libraries in the `.editorconfig` with `unset`.
+
+### Checking a Git tag
+
+```bash
+vendor/bin/jxt check --tag v1.2.0 --strict --release
+```
+
+With `--tag`, `jxt check` checks the committed files of a Git tag instead of
+the working copy, exported with `git archive` as for `jxt build --tag`. This is
+always the final check of that release: the tag must name the manifest version
+(`manifest/tag-version`), and asset versions are compared with the highest
+tagged version below it. The configuration, including `check_exclude` and
+`check_include`, comes from the `.jxt.json` of the tag. Files marked
+`export-ignore` in `.gitattributes` are not part of the export, so the
+whitespace checks skip them.
+
+A check run on the tag itself, e.g. in CI, needs `--tag`: without it, the
+version is already tagged, so `jxt check` runs a pre-check. The CI checkout
+needs the earlier tags for the comparison of asset versions (in GitHub Actions
+`fetch-depth: 0`). An unknown tag or a project without Git is an invalid call
+(exit code 2).
 
 ### Excluding checks
 

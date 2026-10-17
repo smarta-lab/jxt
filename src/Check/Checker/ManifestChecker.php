@@ -11,9 +11,11 @@ use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Deployment\UnlistedSourceFinder;
+use SmartA\Jxt\Git\VersionTag;
 
 /**
- * Checks the manifest: version, listed and unlisted files, and junk files that would end up in the ZIP.
+ * Checks the manifest: version (and whether a checked tag names it), listed and unlisted files, and junk files
+ * that would end up in the ZIP.
  */
 final readonly class ManifestChecker implements Checker
 {
@@ -61,11 +63,19 @@ final readonly class ManifestChecker implements Checker
     }
 
     /**
-     * Checks that `<version>` is a semantic version.
+     * Checks that `<version>` is a semantic version and that a checked tag names it.
      */
     private function checkVersion(CheckContext $context, CheckReport $report): void
     {
         $version = $context->manifest->version;
+
+        if ($context->tag !== null && !VersionTag::names($context->tag, $version)) {
+            $report->add(CheckName::ManifestTagVersion, Severity::Error, sprintf(
+                'tag %s does not name the manifest version %s',
+                $context->tag,
+                $version ?? '(none)',
+            ));
+        }
 
         if ($version === null) {
             $report->add(CheckName::ManifestVersionSemver, Severity::Error, 'the manifest has no <version>');

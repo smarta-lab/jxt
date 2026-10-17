@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Check;
 enum CheckName: string
 {
     case ManifestVersionSemver = 'manifest/version-semver';
+    case ManifestTagVersion = 'manifest/tag-version';
     case ManifestListedFiles = 'manifest/listed-files';
     case ManifestUnlistedFiles = 'manifest/unlisted-files';
     case ManifestStrayFiles = 'manifest/stray-files';

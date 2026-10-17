@@ -15,6 +15,9 @@ use SmartA\Jxt\Manifest\Manifest;
 
 /**
  * Collects the context of a check run: Git repository, changelog, release state and the files of the plan.
+ *
+ * For a Git tag, the files come from a directory with the exported tag, while the repository stays the one
+ * of the project, viewed at the tag.
  */
 final readonly class CheckContextFactory
 {
@@ -26,25 +29,87 @@ final readonly class CheckContextFactory
     }
 
     /**
-     * Creates the context for the manifest at `$manifestFile`.
+     * Returns the Git repository of the directory, or null without Git.
+     */
+    public function repository(string $directory): ?GitRepository
+    {
+        return GitRepository::open($directory, $this->processRunner);
+    }
+
+    /**
+     * Creates the context for the manifest at `$manifestFile` in the working copy.
      *
      * @param bool $release Whether `--release` was given
      */
     public function create(string $projectDirectory, string $manifestFile, Manifest $manifest, bool $release): CheckContext
     {
-        $extensionDirectory = dirname($manifestFile);
-        $git = GitRepository::open($projectDirectory, $this->processRunner);
+        $git = $this->repository($projectDirectory);
         $changelog = Changelog::load($projectDirectory);
+
+        return $this->context(
+            $projectDirectory,
+            $manifestFile,
+            $manifest,
+            $this->releaseDetector->detect($manifest->version, $git, $changelog),
+            $release,
+            $git,
+            $changelog,
+        );
+    }
+
+    /**
+     * Creates the context for the files of a tag, exported to `$directory`.
+     *
+     * @param string        $directory    Directory with the exported files of the project directory
+     * @param string        $manifestFile Manifest in that directory
+     * @param GitRepository $git          Repository of the project directory
+     * @param bool          $release      Whether `--release` was given
+     */
+    public function createForTag(
+        string $directory,
+        string $manifestFile,
+        Manifest $manifest,
+        bool $release,
+        GitRepository $git,
+        string $tag,
+    ): CheckContext {
+        return $this->context(
+            $directory,
+            $manifestFile,
+            $manifest,
+            $this->releaseDetector->detectTag($manifest->version, $git, $tag),
+            $release,
+            $git->atTag($tag),
+            Changelog::load($directory),
+            $tag,
+        );
+    }
+
+    /**
+     * Creates the context with the existing files of the plan.
+     */
+    private function context(
+        string $projectDirectory,
+        string $manifestFile,
+        Manifest $manifest,
+        ReleaseState $state,
+        bool $release,
+        ?GitRepository $git,
+        ?Changelog $changelog,
+        ?string $tag = null,
+    ): CheckContext {
+        $extensionDirectory = dirname($manifestFile);
 
         return new CheckContext(
             $projectDirectory,
             $extensionDirectory,
             $manifest,
-            $this->releaseDetector->detect($manifest->version, $git, $changelog),
+            $state,
             $this->existingFiles($manifest->plan, $extensionDirectory),
             $release,
             $git,
             $changelog,
+            $tag,
         );
     }
 

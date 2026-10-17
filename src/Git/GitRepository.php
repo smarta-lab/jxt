@@ -11,11 +11,15 @@ use SmartA\Jxt\Install\ProcessRunner;
 /**
  * Read-only access to the Git repository that contains the project directory.
  *
- * Paths are relative to the project directory, also when it is a subdirectory of the repository.
+ * Paths are relative to the project directory, also when it is a subdirectory of the repository. By default,
+ * files and changes refer to the work tree; a view created with `atTag()` refers to the files of a tag instead.
  */
 final readonly class GitRepository
 {
-    private function __construct(private string $directory, private ProcessRunner $runner)
+    /**
+     * @param string|null $tag Tag whose files `files()` and `hasChanged()` refer to, null for the work tree
+     */
+    private function __construct(private string $directory, private ProcessRunner $runner, private ?string $tag = null)
     {
     }
 
@@ -36,6 +40,14 @@ final readonly class GitRepository
     }
 
     /**
+     * Returns a view of the repository in which files and changes refer to the files of the tag.
+     */
+    public function atTag(string $tag): self
+    {
+        return new self($this->directory, $this->runner, $tag);
+    }
+
+    /**
      * Returns the names of all tags.
      *
      * @return list<string>
@@ -46,21 +58,28 @@ final readonly class GitRepository
     }
 
     /**
-     * Returns the tracked and the untracked, not ignored files below the directory.
+     * Returns the tracked and the untracked, not ignored files below the directory, or the files of the tag
+     * of the view.
      *
      * @return list<string>
      */
     public function files(): array
     {
-        return $this->lines($this->run('ls-files', '-z', '--cached', '--others', '--exclude-standard')->output, "\0");
+        $result = $this->tag === null
+            ? $this->run('ls-files', '-z', '--cached', '--others', '--exclude-standard')
+            : $this->run('ls-tree', '-r', '-z', '--name-only', 'refs/tags/' . $this->tag);
+
+        return $this->lines($result->output, "\0");
     }
 
     /**
-     * Checks whether a file in the work tree differs from its state in the tag.
+     * Checks whether a file in the work tree, or in the tag of the view, differs from its state in the tag.
      */
     public function hasChanged(string $tag, string $path): bool
     {
-        return $this->run('diff', '--quiet', $tag, '--', $path)->exitCode === 1;
+        $revisions = $this->tag === null ? [$tag] : [$tag, 'refs/tags/' . $this->tag];
+
+        return $this->run('diff', '--quiet', ...[...$revisions, '--', $path])->exitCode === 1;
     }
 
     /**

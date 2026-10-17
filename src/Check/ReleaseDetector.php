@@ -29,6 +29,32 @@ final class ReleaseDetector
     }
 
     /**
+     * Returns the release state for checking the files of a tag: always a final check of that release, compared
+     * with the highest tagged version below it.
+     */
+    public function detectTag(?string $version, GitRepository $git, string $tag): ReleaseState
+    {
+        if ($version === null) {
+            return $this->detect(null, $git, null);
+        }
+
+        $tags = $git->tags();
+        $prefix = match ($tag) {
+            $version => '',
+            'v' . $version => 'v',
+            default => $this->tagPrefix($tags),
+        };
+        $previous = $this->previousVersion($version, $prefix, $tags);
+
+        return new ReleaseState(
+            CheckMode::FinalCheck,
+            $previous === null ? null : $prefix . $previous,
+            $previous,
+            sprintf('files of tag %s', $tag),
+        );
+    }
+
+    /**
      * Determines the state from the Git tags.
      *
      * @param list<string> $tags

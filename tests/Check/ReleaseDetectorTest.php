@@ -43,6 +43,33 @@ final class ReleaseDetectorTest extends TestCase
         self::assertSame('v1.1.0 is already tagged', $state->reason);
     }
 
+    public function testCheckedTagIsAFinalCheckAgainstThePreviousTag(): void
+    {
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $this->git('tag', 'v1.1.0');
+        $this->git('tag', 'v1.2.0');
+
+        $state = (new ReleaseDetector())->detectTag('1.1.0', $this->repository(), 'v1.1.0');
+
+        self::assertSame(CheckMode::FinalCheck, $state->mode);
+        self::assertSame('v1.0.0', $state->baselineTag);
+        self::assertSame('1.0.0', $state->baselineVersion);
+        self::assertSame('files of tag v1.1.0', $state->reason);
+    }
+
+    public function testCheckedTagWithoutPrefixUsesTagsWithoutPrefix(): void
+    {
+        $this->initGit();
+        $this->git('tag', '1.0.0');
+        $this->git('tag', 'v0.9.0');
+        $this->git('tag', '1.1.0');
+
+        $state = (new ReleaseDetector())->detectTag('1.1.0', $this->repository(), '1.1.0');
+
+        self::assertSame('1.0.0', $state->baselineTag);
+    }
+
     public function testUntaggedVersionIsAFinalCheckAgainstThePreviousTag(): void
     {
         $this->initGit();

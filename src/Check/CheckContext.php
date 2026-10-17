@@ -20,6 +20,7 @@ final readonly class CheckContext
      * @param bool               $release            Whether `--release` was given
      * @param GitRepository|null $git                Repository of the project directory, null without Git
      * @param Changelog|null     $changelog          `CHANGELOG.md` of the project directory, null if missing
+     * @param string|null        $tag                Git tag whose files are checked, null for the working copy
      */
     public function __construct(
         public string $projectDirectory,
@@ -30,6 +31,7 @@ final readonly class CheckContext
         public bool $release = false,
         public ?GitRepository $git = null,
         public ?Changelog $changelog = null,
+        public ?string $tag = null,
     ) {
     }
 

@@ -67,6 +67,22 @@ final class GitRepositoryTest extends TestCase
         self::assertNull($git->show('v1.0.0', 'media/css/missing.css'));
     }
 
+    public function testListsFilesAndComparesAtATag(): void
+    {
+        $this->writeFile('media/css/site.css', "b {}\n");
+        $this->commit('Change style');
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('media/css/site.css', "c {}\n");
+        $this->writeFile('untracked.txt');
+        $this->git('rm', '--quiet', '.gitignore');
+        $git = $this->repository();
+
+        self::assertEqualsCanonicalizing(['.gitignore', 'media/css/site.css', 'mod_example.xml'], $git->atTag('v1.0.0')->files());
+        self::assertTrue($git->atTag('v1.1.0')->hasChanged('v1.0.0', 'media/css/site.css'));
+        self::assertFalse($git->atTag('v1.0.0')->hasChanged('v1.0.0', 'media/css/site.css'));
+        self::assertSame(['v1.0.0', 'v1.1.0'], $git->atTag('v1.1.0')->tags());
+    }
+
     public function testArchivesTheFilesOfATagBelowTheDirectory(): void
     {
         $this->writeFile('media/.gitattributes', "/build.js export-ignore\n");

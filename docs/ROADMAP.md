@@ -3,8 +3,6 @@
 ## Ideas
 
 - Support plugins and components.
-- `jxt check --tag v1.1.0`: check the files of a tag, e.g. in CI on tags,
-  including that the tag names the manifest version.
 - `jxt check --format=json`: machine-readable output, e.g. for annotations in
   CI.
 - `jxt install --clean`: delete the leftovers that `jxt install` lists.
@@ -42,6 +40,9 @@
 - `jxt build --tag` and `jxt install --tag`: build the ZIP from the committed
   files of a Git tag (`git archive`), so that uncommitted changes do not end up
   in a release ZIP.
+- `jxt check --tag`: checks the files of a tag as the final check of that
+  release, including that the tag names the manifest version; needed in CI on
+  tags, where the version is already tagged.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).
