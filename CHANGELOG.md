@@ -17,9 +17,10 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt bridge add|remove|status`: installs a small Joomla console plugin
   (`plg_console_jxt`, shipped with jxt) on the test site. If it is installed,
   `jxt sync` writes the files as web server user via the Joomla CLI
-  (`jxt:apply`), refreshes the manifest cache of the extension and replaces a
-  bridge of another version first. It needs three more sudoers rules, which jxt
-  prints if they are missing.
+  (`jxt:apply`), refreshes the manifest cache of the extension and updates an
+  older bridge first; a newer one is used, so that projects with different jxt
+  versions do not reinstall it in turn. It needs three more sudoers rules,
+  which jxt prints if they are missing.
 - `jxt install --clean`: deletes the leftovers that `jxt install` lists after
   the installation, via the jxt bridge if it is installed, otherwise directly.
 

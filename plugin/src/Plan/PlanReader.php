@@ -14,12 +14,23 @@ use JsonException;
 /**
  * Reads `plan.json` from the staging directory and validates it.
  *
- * jxt writes the plan as the developer; the format only has to match the plugin of the same jxt release, since
- * jxt reinstalls the plugin when the versions differ.
+ * jxt writes the plan as the developer. jxt installs a newer bridge automatically but uses a newer installed one
+ * instead of downgrading it, so the plan carries a format number: the bridge reads the formats from `MIN_FORMAT`
+ * to `FORMAT` and rejects others with a hint on how to resolve the mismatch.
  */
 final class PlanReader
 {
     public const string PLAN_FILE = 'plan.json';
+
+    /**
+     * Format that the current jxt writes and the newest that this bridge reads.
+     */
+    public const int FORMAT = 1;
+
+    /**
+     * Oldest format that this bridge still reads.
+     */
+    public const int MIN_FORMAT = 1;
 
     private const string SOURCE_PATTERN = '#^files/[0-9]+$#';
     private const string NAME_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
@@ -46,6 +57,7 @@ final class PlanReader
         }
 
         $data = $this->map($data, 'plan');
+        $this->checkFormat($data['format'] ?? null);
 
         return new Plan(
             $this->mode($data, 'directory_mode'),
@@ -58,6 +70,26 @@ final class PlanReader
             array_map(fn (mixed $file): PlanFile => $this->file($file, $directory), $this->list($data, 'files')),
             ($data['extension'] ?? null) === null ? null : $this->extension($this->map($data['extension'], 'extension')),
         );
+    }
+
+    /**
+     * Checks that this bridge reads the format of the plan.
+     *
+     * @throws PlanException otherwise
+     */
+    private function checkFormat(mixed $format): void
+    {
+        if (is_int($format) && $format >= self::MIN_FORMAT && $format <= self::FORMAT) {
+            return;
+        }
+
+        throw new PlanException(sprintf(
+            'Plan format %s is not supported by this jxt bridge (formats %d to %d). Update jxt in this project, '
+            . 'or run jxt bridge add there to install the bridge it ships.',
+            is_int($format) ? (string) $format : '(none)',
+            self::MIN_FORMAT,
+            self::FORMAT,
+        ));
     }
 
     /**

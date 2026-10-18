@@ -111,8 +111,10 @@ final class BridgeCommand extends Command
 
         $io->writeln(sprintf('  Joomla CLI: jxt:status answers (extension ID %d)', $this->bridge->extensionId($result)));
 
-        if ($installed !== $bundled) {
-            $io->note('The versions differ. jxt sync installs the bundled version, or run jxt bridge add.');
+        if (version_compare($installed, $bundled, '>')) {
+            $io->note('The installed bridge is newer, jxt sync uses it. jxt bridge add installs the bundled version.');
+        } elseif ($installed !== $bundled) {
+            $io->note('The installed bridge is older, jxt sync updates it to the bundled version.');
         }
 
         return Command::SUCCESS;

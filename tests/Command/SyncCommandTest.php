@@ -201,6 +201,18 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('Updating the jxt bridge on the site: 0.0.1 → ' . $this->bundledVersion(), self::display($tester));
     }
 
+    public function testUsesNewerBridgeInsteadOfDowngrading(): void
+    {
+        $this->installBridge('99.0.0');
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, 'Applied: 1 copied, 1 deleted.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame(['jxt:apply'], [$runner->cliArguments()[0][0]]);
+        self::assertCount(1, $runner->commands);
+        self::assertStringContainsString('jxt bridge 99.0.0 on the site is newer than the bundled', self::display($tester));
+    }
+
     public function testShowsSudoersRulesWhenSudoRefusesTheBridge(): void
     {
         $this->installBridge($this->bundledVersion());

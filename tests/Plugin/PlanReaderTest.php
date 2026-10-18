@@ -41,6 +41,7 @@ final class PlanReaderTest extends TestCase
     {
         $this->writeFile('files/0', 'content');
         $this->writePlan([
+            'format' => PlanReader::FORMAT,
             'directory_mode' => 0755,
             'file_mode' => 0644,
             'deletions' => [
@@ -74,7 +75,14 @@ final class PlanReaderTest extends TestCase
 
     public function testExtensionIsOptional(): void
     {
-        $this->writePlan(['directory_mode' => 0755, 'file_mode' => 0644, 'deletions' => [], 'directories' => [], 'files' => []]);
+        $this->writePlan([
+            'format' => PlanReader::FORMAT,
+            'directory_mode' => 0755,
+            'file_mode' => 0644,
+            'deletions' => [],
+            'directories' => [],
+            'files' => [],
+        ]);
 
         self::assertNull((new PlanReader())->read($this->temporaryDirectory)->extension);
     }
@@ -106,6 +114,7 @@ final class PlanReaderTest extends TestCase
     {
         $this->writeFile('files/0', 'content');
         $this->writePlan([
+            'format' => PlanReader::FORMAT,
             'directory_mode' => 0755,
             'file_mode' => 0644,
             'deletions' => [],
@@ -125,6 +134,9 @@ final class PlanReaderTest extends TestCase
      */
     public static function invalidPlans(): iterable
     {
+        yield 'missing format' => [['format' => null], 'Plan format (none) is not supported'];
+        yield 'newer format' => [['format' => PlanReader::FORMAT + 1], 'Update jxt in this project'];
+        yield 'older format' => [['format' => PlanReader::MIN_FORMAT - 1], 'jxt bridge add'];
         yield 'missing key' => [['files' => null], 'files'];
         yield 'mode out of range' => [['file_mode' => 01000], 'file_mode'];
         yield 'deletion outside' => [

@@ -65,7 +65,16 @@ final class BridgeCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'status']));
         self::assertStringContainsString('Installed: 0.0.1', self::display($tester));
         self::assertStringContainsString('extension ID 270', self::display($tester));
-        self::assertStringContainsString('The versions differ', self::display($tester));
+        self::assertStringContainsString('jxt sync updates it', self::display($tester));
+    }
+
+    public function testStatusOfNewerBridge(): void
+    {
+        $this->installBridge('99.0.0');
+        $tester = $this->tester(new ProcessResult(0, '{"extension_id":270}'));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('jxt sync uses it', self::display($tester));
     }
 
     public function testAddInstallsAndChecksTheBridge(): void

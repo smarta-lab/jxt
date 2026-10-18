@@ -63,6 +63,8 @@ final class PlanStagerTest extends TestCase
         );
         $plan = (new PlanReader())->read($directory);
 
+        self::assertSame(PlanReader::FORMAT, PlanStager::FORMAT);
+
         self::assertSame(0750, $plan->directoryMode);
         self::assertSame(0640, $plan->fileMode);
         self::assertEquals([new PluginDeletion('modules/mod_x/old.php', false), new PluginDeletion('modules/mod_x/old', true)], $plan->deletions);

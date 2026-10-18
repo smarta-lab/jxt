@@ -32,7 +32,10 @@ final readonly class BridgeRun
     }
 
     /**
-     * Applies the plan via the bridge, after replacing a bridge of another version; false if a step failed.
+     * Applies the plan via the bridge, after updating an older bridge; false if a step failed.
+     *
+     * A newer bridge is used as it is, so that projects with different jxt versions on one site do not reinstall
+     * the bridge in turn; if it no longer reads the plan format, `jxt:apply` says how to resolve that.
      *
      * Remarks of `jxt:apply` beyond its summary line, e.g. a manifest cache that could not be refreshed, are shown.
      *
@@ -51,7 +54,9 @@ final readonly class BridgeRun
         $joomlaRoot = $configuration->validJoomlaRoot();
         $bundledVersion = $this->bridge->bundledVersion();
 
-        if ($installedVersion !== $bundledVersion) {
+        if (version_compare($installedVersion, $bundledVersion, '>')) {
+            $io->note(sprintf('jxt bridge %s on the site is newer than the bundled %s; using it.', $installedVersion, $bundledVersion));
+        } elseif ($installedVersion !== $bundledVersion) {
             $io->note(sprintf('Updating the jxt bridge on the site: %s → %s.', $installedVersion ?: '?', $bundledVersion));
             $result = $this->bridge->install($joomlaRoot, $configuration->webUser);
 

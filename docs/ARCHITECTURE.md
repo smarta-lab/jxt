@@ -218,13 +218,20 @@ is no web endpoint.
   user but writable only by the developer, and removes it afterwards. The
   location is a constructor argument, so that a container setup could use a
   directory the container can see.
-- **Version check instead of a protocol:** the plugin's manifest has its own
+- **Version check with a plan format:** the plugin's manifest has its own
   version. jxt compares the bundled manifest with the installed one
-  (`plugins/console/jxt/jxt.xml`, readable without sudo) and reinstalls the
-  bundled plugin when they differ, so the plan format never needs to be
-  backwards compatible. A test fails when `plugin/` changed since the last
-  release tag without a higher version; during development, `jxt install` in
-  `plugin/` updates the plugin without a new version.
+  (`plugins/console/jxt/jxt.xml`, readable without sudo) and installs the
+  bundled plugin when the installed one is older. A newer one is used as it
+  is: replacing it with every differing version would make projects with
+  different jxt versions on one site reinstall the bridge in turn, since the
+  Joomla installer allows downgrades. The plan therefore carries a format
+  number (`PlanStager::FORMAT`); the plugin reads `PlanReader::MIN_FORMAT` to
+  `PlanReader::FORMAT` and rejects others with a hint to update jxt or to
+  install the bundled bridge with `jxt bridge add`. An incompatible change
+  raises the format; the plugin keeps reading the previous one where that is
+  easy. A test fails when `plugin/` changed since the last release tag without
+  a higher version; during development, `jxt install` in `plugin/` installs
+  any state without a new version, as does `jxt bridge add`.
 - **Activation:** the Joomla installer leaves new plugins disabled (except
   editors), and the Joomla CLI only loads enabled ones. The plugin's install
   script enables it in `postflight`. The installer has cached the list of
@@ -243,6 +250,53 @@ is no web endpoint.
 - **Manifest cache:** after applying a plan, `jxt:apply` refreshes the manifest
   cache of the extension, so `jxt sync` no longer needs to point to "Refresh
   Cache".
+
+### Plan format
+
+`PlanStager` writes `plan.json` into the staging directory, `PlanReader`
+validates it in the plugin. Format 1:
+
+```json
+{
+    "format": 1,
+    "directory_mode": 493,
+    "file_mode": 420,
+    "deletions": [
+        {"target": "modules/mod_x/tmpl/old.php", "directory": false},
+        {"target": "modules/mod_x/helper", "directory": true}
+    ],
+    "directories": ["modules/mod_x", "modules/mod_x/tmpl"],
+    "files": [
+        {"target": "modules/mod_x/tmpl/default.php", "source": "files/0"},
+        {"target": "modules/mod_x/mod_x.xml", "source": null}
+    ],
+    "extension": {
+        "type": "module", "element": "mod_x", "folder": "", "client_id": 0
+    }
+}
+```
+
+- `directory_mode`/`file_mode`: the configured modes (decimal in JSON, 493 =
+  0755).
+- `deletions`: entries to delete, directory contents before the directory;
+  `directory: true` removes an empty directory.
+- `directories`: the extension's directories, parents first; missing ones are
+  created, and their modes are set.
+- `files`: all files of the extension; `source` is the staged copy
+  (`files/<n>`), `null` means unchanged, so only the mode is set.
+- `extension`: the entry in `#__extensions` whose manifest cache is refreshed
+  (`folder` is the plugin group, `client_id` 0 for site, 1 for administrator).
+- Every `target` is relative to the Joomla root and checked by `TargetPath`.
+  For `jxt install --clean`, `files` and `directories` are empty.
+
+The format is a plain integer. `PlanReader` ignores unknown keys, so a new
+optional key that an older bridge may safely ignore needs no new format. A
+change that an older bridge must not ignore, such as a new kind of operation or
+a changed meaning of a field, raises `FORMAT` in `PlanStager` and `PlanReader`;
+an older bridge then rejects the plan with a hint on how to resolve the
+mismatch. A minor version would add nothing: a bridge can only apply a plan it
+reads or reject it. Raise `MIN_FORMAT` only when reading an old format is no
+longer worth the effort.
 
 ## Leftovers after an installation
 

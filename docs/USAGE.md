@@ -283,8 +283,12 @@ JavaScript or layouts without building and installing a ZIP.
   for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`;
   the output says `via jxt bridge`. Without the bridge, `jxt sync` copies the
   files itself as before.
-- **Updates:** if the installed bridge has another version than the one shipped
-  with your jxt, `jxt sync` installs the bundled version first and says so.
+- **Updates:** if the installed bridge is older than the one shipped with your
+  jxt, `jxt sync` installs the bundled version first and says so. A newer
+  bridge is used as it is, so that projects with different jxt versions on one
+  site do not reinstall it in turn. If it no longer reads the plan of your jxt,
+  `jxt sync` stops and says so; update jxt in that project, or install its
+  bridge with `jxt bridge add`.
 - **Manifest cache:** after applying the plan, the bridge refreshes the
   manifest cache of the extension, so the extension manager shows the new
   version.

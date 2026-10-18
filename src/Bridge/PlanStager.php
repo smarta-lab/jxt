@@ -36,6 +36,12 @@ final readonly class PlanStager
     public const string PLAN_FILE = 'plan.json';
 
     /**
+     * Format of the plan; the bridge rejects formats it does not read. Raise it for an incompatible change and
+     * keep the bridge reading the previous format if that is easy.
+     */
+    public const int FORMAT = 1;
+
+    /**
      * @param string|null $temporaryDirectory Parent of the staging directory; null for the system default
      */
     public function __construct(private ?string $temporaryDirectory = null)
@@ -59,6 +65,7 @@ final readonly class PlanStager
         }
 
         $json = json_encode([
+            'format' => self::FORMAT,
             'directory_mode' => $configuration->directoryMode,
             'file_mode' => $configuration->fileMode,
             'deletions' => array_map(

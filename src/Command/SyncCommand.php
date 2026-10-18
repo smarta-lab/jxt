@@ -33,8 +33,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Command `jxt sync`: transfers the extension to the local Joomla test server.
  *
  * If the jxt bridge is installed on the site, the plan is applied by the bridge as web server user via the Joomla
- * CLI, and a bridge of another version is replaced by the bundled one first; otherwise the files are copied with
- * the developer's own permissions.
+ * CLI, after updating an older bridge; otherwise the files are copied with the developer's own permissions.
  */
 #[AsCommand(name: 'sync', description: 'Deploys the extension to the local Joomla test site.')]
 final class SyncCommand extends Command
