@@ -20,11 +20,15 @@ project follows [Semantic Versioning](https://semver.org/).
   (`jxt:apply`), refreshes the manifest cache of the extension and replaces a
   bridge of another version first. It needs three more sudoers rules, which jxt
   prints if they are missing.
+- `jxt install --clean`: deletes the leftovers that `jxt install` lists after
+  the installation, via the jxt bridge if it is installed, otherwise directly.
 
 ### Changed
 
 - A failed file operation of `jxt sync` now points to `jxt bridge add` instead
   of `jxt install`.
+- The leftover report of `jxt install` points to `--clean` instead of
+  `sudo -u www-data rm -r`.
 - The output names templates like Joomla (`tpl_<name>`) instead of only
   `<name>`, as it already did for the ZIP file.
 

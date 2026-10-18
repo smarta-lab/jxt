@@ -184,16 +184,6 @@ final class BridgeCommand extends Command
         string $joomlaRoot,
         string $subject,
     ): void {
-        if ($configuration->webUser !== null && $result->sudoRefused()) {
-            SudoersHint::show(
-                $io,
-                $configuration->webUser,
-                $this->bridge->sudoersRules($this->currentUser, $joomlaRoot, $configuration->webUser),
-            );
-
-            return;
-        }
-
-        $io->error(sprintf('%s failed (exit code %d).', $subject, $result->exitCode));
+        (new BridgeRun($this->bridge, $this->currentUser))->explainFailure($io, $result, $configuration, $joomlaRoot, $subject);
     }
 }

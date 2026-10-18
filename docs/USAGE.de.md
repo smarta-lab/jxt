@@ -25,7 +25,8 @@ Die Ausgabe von jxt ist englisch; die Beispiele unten zeigen sie unverändert.
 ## jxt install – auf dem Testserver installieren
 
 ```bash
-vendor/bin/jxt install
+vendor/bin/jxt install          # installieren
+vendor/bin/jxt install --clean  # installieren und Altlasten löschen
 ```
 
 `jxt install` erstellt die ZIP-Datei wie `jxt build` und installiert sie mit dem
@@ -109,14 +110,33 @@ gebliebener Ordner erscheint einmal mit abschließendem `/`:
            modules/mod_example/helper/
            modules/mod_example/tmpl/old.php
 
- ! [NOTE] They no longer belong to the extension. Remove them as www-data,
- !        e.g. with sudo -u www-data rm -r.
+ ! [NOTE] They no longer belong to the extension. jxt install --clean removes
+ !        them.
 ```
 
-Gelöscht wird nichts, der Exit-Code bleibt 0. Maßstab ist die ZIP-Datei, nicht
-die Arbeitskopie, daher stimmt der Vergleich auch mit `--tag` und `--zip`. Beim
-Wechsel zwischen einem Release und der Arbeitskopie listet das nächste
-`jxt install` auf, was der andere Stand hinterlassen hat.
+Ohne `--clean` wird nichts gelöscht, der Exit-Code bleibt 0. Maßstab ist die
+ZIP-Datei, nicht die Arbeitskopie, daher stimmt der Vergleich auch mit `--tag`
+und `--zip`. Beim Wechsel zwischen einem Release und der Arbeitskopie listet das
+nächste `jxt install` auf, was der andere Stand hinterlassen hat.
+
+Mit `--clean` löscht `jxt install` dieselben Einträge nach der Installation, wie
+`jxt sync` seine Löschungen: über die
+[jxt-Bridge](#jxt-bridge--sync-als-webserver-benutzer), wenn sie auf der Seite
+installiert ist, sonst mit den eigenen Rechten. Scheitert das Löschen, ist der
+Exit-Code 1.
+
+```
+Removing leftovers of the Joomla installer via jxt bridge:
+  - modules/mod_example/helper/
+  - modules/mod_example/tmpl/old.php
+
+ [OK] mod_example 1.0.0 installed, 2 leftovers removed.
+```
+
+Bei Templates ist der Template-Ordner zugleich der Ort für im Backend angelegte
+Overrides (`html/`) und für `user.css`/`user.js`. Sie stehen nicht in der
+ZIP-Datei und gelten daher als Altlasten, die `--clean` löscht, wie es auch
+`jxt sync` tut; vorher die Liste eines einfachen `jxt install` prüfen.
 
 ### Einrichtung: sudo ohne Passwort für den Joomla-Installer
 

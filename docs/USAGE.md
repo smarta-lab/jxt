@@ -23,7 +23,8 @@ directory.
 ## jxt install – install on the test server
 
 ```bash
-vendor/bin/jxt install
+vendor/bin/jxt install          # install
+vendor/bin/jxt install --clean  # install and delete the leftovers
 ```
 
 `jxt install` builds the ZIP file like `jxt build` and installs it with the
@@ -104,14 +105,33 @@ everything else; a leftover directory is listed once with a trailing `/`:
            modules/mod_example/helper/
            modules/mod_example/tmpl/old.php
 
- ! [NOTE] They no longer belong to the extension. Remove them as www-data,
- !        e.g. with sudo -u www-data rm -r.
+ ! [NOTE] They no longer belong to the extension. jxt install --clean removes
+ !        them.
 ```
 
-Nothing is deleted, and the exit code stays 0. The comparison uses the ZIP
-file, not the working copy, so it is also correct with `--tag` and `--zip`. When
-switching between a release and the working copy, the next `jxt install` lists
-what the other state left behind.
+Without `--clean`, nothing is deleted, and the exit code stays 0. The
+comparison uses the ZIP file, not the working copy, so it is also correct with
+`--tag` and `--zip`. When switching between a release and the working copy, the
+next `jxt install` lists what the other state left behind.
+
+With `--clean`, `jxt install` deletes the same entries after the installation,
+like the deletions of `jxt sync`: via the
+[jxt bridge](#jxt-bridge--sync-as-web-server-user) if it is installed on the
+site, otherwise with your own permissions. The exit code is 1 if deleting
+fails.
+
+```
+Removing leftovers of the Joomla installer via jxt bridge:
+  - modules/mod_example/helper/
+  - modules/mod_example/tmpl/old.php
+
+ [OK] mod_example 1.0.0 installed, 2 leftovers removed.
+```
+
+For templates, the template directory is also the place of overrides created in
+the backend (`html/`) and of `user.css`/`user.js`. They are not part of the ZIP
+file and therefore count as leftovers, which `--clean` deletes, as `jxt sync`
+does; check the list of a plain `jxt install` first.
 
 ### Setup: sudo without password for the Joomla installer
 

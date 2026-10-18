@@ -10,15 +10,12 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\UnlistedSourceFinder;
-use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
-use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Sync\FileStatus;
@@ -111,7 +108,7 @@ final class SyncCommand extends Command
 
             if (!$dryRun && $bridgeVersion === null) {
                 $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
-            } elseif (!$dryRun && !$this->applyViaBridge($io, $plan, $manifest, $extensionDirectory, $configuration, $bridgeVersion)) {
+            } elseif (!$dryRun && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration, $bridgeVersion)) {
                 return Command::FAILURE;
             }
         } catch (JxtException $exception) {
@@ -137,76 +134,11 @@ final class SyncCommand extends Command
     }
 
     /**
-     * Applies the plan via the bridge, after replacing a bridge of another version; false if a step failed.
-     *
-     * @param string $bridgeVersion Version of the bridge installed on the site
-     *
-     * @throws JxtException if the bridge cannot be built, the plan cannot be staged or the Joomla CLI cannot be started
+     * Returns the helper that applies the plan via the bridge.
      */
-    private function applyViaBridge(
-        SymfonyStyle $io,
-        SyncPlan $plan,
-        Manifest $manifest,
-        string $extensionDirectory,
-        Configuration $configuration,
-        string $bridgeVersion,
-    ): bool {
-        $joomlaRoot = $configuration->validJoomlaRoot();
-        $bundledVersion = $this->bridge->bundledVersion();
-
-        if ($bridgeVersion !== $bundledVersion) {
-            $io->note(sprintf('Updating the jxt bridge on the site: %s → %s.', $bridgeVersion ?: '?', $bundledVersion));
-            $result = $this->bridge->install($joomlaRoot, $configuration->webUser);
-
-            if ($result->exitCode !== 0) {
-                $this->explainBridgeFailure($io, $result, $configuration, $joomlaRoot, 'Updating the jxt bridge');
-
-                return false;
-            }
-        }
-
-        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $joomlaRoot, $configuration);
-
-        if ($result->exitCode !== 0) {
-            $this->explainBridgeFailure($io, $result, $configuration, $joomlaRoot, 'jxt:apply');
-
-            return false;
-        }
-
-        $remarks = trim((string) preg_replace('/^Applied: .*$/m', '', $result->output));
-
-        if ($remarks !== '') {
-            $io->writeln($remarks);
-        }
-
-        return true;
-    }
-
-    /**
-     * Reports a failed call of the Joomla CLI with its output, and the sudoers rules if sudo refused.
-     *
-     * @param string $subject What failed, e.g. `jxt:apply`
-     */
-    private function explainBridgeFailure(
-        SymfonyStyle $io,
-        ProcessResult $result,
-        Configuration $configuration,
-        string $joomlaRoot,
-        string $subject,
-    ): void {
-        $io->writeln(trim($result->output));
-
-        if ($configuration->webUser !== null && $result->sudoRefused()) {
-            SudoersHint::show(
-                $io,
-                $configuration->webUser,
-                $this->bridge->sudoersRules($this->currentUser, $joomlaRoot, $configuration->webUser),
-            );
-
-            return;
-        }
-
-        $io->error(sprintf('%s failed (exit code %d).', $subject, $result->exitCode));
+    private function bridgeRun(): BridgeRun
+    {
+        return new BridgeRun($this->bridge, $this->currentUser);
     }
 
     /**

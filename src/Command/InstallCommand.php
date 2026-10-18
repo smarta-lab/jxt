@@ -9,10 +9,12 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
+use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Build\ProjectBuild;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PackagePlanExpander;
 use SmartA\Jxt\Install\InstallException;
@@ -25,6 +27,9 @@ use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Manifest\PackageManifestReader;
 use SmartA\Jxt\Sync\Deletion;
 use SmartA\Jxt\Sync\LeftoverFinder;
+use SmartA\Jxt\Sync\ManifestComparison;
+use SmartA\Jxt\Sync\SyncExecutor;
+use SmartA\Jxt\Sync\SyncPlan;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -40,7 +45,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * Afterwards it reports leftovers: entries in the exclusive directories of the extension that the installed ZIP
  * file does not contain, since the Joomla installer does not remove files from listed folders. The ZIP file is
- * the only reliable record of what was installed, so there is no separate command for this.
+ * the only reliable record of what was installed, so there is no separate command for this. With `--clean`, the
+ * leftovers are deleted like the deletions of `jxt sync`: via the jxt bridge if it is installed, otherwise with
+ * the developer's own permissions.
  */
 #[AsCommand(name: 'install', description: 'Builds the ZIP file and installs it on the local Joomla test site.')]
 final class InstallCommand extends Command
@@ -61,6 +68,8 @@ final class InstallCommand extends Command
         private readonly ManifestParser $manifestParser = new ManifestParser(),
         private readonly PackagePlanExpander $packagePlanExpander = new PackagePlanExpander(),
         private readonly LeftoverFinder $leftoverFinder = new LeftoverFinder(),
+        private readonly SyncExecutor $executor = new SyncExecutor(),
+        private readonly Bridge $bridge = new Bridge(),
     ) {
         $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader);
         parent::__construct();
@@ -76,6 +85,7 @@ final class InstallCommand extends Command
             'Build the ZIP file from a Git tag instead of the working copy, e.g. v1.0.0',
         );
         $this->addOption('zip', null, InputOption::VALUE_REQUIRED, 'Install this ZIP file instead of building a new one.');
+        $this->addOption('clean', null, InputOption::VALUE_NONE, 'Delete the leftovers that the Joomla installer keeps.');
     }
 
     /**
@@ -119,11 +129,18 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
-        $this->reportLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $configuration, $joomlaRoot);
+        $clean = (bool) $input->getOption('clean');
+        $removed = $this->handleLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $configuration, $joomlaRoot, $clean);
+
+        if ($removed === null) {
+            return Command::FAILURE;
+        }
+
         $io->success(sprintf(
-            '%s installed%s.',
+            '%s installed%s%s.',
             trim($manifest->name() . ' ' . ($manifest->version ?? '')),
             is_string($tag) ? ' from tag ' . $tag : '',
+            $removed === 0 ? '' : sprintf(', %d leftover%s removed', $removed, $removed === 1 ? '' : 's'),
         ));
 
         return Command::SUCCESS;
@@ -184,47 +201,91 @@ final class InstallCommand extends Command
     }
 
     /**
-     * Lists the leftovers of the installed ZIP file on the site, each leftover directory once, with a hint on
-     * removing them.
+     * Finds the leftovers of the installed ZIP file on the site and lists them with a hint on `--clean`, or deletes
+     * them with `--clean`.
+     *
+     * @return int|null Number of removed entries (a leftover directory counts once), or null if deleting failed
      */
-    private function reportLeftovers(
+    private function handleLeftovers(
         SymfonyStyle $io,
         Manifest $manifest,
         Manifest $previous,
         string $packagePath,
         Configuration $configuration,
         string $joomlaRoot,
-    ): void {
+        bool $clean,
+    ): ?int {
         try {
             $files = $this->packagePlanExpander->expand($manifest->plan, $packagePath);
-            $leftovers = $this->leftoverFinder->topLevel(
-                $this->leftoverFinder->find($manifest, $previous, $files, $joomlaRoot),
-            );
+            $leftovers = $this->leftoverFinder->find($manifest, $previous, $files, $joomlaRoot);
         } catch (JxtException $exception) {
             $io->warning('Cannot check for leftovers: ' . $exception->getMessage());
 
-            return;
+            return 0;
         }
 
-        if ($leftovers === []) {
-            return;
+        $topLevel = $this->leftoverFinder->topLevel($leftovers);
+
+        if ($topLevel === []) {
+            return 0;
         }
 
-        $io->warning(implode("\n", [
-            'Not removed by the Joomla installer:',
-            ...array_map(
-                static fn (Deletion $leftover): string => $leftover->target
-                    . ($leftover->kind === EntryKind::Directory ? '/' : ''),
-                $leftovers,
-            ),
-        ]));
-        $io->note(match ($configuration->webUser) {
-            null => 'They no longer belong to the extension. Remove them by hand, e.g. with rm -r.',
-            default => sprintf(
-                'They no longer belong to the extension. Remove them as %1$s, e.g. with sudo -u %1$s rm -r.',
-                $configuration->webUser,
-            ),
-        });
+        if (!$clean) {
+            $io->warning(implode("\n", ['Not removed by the Joomla installer:', ...array_map($this->label(...), $topLevel)]));
+            $io->note('They no longer belong to the extension. jxt install --clean removes them.');
+
+            return 0;
+        }
+
+        return $this->removeLeftovers($io, $manifest, $leftovers, $topLevel, $configuration, $joomlaRoot) ? count($topLevel) : null;
+    }
+
+    /**
+     * Deletes the leftovers via the bridge if it is installed, otherwise directly; false if that failed.
+     *
+     * @param list<Deletion> $leftovers All entries to delete, directory contents before the directory
+     * @param list<Deletion> $topLevel  The entries to list, each leftover directory once
+     */
+    private function removeLeftovers(
+        SymfonyStyle $io,
+        Manifest $manifest,
+        array $leftovers,
+        array $topLevel,
+        Configuration $configuration,
+        string $joomlaRoot,
+    ): bool {
+        $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
+        $plan = new SyncPlan([], $leftovers, [], new ManifestComparison(null, null, false, []), []);
+
+        $io->writeln('Removing leftovers of the Joomla installer' . ($bridgeVersion === null ? ':' : ' via jxt bridge:'));
+
+        foreach ($topLevel as $leftover) {
+            $io->writeln(sprintf('  <fg=red>- %s</>', $this->label($leftover)));
+        }
+
+        if ($bridgeVersion !== null) {
+            return (new BridgeRun($this->bridge, $this->currentUser))->apply($io, $plan, $manifest, $joomlaRoot, $configuration, $bridgeVersion);
+        }
+
+        try {
+            $this->executor->execute($plan, $joomlaRoot, $joomlaRoot, $configuration);
+        } catch (DeploymentException $exception) {
+            $io->error($exception->getMessage());
+            $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt install --clean then '
+                . 'deletes the leftovers as web server user via the Joomla CLI.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns the target of a leftover, with a trailing `/` for a directory.
+     */
+    private function label(Deletion $leftover): string
+    {
+        return $leftover->target . ($leftover->kind === EntryKind::Directory ? '/' : '');
     }
 
     /**

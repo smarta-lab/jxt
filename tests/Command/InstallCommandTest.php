@@ -10,12 +10,16 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Tests\Command;
 
 use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Bridge\PlanStager;
 use SmartA\Jxt\Command\InstallCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
+use SmartA\Jxt\Tests\Install\ScriptedProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -230,7 +234,7 @@ final class InstallCommandTest extends TestCase
             self::display($tester),
         );
         self::assertStringNotContainsString('helper/a.php', self::display($tester));
-        self::assertStringContainsString('sudo -u www-data rm -r', self::display($tester));
+        self::assertStringContainsString('jxt install --clean removes', self::display($tester));
         self::assertStringContainsString('mod_x 1.0.0 installed', self::display($tester));
         self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
         self::assertFileExists($this->joomla() . '/modules/mod_x/helper/a.php');
@@ -245,19 +249,71 @@ final class InstallCommandTest extends TestCase
         self::assertStringNotContainsString('Not removed', self::display($tester));
     }
 
-    public function testSuggestsPlainRmWithoutWebUser(): void
+    public function testCleanDeletesLeftoversDirectlyWithoutBridge(): void
     {
-        $this->writeFile(
-            'project/.jxt.json',
-            (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => null]),
-        );
         $this->writeInstalledExtension(self::MANIFEST);
         $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $this->writeFile('joomla/modules/mod_x/helper/a.php');
         $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
 
-        self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertStringContainsString('Remove them by hand', self::display($tester));
-        self::assertStringNotContainsString('sudo', self::display($tester));
+        self::assertSame(Command::SUCCESS, $tester->execute(['--clean' => true]));
+        self::assertStringContainsString('Removing leftovers of the Joomla installer:', self::display($tester));
+        self::assertStringContainsString('- modules/mod_x/helper/', self::display($tester));
+        self::assertStringContainsString('mod_x 1.0.0 installed, 2 leftovers removed', self::display($tester));
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertDirectoryDoesNotExist($this->joomla() . '/modules/mod_x/helper');
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/default.php');
+    }
+
+    public function testCleanDeletesLeftoversViaBridge(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/helper/a.php');
+        $this->writeFile('joomla/' . Bridge::INSTALLED_MANIFEST, '<extension type="plugin" group="console"><name>x</name><version>'
+            . (new Bridge())->bundledVersion() . '</version><files><folder plugin="jxt">services</folder></files></extension>');
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, 'installed'), new ProcessResult(0, 'Applied: 0 copied, 2 deleted.'));
+        $plan = '';
+        $runner->inspector = static function (string $argument) use (&$plan): void {
+            $plan = is_file($argument . '/plan.json') ? (string) file_get_contents($argument . '/plan.json') : $plan;
+        };
+        $tester = $this->bridgeTester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--clean' => true]));
+        self::assertSame(
+            ['extension:install', 'jxt:apply'],
+            array_map(static fn (array $arguments): string => $arguments[0], $runner->cliArguments()),
+        );
+        self::assertStringContainsString('"target": "modules/mod_x/helper/a.php"', $plan);
+        self::assertStringContainsString('"target": "modules/mod_x/helper"', $plan);
+        self::assertStringContainsString('Removing leftovers of the Joomla installer via jxt bridge:', self::display($tester));
+        self::assertStringContainsString('1 leftover removed', self::display($tester));
+    }
+
+    public function testCleanWithoutLeftoversDoesNothing(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--clean' => true]));
+        self::assertStringNotContainsString('Removing', self::display($tester));
+        self::assertStringContainsString('mod_x 1.0.0 installed.', self::display($tester));
+    }
+
+    public function testCleanPointsToBridgeWhenDeletingFails(): void
+    {
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/helper/a.php');
+        chmod($this->joomla() . '/modules/mod_x/helper', 0555);
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        try {
+            self::assertSame(Command::FAILURE, $tester->execute(['--clean' => true]));
+        } finally {
+            chmod($this->joomla() . '/modules/mod_x/helper', 0755);
+        }
+
+        self::assertStringContainsString('Cannot delete', self::display($tester));
+        self::assertStringContainsString('jxt bridge add', self::display($tester));
     }
 
     public function testComparesWithTheTagInsteadOfTheWorkingCopy(): void
@@ -343,6 +399,27 @@ final class InstallCommandTest extends TestCase
             new ConfigurationLoader(null),
             new JoomlaInstaller($runner, '/usr/bin/php8.5', $this->temporaryDirectory . '/tmp'),
             'anna',
+        ));
+    }
+
+    /**
+     * Creates the command whose installer and bridge run their processes with the runner.
+     */
+    private function bridgeTester(ScriptedProcessRunner $runner): CommandTester
+    {
+        $temporaryDirectory = $this->temporaryDirectory . '/tmp';
+
+        return new CommandTester(new InstallCommand(
+            $this->temporaryDirectory . '/project',
+            new ConfigurationLoader(null),
+            new JoomlaInstaller($runner, '/usr/bin/php8.5', $temporaryDirectory),
+            'anna',
+            bridge: new Bridge(
+                new JoomlaCli($runner, '/usr/bin/php8.5'),
+                new JoomlaInstaller($runner, '/usr/bin/php8.5', $temporaryDirectory),
+                new PlanStager($temporaryDirectory),
+                temporaryDirectory: $temporaryDirectory,
+            ),
         ));
     }
 

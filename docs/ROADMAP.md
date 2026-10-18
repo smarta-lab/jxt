@@ -5,9 +5,6 @@
 - Support components.
 - JSON output of `jxt check`, only for a concrete need; `Finding` already has
   file and line as fields.
-- `jxt install --clean`: delete the leftovers that `jxt install` lists, via
-  the jxt bridge (a plan with deletions only). Planning works as the developer,
-  since the site is world-readable.
 - Test sites in containers (DDEV, Docker): `jxt install` runs the Joomla CLI
   with the PHP of the host, which may lack the right version or extensions and
   cannot resolve a database host such as `db` that only exists between
@@ -52,6 +49,8 @@
   (`jxt:apply`), so that `jxt sync` also works on sites whose files belong to
   the web server user; jxt builds it with its own plugin support and updates
   it when the bundled version differs.
+- `jxt install --clean`: deletes the leftovers that `jxt install` lists, via
+  the jxt bridge or directly, like the deletions of `jxt sync`.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

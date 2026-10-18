@@ -259,10 +259,13 @@ So `jxt install` reports the leftovers itself, right after a successful
 installation: `PackagePlanExpander` expands the plan of the manifest in the ZIP
 against the ZIP entries, and `LeftoverFinder` compares the exclusive
 directories of this manifest and of the manifest installed before with the
-site. Reporting only needs read access and is the default; deleting needs the
-web server user and is not supported yet. If it comes, it will be an option
-(`--clean`), since making a harmless default call delete files would change
-what an existing call does.
+site. Reporting only needs read access and is the default. Deleting is the
+option `--clean`, since a harmless default call should not delete files after
+an update; it hands the same list as a plan with deletions only to the jxt
+bridge, or deletes directly without it, as `jxt sync` does. For templates, the
+list includes overrides and `user.css`/`user.js` in the template directory; an
+exception for them was not added, since it would also hide real leftovers, and
+the plain `jxt install` shows the list before.
 
 ## Building and checking a tag
 
