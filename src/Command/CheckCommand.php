@@ -297,7 +297,7 @@ final class CheckCommand extends Command
     {
         return sprintf(
             'Checking %s %s: %s, %s.',
-            $context->manifest->element,
+            $context->manifest->name(),
             $context->manifest->version ?? '(no version)',
             $context->state->mode->value,
             $context->state->reason,

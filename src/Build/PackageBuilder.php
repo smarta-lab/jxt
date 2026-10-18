@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Build;
 
 use SmartA\Jxt\Deployment\PlanExpander;
-use SmartA\Jxt\Manifest\ExtensionType;
 use SmartA\Jxt\Manifest\Manifest;
 use ZipArchive;
 
@@ -59,18 +58,14 @@ final readonly class PackageBuilder
     }
 
     /**
-     * Returns the file name, e.g. `mod_example-1.0.0.zip` or `tpl_cassiopeia-1.0.0.zip`.
+     * Returns the file name, e.g. `mod_example-1.0.0.zip`, `tpl_cassiopeia-1.0.0.zip` or `plg_system_example-1.0.0.zip`.
      */
     private function fileName(Manifest $manifest): string
     {
-        $name = match ($manifest->type) {
-            ExtensionType::Module => $manifest->element,
-            ExtensionType::Template => 'tpl_' . $manifest->element,
-        };
         $version = $manifest->version === null
             ? ''
             : '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $manifest->version);
 
-        return $name . $version . '.zip';
+        return $manifest->name() . $version . '.zip';
     }
 }

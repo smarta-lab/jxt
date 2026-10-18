@@ -100,4 +100,30 @@ final class LanguageCheckerTest extends TestCase
 
         self::assertSame([], $this->findings(new LanguageChecker(), $this->context(manifest: 'templateDetails.xml')));
     }
+
+    public function testPluginPrefixContainsGroup(): void
+    {
+        $this->writeFile('example.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="plugin" group="system">
+                <name>PLG_SYSTEM_EXAMPLE</name>
+                <description>PLG_SYSTEM_EXAMPLE_XML_DESCRIPTION</description>
+                <version>1.0.0</version>
+                <files><filename plugin="example">example.php</filename></files>
+                <languages>
+                    <language tag="en-GB">language/en-GB/plg_system_example.ini</language>
+                </languages>
+            </extension>
+            XML);
+        $this->writeFile('example.php', "<?php echo Text::_('PLG_SYSTEM_EXAMPLE_MISSING');\n");
+        $this->writeFile(
+            'language/en-GB/plg_system_example.ini',
+            "PLG_SYSTEM_EXAMPLE=\"Example\"\nPLG_SYSTEM_EXAMPLE_XML_DESCRIPTION=\"Example plugin\"\n",
+        );
+
+        self::assertSame(
+            ['ERROR language/undefined: PLG_SYSTEM_EXAMPLE_MISSING is used in example.php but not defined'],
+            $this->findings(new LanguageChecker(), $this->context(manifest: 'example.xml')),
+        );
+    }
 }

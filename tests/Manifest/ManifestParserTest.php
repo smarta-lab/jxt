@@ -221,6 +221,106 @@ final class ManifestParserTest extends TestCase
         );
     }
 
+    public function testBuildsPlanForPlugin(): void
+    {
+        $xml = <<<'XML'
+            <extension type="plugin" group="system" method="upgrade">
+                <name>plg_system_example</name>
+                <version>1.0.0</version>
+                <files>
+                    <folder plugin="example">services</folder>
+                    <folder>src</folder>
+                </files>
+                <languages>
+                    <language tag="en-GB">language/en-GB/plg_system_example.ini</language>
+                </languages>
+                <media destination="plg_system_example" folder="media">
+                    <folder>js</folder>
+                </media>
+            </extension>
+            XML;
+
+        $manifest = $this->parser->parse($xml, 'example.xml');
+
+        self::assertSame(ExtensionType::Plugin, $manifest->type);
+        self::assertSame('example', $manifest->element);
+        self::assertSame('system', $manifest->group);
+        self::assertSame('plugins/system/example/example.xml', $manifest->installedManifest());
+        self::assertEquals([
+            new PlanEntry('example.xml', 'plugins/system/example/example.xml', EntryKind::File),
+            new PlanEntry('services', 'plugins/system/example/services', EntryKind::Directory),
+            new PlanEntry('src', 'plugins/system/example/src', EntryKind::Directory),
+            new PlanEntry(
+                'language/en-GB/plg_system_example.ini',
+                'administrator/language/en-GB/plg_system_example.ini',
+                EntryKind::File,
+            ),
+            new PlanEntry('media/js', 'media/plg_system_example/js', EntryKind::Directory),
+        ], $manifest->plan->entries);
+        self::assertSame(
+            ['plugins/system/example', 'media/plg_system_example'],
+            $manifest->plan->exclusiveDirectories,
+        );
+    }
+
+    public function testPluginIgnoresClientAttribute(): void
+    {
+        $xml = <<<'XML'
+            <extension type="plugin" group="content" client="administrator">
+                <name>Example</name>
+                <files><filename plugin="example">example.php</filename></files>
+            </extension>
+            XML;
+
+        $manifest = $this->parser->parse($xml, 'example.xml');
+
+        self::assertSame(ClientType::Site, $manifest->client);
+        self::assertSame('plugins/content/example/example.php', $manifest->plan->entries[1]->target);
+    }
+
+    public function testPluginElementKeepsCaseAsTheJoomlaInstallerDoes(): void
+    {
+        $xml = <<<'XML'
+            <extension type="plugin" group="editors-xtd">
+                <name>Example</name>
+                <files><filename plugin="MyButton">MyButton.php</filename></files>
+            </extension>
+            XML;
+
+        $manifest = $this->parser->parse($xml, 'MyButton.xml');
+
+        self::assertSame('MyButton', $manifest->element);
+        self::assertSame('plugins/editors-xtd/MyButton/MyButton.xml', $manifest->installedManifest());
+        self::assertSame('plg_editors-xtd_mybutton', $manifest->name());
+    }
+
+    /**
+     * @param non-empty-string $xml
+     */
+    #[DataProvider('extensionNames')]
+    public function testReturnsExtensionName(string $xml, string $fileName, string $expectedName): void
+    {
+        self::assertSame($expectedName, $this->parser->parse($xml, $fileName)->name());
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string, string, string}>
+     */
+    public static function extensionNames(): iterable
+    {
+        yield 'module' => ['<extension type="module"><name>mod_x</name></extension>', 'mod_x.xml', 'mod_x'];
+        yield 'template' => [
+            '<extension type="template"><name>Mini Grid</name></extension>',
+            'templateDetails.xml',
+            'tpl_mini_grid',
+        ];
+        yield 'plugin' => [
+            '<extension type="plugin" group="System"><name>x</name><files><filename plugin="x">x.php</filename></files></extension>',
+            'x.xml',
+            'plg_system_x',
+        ];
+    }
+
     public function testRespectsFolderAttributeOfFilesAndIncludesScriptfile(): void
     {
         $xml = <<<'XML'
@@ -308,8 +408,22 @@ final class ManifestParserTest extends TestCase
         yield 'no XML' => ['not xml', 'not valid XML'];
         yield 'wrong root element' => ['<phpunit/>', '<extension>'];
         yield 'unsupported type' => [
-            '<extension type="plugin"><name>plg_x</name></extension>',
-            'plugin',
+            '<extension type="component"><name>com_x</name></extension>',
+            'component',
+        ];
+        yield 'plugin without group' => [
+            '<extension type="plugin"><name>x</name><files><filename plugin="x">x.php</filename></files></extension>',
+            'group',
+        ];
+        yield 'invalid plugin group' => [
+            '<extension type="plugin" group="../system"><name>x</name>'
+                . '<files><filename plugin="x">x.php</filename></files></extension>',
+            '../system',
+        ];
+        yield 'plugin without element' => [
+            '<extension type="plugin" group="system"><name>plg_system_x</name>'
+                . '<files><filename>x.php</filename></files></extension>',
+            'attribute plugin',
         ];
         yield 'unknown client' => [
             '<extension type="module" client="api"><name>mod_x</name></extension>',

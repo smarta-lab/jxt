@@ -5,7 +5,7 @@ Manifest-driven CLI for Joomla!® extension development:
 - **`jxt install`** builds the ZIP file and installs it on a local Joomla test
   server with the Joomla installer, run as the web server user – no backend,
   no root. Afterwards it lists leftovers that the Joomla installer keeps.
-- **`jxt sync`** copies a module or template directly to the test server. Only
+- **`jxt sync`** copies the extension directly to the test server. Only
   the files listed in the manifest are copied, and files that no longer belong
   to the extension are deleted.
 - **`jxt build`** packages the extension as a ZIP file that can be installed in
@@ -17,9 +17,11 @@ Manifest-driven CLI for Joomla!® extension development:
 
 All commands run in the project directory of an extension, like
 `vendor/bin/phpunit`. They read the extension's manifest (`mod_*.xml`,
-`templateDetails.xml`), so there are no include or exclude lists to maintain.
+`templateDetails.xml`, the plugin's XML file), so there are no include or
+exclude lists to maintain.
 
-Supported extension types: modules (site and administrator) and templates.
+Supported extension types: modules (site and administrator), templates and
+plugins.
 
 ## Requirements
 

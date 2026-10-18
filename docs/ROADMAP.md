@@ -2,7 +2,7 @@
 
 ## Ideas
 
-- Support plugins and components.
+- Support components.
 - JSON output of `jxt check`, only for a concrete need; `Finding` already has
   file and line as fields.
 - `jxt install --clean`: delete the leftovers that `jxt install` lists.
@@ -18,9 +18,9 @@
   web endpoint. The plugin is shipped inside the jxt package (`plugin/`, outside
   the PSR-4 autoload); jxt builds it and installs it via the Joomla installer
   when it is missing or has a different version, so the plan format always
-  matches the jxt release. Planned together with plugin support, for which it
-  is the first test case; it also makes `jxt sync` usable on sites whose files
-  belong to the web server user, for quick iterations on CSS, JS or layouts.
+  matches the jxt release. jxt builds it with its own plugin support; it also
+  makes `jxt sync` usable on sites whose files belong to the web server user,
+  for quick iterations on CSS, JS or layouts.
 - Test sites in containers (DDEV, Docker): `jxt install` runs the Joomla CLI
   with the PHP of the host, which may lack the right version or extensions and
   cannot resolve a database host such as `db` that only exists between
@@ -56,6 +56,9 @@
   tags, where the version is already tagged.
 - `jxt check --format=github`: findings as annotations in GitHub Actions
   (workflow commands, as PHPStan's `--error-format=github`).
+- Plugins: install directory `plugins/<group>/<element>/`, language files in
+  `administrator/language/`, ZIP name and prefix of the language constants
+  `plg_<group>_<element>`.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

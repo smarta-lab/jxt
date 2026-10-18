@@ -3,9 +3,10 @@
 [English](USAGE.md)
 
 Alle Befehle werden im Projektordner einer Erweiterung ausgeführt. Meist ist das
-der Ordner mit dem Manifest (`mod_*.xml` oder `templateDetails.xml`). Das
-Manifest wird automatisch gefunden: Es ist die einzige XML-Datei in diesem
-Ordner mit dem Wurzelelement `<extension>`.
+der Ordner mit dem Manifest (`mod_*.xml`, `templateDetails.xml` oder die
+XML-Datei des Plugins, z. B. `example.xml`). Das Manifest wird automatisch
+gefunden: Es ist die einzige XML-Datei in diesem Ordner mit dem Wurzelelement
+`<extension>`.
 
 Liegt die Erweiterung in einem Unterordner des Projekts (z. B. `extension/`,
 während `composer.json`, `tests/` und `docs/` im Projektordner liegen) oder
@@ -182,9 +183,14 @@ Joomla-Installer:
 | `<media destination="…">` | `media/<destination>/` |
 
 Administrator-Module landen unter `administrator/modules/` und
-`administrator/language/`, Templates unter `templates/<name>/`. Dateien werden
-nach Größe und Inhalt verglichen, unveränderte Dateien werden nicht kopiert.
-Namen, die mit `.git` beginnen (z. B. `.gitkeep`), werden übersprungen.
+`administrator/language/`, Templates unter `templates/<name>/`. Plugins landen
+unter `plugins/<gruppe>/<element>/`, mit der Gruppe aus dem Attribut `group`
+von `<extension>` und dem Element aus dem Attribut `plugin` in `<files>`
+(z. B. `<folder plugin="example">services</folder>`); ihre Sprachdateien
+landen wie beim Joomla-Installer unter `administrator/language/`. Dateien
+werden nach Größe und Inhalt verglichen, unveränderte Dateien werden nicht
+kopiert. Namen, die mit `.git` beginnen (z. B. `.gitkeep`), werden
+übersprungen.
 
 ### Was gelöscht wird
 
@@ -248,10 +254,11 @@ vendor/bin/jxt build --tag v1.0.0  # aus einem Git-Tag
 ```
 
 Erstellt `dist/<element>-<version>.zip` (Templates:
-`dist/tpl_<name>-<version>.zip`) mit dem Manifest und allen darin genannten
-Dateien, jeweils mit ihrem Pfad relativ zum Manifest. Eine vorhandene Datei
-gleichen Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor Dateien, die
-nicht im Manifest stehen.
+`dist/tpl_<name>-<version>.zip`, Plugins:
+`dist/plg_<gruppe>_<element>-<version>.zip`) mit dem Manifest und allen darin
+genannten Dateien, jeweils mit ihrem Pfad relativ zum Manifest. Eine vorhandene
+Datei gleichen Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor
+Dateien, die nicht im Manifest stehen.
 
 Das ZIP wird aus der Arbeitskopie erstellt, also einschließlich nicht
 committeter Änderungen. Mit `--tag` entsteht es stattdessen aus den committeten

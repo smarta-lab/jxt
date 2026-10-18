@@ -86,7 +86,7 @@ final class SyncCommand extends Command
                 $joomlaRoot,
             );
 
-            $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->element, $joomlaRoot, $dryRun ? ' (dry run)' : ''));
+            $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->name(), $joomlaRoot, $dryRun ? ' (dry run)' : ''));
             $this->listChanges($io, $plan);
             $this->warn($io, $plan);
             $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);

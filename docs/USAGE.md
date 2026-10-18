@@ -3,9 +3,9 @@
 [Deutsch](USAGE.de.md)
 
 All commands are run in the project directory of an extension. Usually this is
-the directory containing the manifest (`mod_*.xml` or `templateDetails.xml`).
-The manifest is found automatically: it is the only XML file in that directory
-whose root element is `<extension>`.
+the directory containing the manifest (`mod_*.xml`, `templateDetails.xml` or the
+plugin's XML file, e.g. `example.xml`). The manifest is found automatically: it
+is the only XML file in that directory whose root element is `<extension>`.
 
 If the extension lives in a subdirectory of the project (e.g. `extension/`, with
 `composer.json`, `tests/` and `docs/` in the project directory), or if the
@@ -176,8 +176,12 @@ Exactly what the manifest lists, mapped the same way the Joomla installer does:
 | `<media destination="…">` | `media/<destination>/` |
 
 Administrator modules go to `administrator/modules/` and
-`administrator/language/`, templates to `templates/<name>/`. Files are compared
-by size and content; unchanged files are not copied. Names starting with `.git`
+`administrator/language/`, templates to `templates/<name>/`. Plugins go to
+`plugins/<group>/<element>/` with the group from the attribute `group` of
+`<extension>` and the element from the attribute `plugin` in `<files>` (e.g.
+`<folder plugin="example">services</folder>`); as with the Joomla installer,
+their language files go to `administrator/language/`. Files are compared by
+size and content; unchanged files are not copied. Names starting with `.git`
 (e.g. `.gitkeep`) are skipped.
 
 ### What is deleted
@@ -241,10 +245,11 @@ vendor/bin/jxt build --tag v1.0.0  # from a Git tag
 ```
 
 Creates `dist/<element>-<version>.zip` (templates:
-`dist/tpl_<name>-<version>.zip`) containing the manifest and all files it lists,
-with their paths relative to the manifest. An existing file with the same name
-is replaced. Like `jxt sync`, `jxt build` warns about files that are not listed
-in the manifest.
+`dist/tpl_<name>-<version>.zip`, plugins:
+`dist/plg_<group>_<element>-<version>.zip`) containing the manifest and all
+files it lists, with their paths relative to the manifest. An existing file with
+the same name is replaced. Like `jxt sync`, `jxt build` warns about files that
+are not listed in the manifest.
 
 The ZIP is built from the working copy, including uncommitted changes. With
 `--tag`, it is built from the committed files of a Git tag instead, e.g. for a

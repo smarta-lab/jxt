@@ -12,7 +12,7 @@ each extension project. It had three problems:
 
 Requirements for the replacement:
 
-1. Find and parse the manifest (`mod_*.xml`, `templateDetails.xml`) in the
+1. Find and parse the manifest (`mod_*.xml`, `templateDetails.xml`, …) in the
    current directory, or the manifest configured in `.jxt.json` if the
    extension is in a subdirectory.
 2. Find the Joomla test server through a configuration file.
@@ -55,8 +55,8 @@ written:
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
-  `client`) and templates. Plugins fit the current model (one install
-  directory `plugins/<group>/<element>/` plus `media/`). Components have
+  `client`), templates and plugins. Plugins fit the model of one install
+  directory (`plugins/<group>/<element>/`) plus `media/`. Components have
   several install directories with their own `<files>` sections
   (`administrator/components/`, `components/`, `api/`) and SQL files, so the
   deployment plan would need more than one install directory; packages
@@ -74,18 +74,26 @@ the same plan, so the server and the ZIP always contain the same files.
 The plan also records:
 
 - **Exclusive directories:** the install directory (`modules/<element>/`,
-  `templates/<name>/`) and `media/<destination>/`. They belong to the extension
-  alone.
+  `templates/<name>/`, `plugins/<group>/<element>/`) and
+  `media/<destination>/`. They belong to the extension alone.
 - **Source directories:** the `folder` attributes of the sections (and the first
   path segment of language files without `folder`). Files in them that the
   manifest does not list are reported.
 
 The element name follows the rules of the Joomla installer: for modules the
 `module` attribute in `<files>`, otherwise `<name>`; for templates `<name>` in
-lower case with spaces replaced by `_`.
+lower case with spaces replaced by `_`; for plugins the `plugin` attribute in
+`<files>`, unchanged and without a fallback, since the installer would
+otherwise install into the group directory itself. The installer ignores
+`client` for plugins and copies their language files to
+`administrator/language/`. The name Joomla uses for language files and
+constants (`mod_x`, `tpl_x`, `plg_<group>_<element>` in lower case) also
+names the ZIP, the prefix of the language constants checked by `jxt check`
+and the extension in the output.
 
 Because `jxt sync` deletes files on the server, the parser rejects absolute
-paths, paths containing `..`, and invalid element names or language tags.
+paths, paths containing `..`, and invalid element names, plugin groups or
+language tags.
 
 ## State: the installed manifest
 

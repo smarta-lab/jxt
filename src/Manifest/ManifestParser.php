@@ -22,7 +22,7 @@ use SmartA\Jxt\Deployment\PlanEntry;
  */
 final class ManifestParser
 {
-    private const string ELEMENT_PATTERN = '/^[a-z0-9_][a-z0-9_.-]*$/';
+    private const string ELEMENT_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
     private const string LANGUAGE_TAG_PATTERN = '/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/';
     private const array INSTALLER_SECTIONS = ['scriptfile', 'install', 'uninstall', 'update', 'updateservers'];
 
@@ -57,16 +57,17 @@ final class ManifestParser
     {
         $root = $this->loadXml($xml);
         $type = $this->extensionType($root);
-        $client = $this->clientType($root);
+        $client = $this->clientType($root, $type);
         $element = $this->element($root, $type);
-        $installDirectory = $type->installDirectory($client, $element);
+        $group = $this->group($root, $type);
+        $installDirectory = $type->installDirectory($client, $element, $group);
         $manifestFile = basename(RelativePath::normalize($fileName));
 
         $entries = [
             new PlanEntry($manifestFile, $installDirectory . '/' . $manifestFile, EntryKind::File),
             ...$this->fileEntries($root, $installDirectory),
             ...$this->scriptfileEntries($root, $installDirectory),
-            ...$this->languageEntries($root, $client),
+            ...$this->languageEntries($root, $type->languageClient($client)),
             ...$this->mediaEntries($root),
         ];
 
@@ -82,6 +83,7 @@ final class ManifestParser
                 $this->sourceDirectories($root),
             ),
             $this->installerMetadata($root, $installDirectory),
+            $group,
         );
     }
 
@@ -213,12 +215,14 @@ final class ManifestParser
 
     /**
      * Determines the application area from the attribute `client`; defaults to `site`.
+     *
+     * The Joomla installer ignores the attribute for plugins, which always belong to the site.
      */
-    private function clientType(SimpleXMLElement $root): ClientType
+    private function clientType(SimpleXMLElement $root, ExtensionType $type): ClientType
     {
         $client = trim((string) $root['client']);
 
-        if ($client === '') {
+        if ($client === '' || $type === ExtensionType::Plugin) {
             return ClientType::Site;
         }
 
@@ -231,6 +235,7 @@ final class ManifestParser
      *
      * Modules: attribute `module` of an entry in `<files>`, otherwise `<name>`.
      * Templates: `<name>` in lower case, spaces become `_`.
+     * Plugins: attribute `plugin` of an entry in `<files>` as it is, without a fallback.
      */
     private function element(SimpleXMLElement $root, ExtensionType $type): string
     {
@@ -241,28 +246,59 @@ final class ManifestParser
         }
 
         $element = match ($type) {
-            ExtensionType::Module => $this->moduleAttribute($root) ?? strtolower($name),
+            ExtensionType::Module => strtolower($this->filesAttribute($root, 'module') ?? $name),
             ExtensionType::Template => strtolower(str_replace(' ', '_', $name)),
+            ExtensionType::Plugin => $this->filesAttribute($root, 'plugin') ?? throw new ManifestException(
+                'The plugin element (attribute plugin of an entry in <files>) is missing in the manifest.',
+            ),
         };
 
-        if (preg_match(self::ELEMENT_PATTERN, $element) !== 1) {
-            throw new ManifestException(sprintf('Invalid element name "%s".', $element));
-        }
-
-        return $element;
+        return $this->validName($element, 'element name');
     }
 
     /**
-     * Returns the value of the first attribute `module` inside `<files>`.
+     * Returns the validated plugin group from the attribute `group`, or null for other extension types.
      */
-    private function moduleAttribute(SimpleXMLElement $root): ?string
+    private function group(SimpleXMLElement $root, ExtensionType $type): ?string
+    {
+        if ($type !== ExtensionType::Plugin) {
+            return null;
+        }
+
+        $group = trim((string) $root['group']);
+
+        if ($group === '') {
+            throw new ManifestException('The attribute group of <extension> is missing in the plugin manifest.');
+        }
+
+        return $this->validName($group, 'plugin group');
+    }
+
+    /**
+     * Returns the name if it is safe as a directory name.
+     *
+     * @param string $description Kind of name for the error message
+     */
+    private function validName(string $name, string $description): string
+    {
+        if (preg_match(self::ELEMENT_PATTERN, $name) !== 1) {
+            throw new ManifestException(sprintf('Invalid %s "%s".', $description, $name));
+        }
+
+        return $name;
+    }
+
+    /**
+     * Returns the value of the first attribute with the given name on an entry inside `<files>`.
+     */
+    private function filesAttribute(SimpleXMLElement $root, string $attribute): ?string
     {
         foreach ($this->children($root, 'files') as $files) {
             foreach ($files->children() as $child) {
-                $module = strtolower(trim((string) $child['module']));
+                $value = trim((string) $child[$attribute]);
 
-                if ($module !== '') {
-                    return $module;
+                if ($value !== '') {
+                    return $value;
                 }
             }
         }

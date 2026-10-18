@@ -88,6 +88,22 @@ final class PackageBuilderTest extends TestCase
         self::assertSame($this->project . '/dist/tpl_cassiopeia-2.0.0.zip', $package->path);
     }
 
+    public function testNamesPluginPackagesAfterGroupAndElement(): void
+    {
+        $this->writeFile('example.xml', <<<'XML'
+            <extension type="plugin" group="system">
+                <name>plg_system_example</name>
+                <version>1.0.0</version>
+                <files><filename plugin="example">example.php</filename></files>
+            </extension>
+            XML);
+        $this->writeFile('example.php', '<?php');
+
+        $package = (new PackageBuilder())->build($this->parse('example.xml'), $this->project, $this->project . '/dist');
+
+        self::assertSame($this->project . '/dist/plg_system_example-1.0.0.zip', $package->path);
+    }
+
     public function testReplacesExistingZip(): void
     {
         $this->writeFile('mod_x.xml', $this->moduleXml('<version>1.2.0</version>'));

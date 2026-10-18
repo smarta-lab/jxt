@@ -6,6 +6,20 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Plugins: the commands support manifests with `type="plugin"`. The install
+  directory is `plugins/<group>/<element>/` with the group from the attribute
+  `group` and the element from the attribute `plugin` in `<files>`; language
+  files go to `administrator/language/` as with the Joomla installer. The ZIP
+  file is named `plg_<group>_<element>-<version>.zip`, and `jxt check` expects
+  the prefix `PLG_<GROUP>_<ELEMENT>_` for language constants.
+
+### Changed
+
+- The output names templates like Joomla (`tpl_<name>`) instead of only
+  `<name>`, as it already did for the ZIP file.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added

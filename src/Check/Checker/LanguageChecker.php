@@ -14,16 +14,15 @@ use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
-use SmartA\Jxt\Manifest\ExtensionType;
 use SmartA\Jxt\PhpErrors;
 
 /**
  * Checks the language files of the extension.
  *
  * Every language must have the same files with the same keys. Language constants with the prefix of the
- * extension (`MOD_X_`, `TPL_X_`) used in PHP, XML or JS files must be defined. Defined constants not
- * found in the code are only a notice, as constants may be built at runtime; constants that Joomla uses
- * itself (the extension name, template positions and layouts) are never reported.
+ * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`) used in PHP, XML or JS files must be defined. Defined
+ * constants not found in the code are only a notice, as constants may be built at runtime; constants that
+ * Joomla uses itself (the extension name, template positions and layouts) are never reported.
  */
 final readonly class LanguageChecker implements Checker
 {
@@ -172,15 +171,11 @@ final readonly class LanguageChecker implements Checker
     }
 
     /**
-     * Returns the prefix of the extension's language constants, e.g. `MOD_EXAMPLE_` or `TPL_CASSIOPEIA_`.
+     * Returns the prefix of the extension's language constants, e.g. `MOD_EXAMPLE_`, `TPL_CASSIOPEIA_` or
+     * `PLG_SYSTEM_EXAMPLE_`.
      */
     private function prefix(CheckContext $context): string
     {
-        $element = strtoupper($context->manifest->element);
-
-        return match ($context->manifest->type) {
-            ExtensionType::Module => $element . '_',
-            ExtensionType::Template => 'TPL_' . $element . '_',
-        };
+        return strtoupper($context->manifest->name()) . '_';
     }
 }

@@ -122,7 +122,7 @@ final class InstallCommand extends Command
         $this->reportLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $configuration, $joomlaRoot);
         $io->success(sprintf(
             '%s installed%s.',
-            trim($manifest->element . ' ' . ($manifest->version ?? '')),
+            trim($manifest->name() . ' ' . ($manifest->version ?? '')),
             is_string($tag) ? ' from tag ' . $tag : '',
         ));
 
