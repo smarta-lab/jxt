@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} (${{ matrix.dependencies }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.4'
+            dependencies: locked
+          - php: '8.5'
+            dependencies: locked
+          - php: '8.4'
+            dependencies: lowest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: libxml, posix, simplexml, zip
+          coverage: none
+          tools: composer, cs2pr
+
+      - name: Install the EditorConfig C core for the reference tests
+        run: sudo apt-get update && sudo apt-get install --yes editorconfig
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install locked dependencies
+        if: matrix.dependencies == 'locked'
+        run: composer install --no-interaction --no-progress
+
+      - name: Install lowest dependencies
+        if: matrix.dependencies == 'lowest'
+        run: composer update --no-interaction --no-progress --prefer-lowest --prefer-stable
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --fail-on-skipped
+
+      - name: PHPStan
+        if: matrix.dependencies == 'locked'
+        run: vendor/bin/phpstan analyse --no-progress --error-format=github
+
+      - name: PHP_CodeSniffer
+        if: matrix.dependencies == 'locked'
+        run: vendor/bin/phpcs -q --report=checkstyle | cs2pr
