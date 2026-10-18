@@ -20,17 +20,18 @@ use SmartA\Jxt\PhpErrors;
  */
 final readonly class JoomlaInstaller
 {
-    public const string CLI = 'cli/joomla.php';
+    private JoomlaCli $cli;
 
     /**
      * @param string      $phpBinary          PHP binary for the Joomla CLI; must match the sudoers rule exactly
      * @param string|null $temporaryDirectory Directory for the copy of the ZIP file; null for the system default
      */
     public function __construct(
-        private ProcessRunner $processRunner = new SystemProcessRunner(),
-        private string $phpBinary = PHP_BINARY,
+        ProcessRunner $processRunner = new SystemProcessRunner(),
+        string $phpBinary = PHP_BINARY,
         private ?string $temporaryDirectory = null,
     ) {
+        $this->cli = new JoomlaCli($processRunner, $phpBinary);
     }
 
     /**
@@ -45,7 +46,7 @@ final readonly class JoomlaInstaller
         $copy = $this->readableCopy($package);
 
         try {
-            return $this->processRunner->run($this->command($joomlaRoot, $webUser, $copy));
+            return $this->cli->run($joomlaRoot, $webUser, ['extension:install', '--path=' . $copy]);
         } finally {
             PhpErrors::capture(static fn (): bool => unlink($copy));
         }
@@ -56,26 +57,7 @@ final readonly class JoomlaInstaller
      */
     public function sudoersRule(string $user, string $joomlaRoot, string $webUser): string
     {
-        return sprintf(
-            '%s ALL=(%s) NOPASSWD: %s %s/%s extension\:install *',
-            $user,
-            $webUser,
-            $this->phpBinary,
-            $joomlaRoot,
-            self::CLI,
-        );
-    }
-
-    /**
-     * Returns the command line, with `sudo -n` so that a missing sudoers rule fails instead of asking for a password.
-     *
-     * @return list<string>
-     */
-    private function command(string $joomlaRoot, ?string $webUser, string $package): array
-    {
-        $command = [$this->phpBinary, $joomlaRoot . '/' . self::CLI, 'extension:install', '--path=' . $package];
-
-        return $webUser === null ? $command : ['sudo', '-n', '-u', $webUser, ...$command];
+        return $this->cli->sudoersRule($user, $joomlaRoot, $webUser, 'extension\:install *');
     }
 
     /**

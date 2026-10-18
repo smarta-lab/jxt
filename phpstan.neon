@@ -1,3 +1,6 @@
+includes:
+    - phpstan.joomla.php
+
 parameters:
     level: max
     phpVersion:
@@ -8,6 +11,10 @@ parameters:
         - bin/jxt
         - src
         - tests
+        - plugin/src/Plan
+        - phpstan.joomla.php
+        - phpstan.joomla-root.php
+        - phpstan.joomla-bootstrap.php
 
     excludePaths:
         - tests/tmp

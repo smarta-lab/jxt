@@ -9,12 +9,16 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
+use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\UnlistedSourceFinder;
+use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Sync\FileStatus;
@@ -30,17 +34,24 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * Command `jxt sync`: transfers the extension to the local Joomla test server.
+ *
+ * If the jxt bridge is installed on the site, the plan is applied by the bridge as web server user via the Joomla
+ * CLI, and a bridge of another version is replaced by the bundled one first; otherwise the files are copied with
+ * the developer's own permissions.
  */
 #[AsCommand(name: 'sync', description: 'Deploys the extension to the local Joomla test site.')]
 final class SyncCommand extends Command
 {
     /**
      * @param string $projectDirectory Project directory of the extension, usually the current directory
+     * @param string $currentUser      Name of the calling user, for the sudoers rules in the error hint
      */
     public function __construct(
         private readonly string $projectDirectory,
         private readonly ConfigurationLoader $configurationLoader,
         private readonly SyncExecutor $executor,
+        private readonly Bridge $bridge,
+        private readonly string $currentUser,
         private readonly ManifestLocator $manifestLocator = new ManifestLocator(),
         private readonly ManifestParser $manifestParser = new ManifestParser(),
         private readonly SyncPlanner $planner = new SyncPlanner(),
@@ -85,20 +96,30 @@ final class SyncCommand extends Command
                 $extensionDirectory,
                 $joomlaRoot,
             );
+            $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
 
-            $io->writeln(sprintf('<info>%s</info> → %s%s', $manifest->name(), $joomlaRoot, $dryRun ? ' (dry run)' : ''));
+            $io->writeln(sprintf(
+                '<info>%s</info> → %s%s%s',
+                $manifest->name(),
+                $joomlaRoot,
+                $bridgeVersion === null ? '' : ' via jxt bridge',
+                $dryRun ? ' (dry run)' : '',
+            ));
             $this->listChanges($io, $plan);
-            $this->warn($io, $plan);
+            $this->warn($io, $plan, $bridgeVersion !== null);
             $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
 
-            if (!$dryRun) {
+            if (!$dryRun && $bridgeVersion === null) {
                 $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
+            } elseif (!$dryRun && !$this->applyViaBridge($io, $plan, $manifest, $extensionDirectory, $configuration, $bridgeVersion)) {
+                return Command::FAILURE;
             }
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
             if ($exception instanceof DeploymentException) {
-                $io->note('Missing write permissions on the server? jxt install runs the Joomla installer as web server user.');
+                $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt sync then writes '
+                    . 'the files as web server user via the Joomla CLI.');
             }
 
             return Command::FAILURE;
@@ -113,6 +134,79 @@ final class SyncCommand extends Command
         $io->success($dryRun ? 'Dry run, nothing changed: ' . $summary : $summary);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Applies the plan via the bridge, after replacing a bridge of another version; false if a step failed.
+     *
+     * @param string $bridgeVersion Version of the bridge installed on the site
+     *
+     * @throws JxtException if the bridge cannot be built, the plan cannot be staged or the Joomla CLI cannot be started
+     */
+    private function applyViaBridge(
+        SymfonyStyle $io,
+        SyncPlan $plan,
+        Manifest $manifest,
+        string $extensionDirectory,
+        Configuration $configuration,
+        string $bridgeVersion,
+    ): bool {
+        $joomlaRoot = $configuration->validJoomlaRoot();
+        $bundledVersion = $this->bridge->bundledVersion();
+
+        if ($bridgeVersion !== $bundledVersion) {
+            $io->note(sprintf('Updating the jxt bridge on the site: %s → %s.', $bridgeVersion ?: '?', $bundledVersion));
+            $result = $this->bridge->install($joomlaRoot, $configuration->webUser);
+
+            if ($result->exitCode !== 0) {
+                $this->explainBridgeFailure($io, $result, $configuration, $joomlaRoot, 'Updating the jxt bridge');
+
+                return false;
+            }
+        }
+
+        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $joomlaRoot, $configuration);
+
+        if ($result->exitCode !== 0) {
+            $this->explainBridgeFailure($io, $result, $configuration, $joomlaRoot, 'jxt:apply');
+
+            return false;
+        }
+
+        $remarks = trim((string) preg_replace('/^Applied: .*$/m', '', $result->output));
+
+        if ($remarks !== '') {
+            $io->writeln($remarks);
+        }
+
+        return true;
+    }
+
+    /**
+     * Reports a failed call of the Joomla CLI with its output, and the sudoers rules if sudo refused.
+     *
+     * @param string $subject What failed, e.g. `jxt:apply`
+     */
+    private function explainBridgeFailure(
+        SymfonyStyle $io,
+        ProcessResult $result,
+        Configuration $configuration,
+        string $joomlaRoot,
+        string $subject,
+    ): void {
+        $io->writeln(trim($result->output));
+
+        if ($configuration->webUser !== null && $result->sudoRefused()) {
+            SudoersHint::show(
+                $io,
+                $configuration->webUser,
+                $this->bridge->sudoersRules($this->currentUser, $joomlaRoot, $configuration->webUser),
+            );
+
+            return;
+        }
+
+        $io->error(sprintf('%s failed (exit code %d).', $subject, $result->exitCode));
     }
 
     /**
@@ -147,8 +241,10 @@ final class SyncCommand extends Command
 
     /**
      * Warns about changes that only take effect when installing via the Joomla installer.
+     *
+     * @param bool $viaBridge Whether the bridge applies the plan; it refreshes the manifest cache itself
      */
-    private function warn(SymfonyStyle $io, SyncPlan $plan): void
+    private function warn(SymfonyStyle $io, SyncPlan $plan, bool $viaBridge): void
     {
         $comparison = $plan->comparison;
         $installerHint = 'jxt sync does not run install scripts, SQL files or update server entries. '
@@ -170,7 +266,7 @@ final class SyncCommand extends Command
             $io->note(sprintf('Namespace changed: %s is deleted, Joomla rebuilds the file.', SyncPlanner::AUTOLOAD_CACHE));
         }
 
-        if ($comparison->versionChanged()) {
+        if ($comparison->versionChanged() && !$viaBridge) {
             $io->note(sprintf(
                 'Version %s → %s: run jxt install, or refresh the display via "Extensions: Manage" → "Refresh Cache".',
                 $comparison->oldVersion ?? '–',

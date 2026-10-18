@@ -5,22 +5,9 @@
 - Support components.
 - JSON output of `jxt check`, only for a concrete need; `Finding` already has
   file and line as fields.
-- `jxt install --clean`: delete the leftovers that `jxt install` lists.
-  Planning works as the developer, since the site is world-readable; deleting
-  needs the web server user, see the next item.
-- Server-side helper for `jxt sync` and `jxt install --clean`: a Joomla console
-  plugin (`plg_console_jxt`, group `console`, loaded by `cli/joomla.php`) adds
-  commands such as `jxt:apply`, run via `sudo -n -u www-data` like
-  `jxt install`. jxt plans as the developer and stages the files and a plan
-  (copies, deletions) in `/tmp`, because `www-data` cannot read the home
-  directory (mode 750); the plugin validates and applies the plan and could also
-  refresh `manifest_cache`. It only acts when called via the CLI, so there is no
-  web endpoint. The plugin is shipped inside the jxt package (`plugin/`, outside
-  the PSR-4 autoload); jxt builds it and installs it via the Joomla installer
-  when it is missing or has a different version, so the plan format always
-  matches the jxt release. jxt builds it with its own plugin support; it also
-  makes `jxt sync` usable on sites whose files belong to the web server user,
-  for quick iterations on CSS, JS or layouts.
+- `jxt install --clean`: delete the leftovers that `jxt install` lists, via
+  the jxt bridge (a plan with deletions only). Planning works as the developer,
+  since the site is world-readable.
 - Test sites in containers (DDEV, Docker): `jxt install` runs the Joomla CLI
   with the PHP of the host, which may lack the right version or extensions and
   cannot resolve a database host such as `db` that only exists between
@@ -29,8 +16,9 @@
   another user. Open: the path of the site inside the container besides
   `joomla_root`, a place for the ZIP that the container can read (the host's
   `/tmp` is not visible there), and whether `web_user` becomes a special case
-  of the prefix. Until then, `jxt sync` works on such sites, since the files
-  are usually shared with the host.
+  of the prefix. The jxt bridge runs the Joomla CLI and stages its files in
+  `/tmp` as well, so it needs the same. Until then, `jxt sync` works on such
+  sites without the bridge, since the files are usually shared with the host.
 
 ## Done
 
@@ -59,6 +47,11 @@
 - Plugins: install directory `plugins/<group>/<element>/`, language files in
   `administrator/language/`, ZIP name and prefix of the language constants
   `plg_<group>_<element>`.
+- jxt bridge (`jxt bridge add|remove|status`): a Joomla console plugin shipped
+  in `plugin/` that applies the plans of `jxt sync` as web server user
+  (`jxt:apply`), so that `jxt sync` also works on sites whose files belong to
+  the web server user; jxt builds it with its own plugin support and updates
+  it when the bundled version differs.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

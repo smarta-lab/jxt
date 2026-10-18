@@ -6,6 +6,9 @@
 /.gitignore export-ignore
 /composer.lock export-ignore
 /phpcs.xml export-ignore
+/phpstan.joomla-bootstrap.php export-ignore
+/phpstan.joomla-root.php export-ignore
+/phpstan.joomla.php export-ignore
 /phpstan.neon export-ignore
 /phpunit.xml export-ignore
 /tests export-ignore

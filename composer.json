@@ -45,7 +45,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "SmartA\\Jxt\\Tests\\": "tests/"
+            "SmartA\\Jxt\\Tests\\": "tests/",
+            "SmartA\\Plugin\\Console\\Jxt\\Plan\\": "plugin/src/Plan/"
         }
     }
 }

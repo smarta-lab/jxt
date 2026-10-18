@@ -152,9 +152,10 @@ vendor/bin/jxt sync --dry-run  # nur anzeigen, nichts ändern
 ```
 
 `jxt sync` kopiert die Dateien ohne den Joomla-Installer. Das ist schneller und
-löscht auch Altlasten, setzt aber voraus, dass der aufrufende Benutzer in den
-Zielordnern schreiben darf (siehe [Rechte](#rechte)). Gehören die Dateien
-dem Webserver-Benutzer, ist `jxt install` der richtige Befehl.
+löscht auch Altlasten. Der aufrufende Benutzer muss in den Zielordnern schreiben
+dürfen (siehe [Rechte](#rechte)); gehören die Dateien dem Webserver-Benutzer,
+einmal die [jxt-Bridge](#jxt-bridge--sync-als-webserver-benutzer) installieren,
+dann schreibt `jxt sync` sie als dieser Benutzer über die Joomla-CLI.
 
 `jxt sync` gleicht das Projekt mit dem Testserver ab und listet die Änderungen
 auf:
@@ -215,13 +216,16 @@ einmal mit `jxt install` installieren.
 
 ### Rechte
 
-`jxt sync` arbeitet mit den Rechten des aufrufenden Benutzers. Die Rechte
+Ohne die jxt-Bridge arbeitet `jxt sync` mit den Rechten des aufrufenden
+Benutzers. Die Rechte
 `dir_mode`/`file_mode` (Standard 0755/0644) werden für die Dateien und Ordner
 der Erweiterung und für neu angelegte Ordner gesetzt; bestehende gemeinsame
 Ordner wie `language/de-DE/` bleiben unverändert. `chmod` darf nur der
 Eigentümer einer Datei, Gruppenrechte reichen dafür nicht.
 
-Scheitert eine Dateioperation, weist `jxt sync` auf `jxt install` hin.
+Scheitert eine Dateioperation, weist `jxt sync` auf `jxt bridge add` hin. Ist
+die Bridge auf der Seite installiert, wendet sie denselben Plan als
+Webserver-Benutzer an, mit denselben Rechten.
 
 ### Warnungen und Hinweise
 
@@ -230,7 +234,8 @@ Kopieren ist nicht dasselbe wie eine Installation über den Joomla-Installer.
 
 - **Geänderte Version:** Der Erweiterungsmanager zeigt die alte Version, bis
   `jxt install` läuft oder sie unter „System → Verwalten → Erweiterungen“ mit
-  „Cache aktualisieren“ aufgefrischt wird.
+  „Cache aktualisieren“ aufgefrischt wird. Die jxt-Bridge frischt sie selbst
+  auf, dann entfällt der Hinweis.
 - **Geänderter Namespace:** `administrator/cache/autoload_psr4.php` wird
   gelöscht, Joomla erzeugt die Datei neu.
 - **Geänderte Installer-Abschnitte** (`<scriptfile>`, `<install>`,
@@ -245,6 +250,60 @@ Kopieren ist nicht dasselbe wie eine Installation über den Joomla-Installer.
 Standardwerte neuer Modulparameter werden nicht in bestehende Modulinstanzen
 geschrieben. Das gilt auch bei einem echten Upgrade, deshalb Parameter immer mit
 Standardwert lesen: `$params->get('x', default)`.
+
+## jxt bridge – sync als Webserver-Benutzer
+
+```bash
+vendor/bin/jxt bridge add     # Bridge auf der Testseite installieren
+vendor/bin/jxt bridge status  # Versionen und Joomla-CLI prüfen
+vendor/bin/jxt bridge remove  # wieder deinstallieren
+```
+
+Die jxt-Bridge ist ein kleines Joomla-Konsolen-Plugin (`plg_console_jxt`), das
+mit jxt geliefert wird. Es ergänzt die Joomla-CLI um den Befehl `jxt:apply`, der
+den Plan von `jxt sync` als Webserver-Benutzer anwendet. Damit funktioniert
+`jxt sync` auch auf Seiten, deren Dateien dem Webserver-Benutzer gehören, etwa
+für schnelle Iterationen an CSS, JavaScript oder Layouts, ohne ein ZIP zu bauen
+und zu installieren.
+
+- **Ausdrückliche Installation:** `jxt bridge add` baut das Plugin aus dem
+  jxt-Paket und installiert es mit dem Joomla-Installer; das Plugin aktiviert
+  sich selbst. Danach prüft der Befehl, ob die Joomla-CLI die Befehle des
+  Plugins ausführt.
+- **So nutzt `jxt sync` sie:** Ist die Bridge auf der Seite installiert, legt
+  `jxt sync` die geänderten Dateien und den Plan in einem Ordner unter `/tmp`
+  ab (für den Webserver-Benutzer lesbar) und ruft `jxt:apply` über
+  `sudo -n -u <web_user>` auf; die Ausgabe nennt `via jxt bridge`. Ohne Bridge
+  kopiert `jxt sync` die Dateien wie bisher selbst.
+- **Aktualisierung:** Hat die installierte Bridge eine andere Version als die
+  mit dem eigenen jxt gelieferte, installiert `jxt sync` zuerst die
+  mitgelieferte Version und meldet das.
+- **Manifest-Cache:** Nach dem Anwenden frischt die Bridge den Manifest-Cache
+  der Erweiterung auf, sodass der Erweiterungsmanager die neue Version zeigt.
+- **Sicherheit:** Die Bridge reagiert nur auf Aufrufe über die Joomla-CLI und
+  hat daher keinen Web-Endpunkt. Sie akzeptiert nur Ziele in den Ordnern von
+  Erweiterungen (z. B. `modules/<element>/`, `media/<destination>/`,
+  `language/<tag>/<datei>`) und lehnt alles andere ab, etwa
+  `configuration.php`. Sie ist nur für Entwicklungsseiten gedacht; vor dem
+  Kopieren einer Seite mit `jxt bridge remove` entfernen.
+
+Die Bridge braucht neben der Regel für `jxt install` drei weitere
+sudoers-Regeln (siehe
+[Einrichtung](#einrichtung-sudo-ohne-passwort-für-den-joomla-installer)); fehlen
+sie, geben `jxt bridge` und `jxt sync` alle vier Zeilen aus:
+
+```
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:install *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:remove -n *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php jxt\:apply *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php jxt\:status
+```
+
+`extension:remove` nutzt `jxt bridge remove`, mit `-n`, weil die Joomla-CLI
+sonst nachfragt; `jxt:apply` und `jxt:status` sind die Befehle der Bridge. Jeder
+Befehl braucht eine eigene Regel, da sudo-rs (das `sudo` neuerer
+Ubuntu-Versionen) `*` nur als ganzes Argument akzeptiert, nicht innerhalb eines
+Arguments wie `jxt\:*`.
 
 ## jxt build – installierbare ZIP-Datei erstellen
 
@@ -463,7 +522,7 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
 | `joomla_root` | Absoluter Pfad des Joomla-Testservers; muss `configuration.php` enthalten | – (für `jxt install` und `jxt sync` erforderlich) |
-| `web_user` | Benutzer, als der `jxt install` die Joomla-CLI per sudo ausführt; `null` für einen Aufruf ohne sudo | `www-data` |
+| `web_user` | Benutzer, als der `jxt install` und die jxt-Bridge die Joomla-CLI per sudo ausführen; `null` für einen Aufruf ohne sudo | `www-data` |
 | `manifest` | Manifest-Datei relativ zum Projektordner; nur in `.jxt.json` | – (wird im Projektordner gesucht) |
 | `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
 | `dir_mode` | Rechte für Ordner bei `jxt sync` | `0755` |

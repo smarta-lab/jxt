@@ -23,4 +23,12 @@ final readonly class ProcessResult
         public string $output,
     ) {
     }
+
+    /**
+     * Tells whether sudo refused to run the command, e.g. because a sudoers rule is missing.
+     */
+    public function sudoRefused(): bool
+    {
+        return preg_match('/^sudo: /m', $this->output) === 1;
+    }
 }

@@ -175,15 +175,74 @@ makes a missing rule fail instead of prompting, and the command then prints the
 matching rule. The PHP binary is `PHP_BINARY`, which must match the rule
 exactly, since sudo compares the command path.
 
-`jxt sync` runs with the developer's own permissions and is meant for test
-sites the developer can write to. Modes are set for the extension's files and
-directories and for newly created directories; existing shared directories such
-as `language/de-DE/` are left unchanged.
+Without the jxt bridge (next section), `jxt sync` runs with the developer's own
+permissions and is meant for test sites the developer can write to. Modes are
+set for the extension's files and directories and for newly created
+directories; existing shared directories such as `language/de-DE/` are left
+unchanged.
 
 If jxt is still started via sudo, `HOME` points to `/root`, so the home
 directory for the global configuration is determined via `SUDO_USER`, and
 `jxt config` refuses to write so that configuration files are not owned by
 root.
+
+## The jxt bridge: sync as web server user
+
+`jxt sync` copies only the changed files, which makes quick iterations on CSS,
+JavaScript or layouts possible without a ZIP, the installer and the database.
+On sites whose files belong to the web server user it needs a way to write as
+that user. The jxt bridge is a Joomla console plugin (`plg_console_jxt`) in
+`plugin/` of the jxt package; jxt plans as the developer, and the plugin
+applies the plan with `jxt:apply`, run via `sudo -n -u <web_user>` like
+`jxt install`. Joomla loads console plugins only in `cli/joomla.php`, so there
+is no web endpoint.
+
+- **Separate runtimes:** the plugin runs as `www-data` in Joomla's PHP. It
+  cannot load jxt's autoloader (the home directory is not readable for
+  `www-data`, and `www-data` should not run project code) and uses Joomla's
+  console instead of jxt's `symfony/console`. It therefore has its own
+  namespace `SmartA\Plugin\Console\Jxt` outside jxt's PSR-4 autoload, and
+  `plugin/` is part of the Composer package. The Joomla-independent classes
+  (`Plan\…`) are autoloaded in jxt's tests only, which check that jxt's
+  `PlanStager` and the plugin's `PlanReader` agree on the format. The plugin
+  avoids PHP features newer than Joomla's minimum version.
+- **Trust:** whoever may run `extension:install` as `www-data` can already run
+  any code as `www-data`. The plugin's checks therefore guard against mistakes
+  in jxt, not against attacks: it does not derive the plan from manifests, it
+  executes it and only checks that every target is a normalized relative path
+  in a directory that belongs to a single extension (`modules/<element>/`,
+  `plugins/<group>/<element>/`, `media/<x>/`, `language/<tag>/<file>`, …) or
+  is `administrator/cache/autoload_psr4.php`.
+- **Staging:** jxt copies the new and changed files and `plan.json` into a
+  directory below `/tmp` with modes 0755/0644, readable for the web server
+  user but writable only by the developer, and removes it afterwards. The
+  location is a constructor argument, so that a container setup could use a
+  directory the container can see.
+- **Version check instead of a protocol:** the plugin's manifest has its own
+  version. jxt compares the bundled manifest with the installed one
+  (`plugins/console/jxt/jxt.xml`, readable without sudo) and reinstalls the
+  bundled plugin when they differ, so the plan format never needs to be
+  backwards compatible. A test fails when `plugin/` changed since the last
+  release tag without a higher version; during development, `jxt install` in
+  `plugin/` updates the plugin without a new version.
+- **Activation:** the Joomla installer leaves new plugins disabled (except
+  editors), and the Joomla CLI only loads enabled ones. The plugin's install
+  script enables it in `postflight`. The installer has cached the list of
+  plugins before that point, so with caching enabled the plugin would stay
+  invisible until the cache expires; the script therefore clears the cache
+  group `com_plugins`.
+- **When `jxt sync` uses it:** whenever the bridge is installed on the site,
+  not depending on `web_user`. Sites the developer can write to, e.g. a
+  container whose files are shared with the host, keep working without sudo,
+  even if `web_user` keeps its default. The first installation is explicit
+  (`jxt bridge add`), since it adds an extension to the site and needs sudoers
+  rules; updates are automatic, since the developer agreed by installing it.
+- **Removing:** the plugin reports its extension ID (`jxt:status`), and jxt
+  passes it to `extension:remove -n`; without `-n`, the Joomla CLI asks for
+  confirmation. Letting the plugin uninstall itself was rejected.
+- **Manifest cache:** after applying a plan, `jxt:apply` refreshes the manifest
+  cache of the extension, so `jxt sync` no longer needs to point to "Refresh
+  Cache".
 
 ## Leftovers after an installation
 
@@ -330,8 +389,12 @@ Namespaces below `SmartA\Jxt`:
   temporary directory.
 - **`Git`:** `GitRepository` reads tags, files and file states and archives
   tags, used by `jxt check` and `--tag`.
-- **`Install`:** `JoomlaInstaller` hands the ZIP to the Joomla CLI via a
-  `ProcessRunner` (`SystemProcessRunner` uses `proc_open` without a shell).
+- **`Install`:** `JoomlaCli` runs commands of the Joomla CLI, as web server
+  user via sudo, through a `ProcessRunner` (`SystemProcessRunner` uses
+  `proc_open` without a shell); `JoomlaInstaller` hands it the ZIP.
+- **`Bridge`:** `Bridge` builds, installs, removes and queries the bridge
+  plugin and applies a sync plan through it; `PlanStager` writes the plan and
+  the files for it.
 - **`Sync`:** `SyncPlanner` compares project and server and creates a
   `SyncPlan`; `SyncExecutor` applies it via `Filesystem`. `LeftoverFinder`
   finds the entries in the exclusive directories that do not belong to the
@@ -351,7 +414,11 @@ Namespaces below `SmartA\Jxt`:
   (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
   including list keys; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
-  `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
+  `jxt bridge`, `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
+- **`plugin/`** (namespace `SmartA\Plugin\Console\Jxt`): the bridge plugin;
+  `Plan\PlanReader` validates the plan (`TargetPath`), `Plan\PlanApplier`
+  applies it, `Console\ApplyCommand` and `Console\StatusCommand` are the
+  commands, `script.php` enables the plugin.
 
 Conventions:
 

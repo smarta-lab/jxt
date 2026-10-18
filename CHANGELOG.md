@@ -14,9 +14,17 @@ project follows [Semantic Versioning](https://semver.org/).
   files go to `administrator/language/` as with the Joomla installer. The ZIP
   file is named `plg_<group>_<element>-<version>.zip`, and `jxt check` expects
   the prefix `PLG_<GROUP>_<ELEMENT>_` for language constants.
+- `jxt bridge add|remove|status`: installs a small Joomla console plugin
+  (`plg_console_jxt`, shipped with jxt) on the test site. If it is installed,
+  `jxt sync` writes the files as web server user via the Joomla CLI
+  (`jxt:apply`), refreshes the manifest cache of the extension and replaces a
+  bridge of another version first. It needs three more sudoers rules, which jxt
+  prints if they are missing.
 
 ### Changed
 
+- A failed file operation of `jxt sync` now points to `jxt bridge add` instead
+  of `jxt install`.
 - The output names templates like Joomla (`tpl_<name>`) instead of only
   `<name>`, as it already did for the ZIP file.
 

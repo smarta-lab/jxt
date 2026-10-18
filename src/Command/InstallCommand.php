@@ -251,12 +251,8 @@ final class InstallCommand extends Command
     ): void {
         $webUser = $configuration->webUser;
 
-        if ($webUser !== null && preg_match('/^sudo: /m', $result->output) === 1) {
-            $io->error(sprintf('sudo did not allow running the Joomla CLI as %s without password.', $webUser));
-            $io->writeln('Create the rule with');
-            $io->writeln('  sudo visudo -f /etc/sudoers.d/jxt');
-            $io->writeln('and add this line:');
-            $io->writeln('  ' . $this->installer->sudoersRule($this->currentUser, $joomlaRoot, $webUser), OutputInterface::OUTPUT_RAW);
+        if ($webUser !== null && $result->sudoRefused()) {
+            SudoersHint::show($io, $webUser, [$this->installer->sudoersRule($this->currentUser, $joomlaRoot, $webUser)]);
 
             return;
         }

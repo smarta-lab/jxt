@@ -9,6 +9,8 @@
 declare(strict_types=1);
 
 use Composer\InstalledVersions;
+use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Command\BridgeCommand;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Command\CheckCommand;
 use SmartA\Jxt\Command\ConfigCommand;
@@ -36,10 +38,11 @@ $currentUser = posix_getpwuid(posix_geteuid())['name'] ?? (string) get_current_u
 
 $application = new Application('jxt', InstalledVersions::getPrettyVersion('smarta-lab/jxt') ?? 'unknown');
 $application->addCommands([
-    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor()),
+    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor(), new Bridge(), $currentUser),
     new InstallCommand($projectDirectory, $configurationLoader, new JoomlaInstaller(), $currentUser),
     new BuildCommand($projectDirectory, $configurationLoader),
     new CheckCommand($projectDirectory, $configurationLoader),
     new ConfigCommand($projectDirectory, $configurationLoader, $runsViaSudo),
+    new BridgeCommand($projectDirectory, $configurationLoader, new Bridge(), $currentUser),
 ]);
 $application->run();

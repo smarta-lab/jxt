@@ -10,9 +10,15 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Tests\Command;
 
 use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Bridge\PlanStager;
 use SmartA\Jxt\Command\SyncCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\JoomlaCli;
+use SmartA\Jxt\Install\JoomlaInstaller;
+use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Sync\SyncExecutor;
+use SmartA\Jxt\Tests\Install\ScriptedProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
@@ -59,11 +65,7 @@ final class SyncCommandTest extends TestCase
 
     public function testDryRunChangesNothing(): void
     {
-        $command = new SyncCommand(
-            $this->temporaryDirectory . '/project',
-            new ConfigurationLoader(null),
-            new SyncExecutor(),
-        );
+        $command = $this->command(new ScriptedProcessRunner(new ProcessResult(0, '')));
         $application = new Application();
         $application->setAutoExit(false);
         $application->addCommand($command);
@@ -168,16 +170,106 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('configuration.php', self::display($tester));
     }
 
-    /**
-     * Creates the command without global configuration.
-     */
-    private function tester(): CommandTester
+    public function testAppliesPlanViaInstalledBridge(): void
     {
-        return new CommandTester(new SyncCommand(
+        $this->installBridge($this->bundledVersion());
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, "Applied: 1 copied, 1 deleted.\n"));
+        $staged = '';
+                $runner->inspector = static function (string $argument) use (&$staged): void {
+                    $staged = (string) file_get_contents($argument . '/plan.json');
+                };
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame([['jxt:apply']], array_map(static fn (array $arguments): array => [$arguments[0]], $runner->cliArguments()));
+        self::assertStringContainsString('modules/mod_x/tmpl/old.php', $staged);
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertStringContainsString('mod_x → ' . $this->joomla() . ' via jxt bridge', self::display($tester));
+        self::assertStringContainsString('1 copied, 1 deleted, 1 unchanged', self::display($tester));
+        self::assertStringNotContainsString('Applied:', self::display($tester));
+    }
+
+    public function testUpdatesBridgeOfAnotherVersionFirst(): void
+    {
+        $this->installBridge('0.0.1');
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, 'installed'), new ProcessResult(0, 'Applied: 1 copied, 1 deleted.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame('extension:install', $runner->cliArguments()[0][0]);
+        self::assertSame('jxt:apply', $runner->cliArguments()[1][0]);
+        self::assertStringContainsString('Updating the jxt bridge on the site: 0.0.1 → ' . $this->bundledVersion(), self::display($tester));
+    }
+
+    public function testShowsSudoersRulesWhenSudoRefusesTheBridge(): void
+    {
+        $this->installBridge($this->bundledVersion());
+        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']));
+        $tester = $this->tester(new ScriptedProcessRunner(new ProcessResult(1, "sudo: a password is required\n")));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('jxt\:apply *', $tester->getDisplay());
+        self::assertStringContainsString('extension\:remove -n *', $tester->getDisplay());
+    }
+
+    public function testDoesNotPointToCacheRefreshViaBridge(): void
+    {
+        $this->installBridge($this->bundledVersion());
+        $this->writeFile('project/mod_x.xml', $this->manifestXml('1.1.0'));
+        $tester = $this->tester(new ScriptedProcessRunner(new ProcessResult(0, 'Applied: 1 copied, 1 deleted.')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringNotContainsString('Refresh Cache', self::display($tester));
+    }
+
+    /**
+     * Creates the command without global configuration; the bridge runs its processes with the runner.
+     */
+    private function command(ScriptedProcessRunner $runner): SyncCommand
+    {
+        $temporaryDirectory = $this->temporaryDirectory . '/tmp';
+
+        if (!is_dir($temporaryDirectory)) {
+            mkdir($temporaryDirectory);
+        }
+
+        return new SyncCommand(
             $this->temporaryDirectory . '/project',
             new ConfigurationLoader(null),
             new SyncExecutor(),
-        ));
+            new Bridge(
+                new JoomlaCli($runner, '/usr/bin/php8.5'),
+                new JoomlaInstaller($runner, '/usr/bin/php8.5', $temporaryDirectory),
+                new PlanStager($temporaryDirectory),
+                temporaryDirectory: $temporaryDirectory,
+            ),
+            'anna',
+        );
+    }
+
+    /**
+     * Creates a tester for the command.
+     */
+    private function tester(?ScriptedProcessRunner $runner = null): CommandTester
+    {
+        return new CommandTester($this->command($runner ?? new ScriptedProcessRunner(new ProcessResult(0, ''))));
+    }
+
+    /**
+     * Writes the installed manifest of the bridge in the given version to the Joomla directory.
+     */
+    private function installBridge(string $version): void
+    {
+        $this->writeFile('joomla/' . Bridge::INSTALLED_MANIFEST, '<extension type="plugin" group="console"><name>x</name>'
+            . '<version>' . $version . '</version><files><folder plugin="jxt">services</folder></files></extension>');
+    }
+
+    /**
+     * Returns the version of the bundled bridge.
+     */
+    private function bundledVersion(): string
+    {
+        return (new Bridge())->bundledVersion();
     }
 
     /**

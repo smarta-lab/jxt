@@ -5,8 +5,15 @@
     <file>bin/jxt</file>
     <file>src/</file>
     <file>tests/</file>
+    <file>plugin/</file>
+    <file>phpstan.joomla.php</file>
+    <file>phpstan.joomla-root.php</file>
+    <file>phpstan.joomla-bootstrap.php</file>
     <exclude-pattern>tests/tmp/*</exclude-pattern>
     <rule ref="PSR12"/>
+    <rule ref="PSR1.Files.SideEffects">
+        <exclude-pattern>phpstan.joomla-bootstrap.php</exclude-pattern>
+    </rule>
     <rule ref="Generic.Files.LineLength">
         <properties>
             <property name="lineLimit" value="150"/>

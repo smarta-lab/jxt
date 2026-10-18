@@ -8,6 +8,8 @@ Manifest-driven CLI for Joomla!® extension development:
 - **`jxt sync`** copies the extension directly to the test server. Only
   the files listed in the manifest are copied, and files that no longer belong
   to the extension are deleted.
+- **`jxt bridge`** installs a small console plugin on the test site through
+  which `jxt sync` writes the files as the web server user.
 - **`jxt build`** packages the extension as a ZIP file that can be installed in
   the Joomla backend.
 - **`jxt check`** checks the extension before a release: manifest, whitespace
@@ -56,6 +58,10 @@ sudo visudo -f /etc/sudoers.d/jxt
 
 # build dist/mod_example-1.0.0.zip and install it on the test server
 vendor/bin/jxt install
+
+# quick iterations: copy only the changed files (once: jxt bridge add, if the
+# files belong to www-data)
+vendor/bin/jxt sync
 
 # only build the ZIP, or build it from a Git tag without uncommitted changes
 vendor/bin/jxt build

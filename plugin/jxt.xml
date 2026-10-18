@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="plugin" group="console" method="upgrade">
+    <name>Console - jxt bridge</name>
+    <author>Carsten Volkwein</author>
+    <creationDate>2026-10</creationDate>
+    <copyright>(C) 2026 Carsten Volkwein</copyright>
+    <license>MIT License</license>
+    <version>0.1.0</version>
+    <description>Applies the plans of jxt sync on a local test site via the Joomla CLI (jxt:apply). Only for development sites; remove it with jxt bridge remove.</description>
+    <namespace path="src">SmartA\Plugin\Console\Jxt</namespace>
+    <scriptfile>script.php</scriptfile>
+    <files>
+        <folder plugin="jxt">services</folder>
+        <folder>src</folder>
+    </files>
+</extension>

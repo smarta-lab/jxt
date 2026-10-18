@@ -147,9 +147,10 @@ vendor/bin/jxt sync --dry-run  # only show what would be copied and deleted
 ```
 
 `jxt sync` copies the files without the Joomla installer. This is faster and
-also deletes leftovers, but requires that your user may write to the target
-directories (see [Permissions](#permissions)). If the files belong to the web
-server user, use `jxt install`.
+also deletes leftovers. Your user must be allowed to write to the target
+directories (see [Permissions](#permissions)); if the files belong to the web
+server user, install the [jxt bridge](#jxt-bridge--sync-as-web-server-user)
+once, and `jxt sync` writes them as that user via the Joomla CLI.
 
 `jxt sync` compares the project with the test server and lists the changes:
 
@@ -206,13 +207,16 @@ manifest is missing, it stops with an error. Install the extension once with
 
 ### Permissions
 
-`jxt sync` runs with the permissions of your user. The modes
+Without the jxt bridge, `jxt sync` runs with the permissions of your user. The
+modes
 `dir_mode`/`file_mode` (default 0755/0644) are applied to the extension's files
 and directories and to newly created directories; existing shared directories
 such as `language/de-DE/` are left unchanged. Only the owner of a file may run
 `chmod` on it; group permissions are not enough.
 
-If a file operation fails, `jxt sync` points to `jxt install`.
+If a file operation fails, `jxt sync` points to `jxt bridge add`. With the
+bridge installed on the site, the bridge applies the same plan as web server
+user, with the same modes.
 
 ### Warnings and notes
 
@@ -221,7 +225,7 @@ therefore reports:
 
 - **Changed version:** the extension manager shows the old version until you run
   `jxt install` or refresh it in "System → Manage → Extensions" with "Refresh
-  Cache".
+  Cache". The jxt bridge refreshes it itself, so there is no note then.
 - **Changed namespace:** `administrator/cache/autoload_psr4.php` is deleted;
   Joomla rebuilds it.
 - **Changed installer sections** (`<scriptfile>`, `<install>`, `<uninstall>`,
@@ -236,6 +240,57 @@ therefore reports:
 Default values of new module parameters are not written to existing module
 instances; this is also true for a real upgrade, so always read parameters with
 a default: `$params->get('x', default)`.
+
+## jxt bridge – sync as web server user
+
+```bash
+vendor/bin/jxt bridge add     # install the bridge on the test site
+vendor/bin/jxt bridge status  # bundled and installed version, Joomla CLI check
+vendor/bin/jxt bridge remove  # uninstall it again
+```
+
+The jxt bridge is a small Joomla console plugin (`plg_console_jxt`) shipped
+with jxt. It adds the command `jxt:apply` to the Joomla CLI, which applies the
+plan of `jxt sync` as web server user. With it, `jxt sync` also works on sites
+whose files belong to the web server user, e.g. for quick iterations on CSS,
+JavaScript or layouts without building and installing a ZIP.
+
+- **Explicit installation:** `jxt bridge add` builds the plugin from the jxt
+  package and installs it with the Joomla installer; the plugin enables itself.
+  Afterwards it checks that the Joomla CLI runs the plugin's commands.
+- **How `jxt sync` uses it:** if the bridge is installed on the site, `jxt sync`
+  stages the changed files and the plan in a directory below `/tmp` (readable
+  for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`;
+  the output says `via jxt bridge`. Without the bridge, `jxt sync` copies the
+  files itself as before.
+- **Updates:** if the installed bridge has another version than the one shipped
+  with your jxt, `jxt sync` installs the bundled version first and says so.
+- **Manifest cache:** after applying the plan, the bridge refreshes the
+  manifest cache of the extension, so the extension manager shows the new
+  version.
+- **Safety:** the bridge only acts when called via the Joomla CLI, so it has no
+  web endpoint. It only accepts targets inside the directories of extensions
+  (e.g. `modules/<element>/`, `media/<destination>/`, `language/<tag>/<file>`)
+  and rejects anything else, such as `configuration.php`. It is meant for
+  development sites only; remove it with `jxt bridge remove` before copying a
+  site elsewhere.
+
+The bridge needs three more sudoers rules besides the one for `jxt install`
+(see [Setup](#setup-sudo-without-password-for-the-joomla-installer)); if they
+are missing, `jxt bridge` and `jxt sync` print all four lines:
+
+```
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:install *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php extension\:remove -n *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php jxt\:apply *
+user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php jxt\:status
+```
+
+`extension:remove` is used by `jxt bridge remove`, with `-n` because the Joomla
+CLI otherwise asks for confirmation; `jxt:apply` and `jxt:status` are the
+commands of the bridge. Each command needs its own rule, since sudo-rs (the
+default `sudo` of newer Ubuntu releases) only accepts `*` as a whole argument,
+not inside one such as `jxt\:*`.
 
 ## jxt build – build an installable ZIP
 
@@ -446,7 +501,7 @@ called sudo (`SUDO_USER`), not from `/root`.
 | Key | Meaning | Default |
 |---|---|---|
 | `joomla_root` | Absolute path of the Joomla test server; must contain `configuration.php` | – (required for `jxt install` and `jxt sync`) |
-| `web_user` | User as which `jxt install` runs the Joomla CLI via sudo; `null` to run it without sudo | `www-data` |
+| `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo; `null` to run it without sudo | `www-data` |
 | `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories in `jxt sync` | `0755` |
