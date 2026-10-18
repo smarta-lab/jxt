@@ -18,8 +18,19 @@
   web endpoint. The plugin is shipped inside the jxt package (`plugin/`, outside
   the PSR-4 autoload); jxt builds it and installs it via the Joomla installer
   when it is missing or has a different version, so the plan format always
-  matches the jxt release. Open: worth it only if `jxt install` turns out too
-  slow or leftovers are frequent; needs plugin support in jxt.
+  matches the jxt release. Planned together with plugin support, for which it
+  is the first test case; it also makes `jxt sync` usable on sites whose files
+  belong to the web server user, for quick iterations on CSS, JS or layouts.
+- Test sites in containers (DDEV, Docker): `jxt install` runs the Joomla CLI
+  with the PHP of the host, which may lack the right version or extensions and
+  cannot resolve a database host such as `db` that only exists between
+  containers. An execution prefix (e.g. `docker exec -u www-data <container>`)
+  would run the CLI inside the container, as `sudo -n -u <web_user>` does for
+  another user. Open: the path of the site inside the container besides
+  `joomla_root`, a place for the ZIP that the container can read (the host's
+  `/tmp` is not visible there), and whether `web_user` becomes a special case
+  of the prefix. Until then, `jxt sync` works on such sites, since the files
+  are usually shared with the host.
 
 ## Done
 
