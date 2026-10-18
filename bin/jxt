@@ -1,6 +1,11 @@
 #!/usr/bin/env php
 <?php
 
+/**
+ * @copyright  (C) 2026 Carsten Volkwein
+ * @license    MIT License; see LICENSE
+ */
+
 declare(strict_types=1);
 
 use Composer\InstalledVersions;

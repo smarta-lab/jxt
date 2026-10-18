@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @copyright  (C) 2026 Carsten Volkwein
+ * @license    MIT License; see LICENSE
+ */
+
 declare(strict_types=1);
 
 namespace SmartA\Jxt\Tests\Command;
