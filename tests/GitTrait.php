@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Tests;
 
+use PHPUnit\Framework\Assert;
 use SmartA\Jxt\Install\SystemProcessRunner;
 
 /**
@@ -39,6 +40,6 @@ trait GitTrait
             '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...array_values($arguments),
         ]);
 
-        self::assertSame(0, $result->exitCode, $result->output);
+        Assert::assertSame(0, $result->exitCode, $result->output);
     }
 }
