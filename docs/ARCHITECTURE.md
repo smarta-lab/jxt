@@ -39,8 +39,11 @@ written:
 
 ## Technology
 
-- PHP 8.4+, `symfony/console` 8.x, `ZipArchive`; quality tools: PHPUnit, PHPStan
-  (level max), PHP_CodeSniffer (PSR-12).
+- PHP 8.4+ with `ext-zip` (`ZipArchive`), `ext-simplexml`/`ext-libxml`
+  (manifests) and `ext-posix`; `symfony/console` 8.x,
+  `symfony/polyfill-mbstring` (so `ext-mbstring` is optional); `git` for
+  `--tag` and the release comparisons of `jxt check`. Quality tools: PHPUnit,
+  PHPStan (level max), PHP_CodeSniffer (PSR-12).
 - Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects
   require it as a Composer dev dependency; until it is published on Packagist,
   via a `path` or `vcs` repository.
