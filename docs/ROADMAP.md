@@ -3,10 +3,8 @@
 ## Ideas
 
 - Support plugins and components.
-- Machine-readable output of `jxt check`, e.g. `--format=github` for
-  annotations in GitHub Actions (workflow commands, as PHPStan's
-  `--error-format=github`), JSON only for a concrete need. Requires file and
-  line as fields of `Finding`; today they are part of the message.
+- JSON output of `jxt check`, only for a concrete need; `Finding` already has
+  file and line as fields.
 - `jxt install --clean`: delete the leftovers that `jxt install` lists.
   Planning works as the developer, since the site is world-readable; deleting
   needs the web server user, see the next item.
@@ -45,6 +43,8 @@
 - `jxt check --tag`: checks the files of a tag as the final check of that
   release, including that the tag names the manifest version; needed in CI on
   tags, where the version is already tagged.
+- `jxt check --format=github`: findings as annotations in GitHub Actions
+  (workflow commands, as PHPStan's `--error-format=github`).
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

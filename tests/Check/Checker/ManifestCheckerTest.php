@@ -47,9 +47,9 @@ final class ManifestCheckerTest extends TestCase
         $this->writeFile('media/svg/icon.svg');
 
         self::assertSame([
-            'ERROR manifest/listed-files: file language/de-DE/mod_example.ini listed in the manifest is missing',
-            'ERROR manifest/listed-files: directory media/js listed in the manifest is missing',
-            'WARN manifest/unlisted-files: media/svg/ is not listed in the manifest and therefore not part of the extension',
+            'ERROR manifest/listed-files: mod_example.xml: lists file language/de-DE/mod_example.ini, which is missing',
+            'ERROR manifest/listed-files: mod_example.xml: lists directory media/js, which is missing',
+            'WARN manifest/unlisted-files: media/svg/: not listed in the manifest and therefore not part of the extension',
         ], $this->findings(new ManifestChecker()));
     }
 
@@ -63,7 +63,7 @@ final class ManifestCheckerTest extends TestCase
         $this->writeFile('media/css/.gitkeep');
 
         $stray = static fn (string $path): string => sprintf(
-            'WARN manifest/stray-files: %s would be part of the extension; delete it or move it out of the listed directory',
+            'WARN manifest/stray-files: %s: would be part of the extension; delete it or move it out of the listed directory',
             $path,
         );
 
@@ -78,7 +78,7 @@ final class ManifestCheckerTest extends TestCase
     {
         $this->writeFile('mod_example.xml', str_replace('<version>1.1.0</version>', '<version>' . $version . '</version>', self::MANIFEST));
 
-        $expected = $valid ? [] : [sprintf('ERROR manifest/version-semver: <version> %s is not a semantic version', $version)];
+        $expected = $valid ? [] : [sprintf('ERROR manifest/version-semver: mod_example.xml: <version> %s is not a semantic version', $version)];
         self::assertSame($expected, $this->findings(new ManifestChecker()));
     }
 
@@ -100,7 +100,7 @@ final class ManifestCheckerTest extends TestCase
     {
         $this->writeFile('mod_example.xml', str_replace('<version>1.1.0</version>', '', self::MANIFEST));
 
-        self::assertSame(['ERROR manifest/version-semver: the manifest has no <version>'], $this->findings(new ManifestChecker()));
+        self::assertSame(['ERROR manifest/version-semver: mod_example.xml: has no <version>'], $this->findings(new ManifestChecker()));
     }
 
     public function testReportsVersionFieldInComposerJson(): void
@@ -110,7 +110,7 @@ final class ManifestCheckerTest extends TestCase
         $this->writeFile('composer.json', '{"name": "a/b", "version": "1.0.0"}');
 
         self::assertSame(
-            ['WARN composer/version-field: composer.json has a "version" field; Composer recommends omitting it and using Git tags'],
+            ['WARN composer/version-field: composer.json: has a "version" field; Composer recommends omitting it and using Git tags'],
             $this->findings(new ComposerChecker()),
         );
     }

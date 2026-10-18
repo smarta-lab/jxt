@@ -25,6 +25,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt check --exclude/--include` and the configuration keys `check_exclude`
   and `check_include` in `.jxt.json` to skip checks, groups or `all`; the
   command line overrides `.jxt.json`.
+- `jxt check --format=github`: prints the findings as GitHub Actions
+  annotations at file and line, with paths relative to the repository root.
 - `jxt install` lists leftovers after a successful installation: entries in
   the extension's own directories that the installed ZIP file does not
   contain, e.g. a class deleted from a folder listed in the manifest, which the

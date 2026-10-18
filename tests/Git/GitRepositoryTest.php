@@ -56,6 +56,15 @@ final class GitRepositoryTest extends TestCase
         self::assertSame("a {}\n", $git->show('v1.0.0', 'css/site.css'));
     }
 
+    public function testReturnsThePathOfTheDirectoryInTheRepository(): void
+    {
+        $git = GitRepository::open($this->temporaryDirectory . '/media/css', new SystemProcessRunner());
+
+        self::assertNotNull($git);
+        self::assertSame('media/css/', $git->prefix());
+        self::assertSame('', $this->repository()->prefix());
+    }
+
     public function testComparesWithATag(): void
     {
         $git = $this->repository();

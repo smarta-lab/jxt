@@ -73,7 +73,7 @@ final readonly class AssetChecker implements Checker
         $data = json_decode((string) file_get_contents($context->absolutePath($assetFile->source)), true);
 
         if (!is_array($data)) {
-            $report->add(CheckName::AssetsJson, Severity::Error, sprintf('%s: invalid JSON (%s)', $path, json_last_error_msg()));
+            $report->add(CheckName::AssetsJson, Severity::Error, sprintf('invalid JSON (%s)', json_last_error_msg()), $path);
 
             return;
         }
@@ -86,18 +86,16 @@ final readonly class AssetChecker implements Checker
 
             if ($source === false && $this->isUserFile($context, $asset)) {
                 $report->add(CheckName::AssetsUri, Severity::Notice, sprintf(
-                    '%s: asset %s: %s is not shipped, site owners may create it',
-                    $path,
+                    'asset %s: %s is not shipped, site owners may create it',
                     $name,
                     basename($this->string($asset, 'uri')),
-                ));
+                ), $path);
             } elseif ($source === false) {
                 $report->add(CheckName::AssetsUri, Severity::Warning, sprintf(
-                    '%s: asset %s: URI %s does not match a file of the extension',
-                    $path,
+                    'asset %s: URI %s does not match a file of the extension',
                     $name,
                     $this->string($asset, 'uri'),
-                ));
+                ), $path);
             } elseif ($source !== null) {
                 $sources[$name] = $source;
             }
@@ -143,22 +141,20 @@ final readonly class AssetChecker implements Checker
 
             if ($context->state->mode === CheckMode::PreCheck) {
                 $report->add(CheckName::AssetsVersionChanged, Severity::Notice, sprintf(
-                    '%s: asset %s: %s changed since %s, raise its version %s with the release',
-                    $path,
+                    'asset %s: %s changed since %s, raise its version %s with the release',
                     $name,
                     $file,
                     $baseline,
                     $version,
-                ));
+                ), $path);
             } else {
                 $report->add(CheckName::AssetsVersionChanged, $context->releaseSeverity(), sprintf(
-                    '%s: asset %s: %s changed since %s, but its version is still %s',
-                    $path,
+                    'asset %s: %s changed since %s, but its version is still %s',
                     $name,
                     $file,
                     $baseline,
                     $version,
-                ));
+                ), $path);
             }
         }
     }
@@ -199,13 +195,12 @@ final readonly class AssetChecker implements Checker
         foreach ($pairs as $label => [$current, $old]) {
             if ($old === $previousVersion && $current !== $version) {
                 $report->add(CheckName::AssetsVersionCoupled, Severity::Notice, sprintf(
-                    '%s: %s is %s; it was the extension version %s at the last release, should it be %s?',
-                    $path,
+                    '%s is %s; it was the extension version %s at the last release, should it be %s?',
                     $label,
                     $current === '' ? 'missing' : $current,
                     $previousVersion,
                     $version,
-                ));
+                ), $path);
             }
         }
     }

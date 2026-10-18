@@ -18,11 +18,13 @@ final class CheckReport
 
     /**
      * Adds a finding unless its check is excluded.
+     *
+     * @param string|null $file Path relative to the project directory, see `Finding`
      */
-    public function add(CheckName $check, Severity $severity, string $message): void
+    public function add(CheckName $check, Severity $severity, string $message, ?string $file = null, ?int $line = null): void
     {
         if ($this->selection->isEnabled($check)) {
-            $this->findings[] = new Finding($check, $severity, $message);
+            $this->findings[] = new Finding($check, $severity, $message, $file, $line);
         }
     }
 

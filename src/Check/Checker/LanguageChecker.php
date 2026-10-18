@@ -86,11 +86,12 @@ final readonly class LanguageChecker implements Checker
             );
 
             if ($parsed === false) {
-                $report->add(CheckName::LanguageParse, Severity::Error, sprintf(
-                    '%s cannot be parsed%s',
+                $report->add(
+                    CheckName::LanguageParse,
+                    Severity::Error,
+                    'cannot be parsed' . ($error === null ? '' : ': ' . $error),
                     $context->projectPath($entry->source),
-                    $error === null ? '' : ': ' . $error,
-                ));
+                );
 
                 continue;
             }

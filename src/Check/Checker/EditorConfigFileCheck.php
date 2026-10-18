@@ -97,7 +97,7 @@ final readonly class EditorConfigFileCheck
                 $count,
                 strtoupper($style),
                 $line,
-            ));
+            ), $line);
         }
     }
 
@@ -230,15 +230,17 @@ final readonly class EditorConfigFileCheck
     private function addLines(CheckName $check, Severity $severity, array $lines, string $problem): void
     {
         if ($lines !== []) {
-            $this->add($check, $severity, sprintf('%s in %d line(s), first: line %d', $problem, count($lines), $lines[0]));
+            $this->add($check, $severity, sprintf('%s in %d line(s), first: line %d', $problem, count($lines), $lines[0]), $lines[0]);
         }
     }
 
     /**
      * Adds a finding for the file.
+     *
+     * @param int|null $line First line of the violation, null if it concerns the whole file
      */
-    private function add(CheckName $check, Severity $severity, string $message): void
+    private function add(CheckName $check, Severity $severity, string $message, ?int $line = null): void
     {
-        $this->report->add($check, $severity, $this->file . ': ' . $message);
+        $this->report->add($check, $severity, $message, $this->file, $line);
     }
 }

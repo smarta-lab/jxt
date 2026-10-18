@@ -274,6 +274,16 @@ a check that rests on a guess (`language/unused`) only reports notices.
     change severities;
   - global lists: the result would depend on the machine, so the lists exist
     only in `.jxt.json` and CI checks the same as a local run.
+- **File and line are fields of `Finding`**, not part of the message, so that
+  `--format=github` can place annotations; the text output puts the file in
+  front of the message. Paths are relative to the project directory, the
+  GitHub output adds the path of the project directory in the repository
+  (`git rev-parse --show-prefix`), since GitHub resolves them from the
+  repository root. It is empty when the project directory is the repository
+  root; without it, annotations of a project in a subdirectory (e.g. several
+  extensions in one repository) would not be attached to their files.
+  Findings about the manifest itself (missing listed files, version) point to
+  the manifest. JSON is left out until there is a concrete need.
 - **No manifest is not a check:** without a readable manifest nothing can be
   checked, so it is an invalid call (exit code 2) and cannot be excluded.
 
@@ -320,7 +330,8 @@ Namespaces below `SmartA\Jxt`:
   expanded files of the plan, `GitRepository`, `Changelog`, `ReleaseState` from
   the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
   `CheckReport`, which drops the checks excluded by `CheckSelection`. All
-  checks are cases of `CheckName`.
+  checks are cases of `CheckName`. `GithubAnnotation` formats findings as
+  workflow commands for `--format=github`.
 - **`EditorConfig`:** `EditorConfigResolver` reads `.editorconfig` files
   (`EditorConfigFile`) and resolves the properties of a file; `GlobTranslator`
   turns section names into regular expressions as the reference implementation

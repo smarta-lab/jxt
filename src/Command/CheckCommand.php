@@ -19,6 +19,7 @@ use SmartA\Jxt\Check\CheckMode;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
 use SmartA\Jxt\Check\CheckSelection;
+use SmartA\Jxt\Check\GithubAnnotation;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Git\GitRepository;
@@ -27,6 +28,7 @@ use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -37,7 +39,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * Exit code 0 without errors, 1 with errors (or warnings with `--strict`), 2 for an invalid call,
  * configuration or manifest. With `--tag`, the committed files of a Git tag are checked as the final check of
- * that release, with the configuration from the tag.
+ * that release, with the configuration from the tag. `--format=github` prints the findings as GitHub Actions
+ * annotations instead of sections.
  */
 #[AsCommand(name: 'check', description: 'Checks the extension before a release.')]
 final class CheckCommand extends Command
@@ -76,7 +79,14 @@ final class CheckCommand extends Command
             )
             ->addOption('tag', null, InputOption::VALUE_REQUIRED, 'Check the files of a Git tag instead of the working copy, e.g. v1.0.0')
             ->addOption('release', null, InputOption::VALUE_NONE, 'Treat release-only problems as errors (missing CHANGELOG heading, asset versions)')
-            ->addOption('strict', null, InputOption::VALUE_NONE, 'Treat warnings as errors');
+            ->addOption('strict', null, InputOption::VALUE_NONE, 'Treat warnings as errors')
+            ->addOption(
+                'format',
+                null,
+                InputOption::VALUE_REQUIRED,
+                sprintf('Output format: %s', implode(', ', CheckFormat::values())),
+                CheckFormat::Text->value,
+            );
     }
 
     /**
@@ -86,6 +96,15 @@ final class CheckCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        $format = $input->getOption('format');
+        $format = CheckFormat::tryFrom(is_string($format) ? $format : '');
+
+        if ($format === null) {
+            $io->error(sprintf('Unknown format, expected one of: %s.', implode(', ', CheckFormat::values())));
+
+            return Command::INVALID;
+        }
+
         $tag = $input->getOption('tag');
 
         try {
@@ -93,14 +112,25 @@ final class CheckCommand extends Command
                 ? $this->checkTag($input, $tag)
                 : $this->check($input, $this->projectDirectory);
         } catch (JxtException $exception) {
-            $io->error($exception->getMessage());
+            match ($format) {
+                CheckFormat::Text => $io->error($exception->getMessage()),
+                CheckFormat::Github => $this->writeRaw($output, GithubAnnotation::command(Severity::Error, $exception->getMessage())),
+            };
 
             return Command::INVALID;
         }
 
-        $this->render($io, $context, $selection, $report);
+        $strict = (bool) $input->getOption('strict');
 
-        return $this->conclude($io, $report, (bool) $input->getOption('strict'));
+        if ($format === CheckFormat::Github) {
+            $this->renderAnnotations($output, $context, $report);
+            $this->writeRaw($output, $this->summary($report, $strict) . '.');
+        } else {
+            $this->render($io, $context, $selection, $report);
+            $this->conclude($io, $report, $strict);
+        }
+
+        return $report->failed($strict) ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**
@@ -193,16 +223,11 @@ final class CheckCommand extends Command
      */
     private function render(SymfonyStyle $io, CheckContext $context, CheckSelection $selection, CheckReport $report): void
     {
-        $io->writeln(sprintf(
-            'Checking %s %s: %s, %s.',
-            $context->manifest->element,
-            $context->manifest->version ?? '(no version)',
-            $context->state->mode->value,
-            $context->state->reason,
-        ));
+        $io->writeln($this->heading($context), OutputInterface::OUTPUT_RAW);
+        $hint = $this->releaseHint($context);
 
-        if ($context->release && $context->state->mode === CheckMode::PreCheck) {
-            $io->writeln(sprintf('<comment>--release has no effect in a pre-release check (%s).</comment>', $context->state->reason));
+        if ($hint !== null) {
+            $io->writeln('<comment>' . OutputFormatter::escape($hint) . '</comment>');
         }
 
         foreach (CheckName::groups() as $group) {
@@ -229,7 +254,7 @@ final class CheckCommand extends Command
                         Severity::Notice => 'fg=default',
                     },
                     $finding->severity->label(),
-                    $finding->message,
+                    OutputFormatter::escape($finding->text()),
                     $finding->check->value,
                 ));
             }
@@ -237,9 +262,69 @@ final class CheckCommand extends Command
     }
 
     /**
-     * Prints the summary and returns the exit code.
+     * Prints the heading, the release hint and the findings as GitHub Actions workflow commands.
+     *
+     * The paths of the findings are relative to the project directory, GitHub expects them relative to the
+     * repository root.
      */
-    private function conclude(SymfonyStyle $io, CheckReport $report, bool $strict): int
+    private function renderAnnotations(OutputInterface $output, CheckContext $context, CheckReport $report): void
+    {
+        $this->writeRaw($output, $this->heading($context));
+        $hint = $this->releaseHint($context);
+
+        if ($hint !== null) {
+            $this->writeRaw($output, GithubAnnotation::command(Severity::Notice, $hint));
+        }
+
+        $pathPrefix = $context->git?->prefix() ?? '';
+
+        foreach (CheckName::groups() as $group) {
+            foreach ($report->findings($group) as $finding) {
+                $this->writeRaw($output, GithubAnnotation::forFinding($finding, $pathPrefix));
+            }
+        }
+    }
+
+    /**
+     * Returns the first line of the output: extension, version and mode.
+     */
+    private function heading(CheckContext $context): string
+    {
+        return sprintf(
+            'Checking %s %s: %s, %s.',
+            $context->manifest->element,
+            $context->manifest->version ?? '(no version)',
+            $context->state->mode->value,
+            $context->state->reason,
+        );
+    }
+
+    /**
+     * Returns the hint that `--release` has no effect in a pre-release check, or null.
+     */
+    private function releaseHint(CheckContext $context): ?string
+    {
+        return $context->release && $context->state->mode === CheckMode::PreCheck
+            ? sprintf('--release has no effect in a pre-release check (%s).', $context->state->reason)
+            : null;
+    }
+
+    /**
+     * Prints the summary as a success or error block.
+     */
+    private function conclude(SymfonyStyle $io, CheckReport $report, bool $strict): void
+    {
+        if ($report->failed($strict)) {
+            $io->error($this->summary($report, $strict) . '.');
+        } else {
+            $io->success($this->summary($report, $strict) . '.');
+        }
+    }
+
+    /**
+     * Returns the numbers of findings, with a note if only warnings fail the check.
+     */
+    private function summary(CheckReport $report, bool $strict): string
     {
         $summary = sprintf(
             '%d error(s), %d warning(s), %d notice(s)',
@@ -248,14 +333,16 @@ final class CheckCommand extends Command
             $report->count(Severity::Notice),
         );
 
-        if ($report->failed($strict)) {
-            $io->error($summary . ($report->count(Severity::Error) === 0 ? ' (warnings count as errors with --strict)' : '') . '.');
+        return $report->failed($strict) && $report->count(Severity::Error) === 0
+            ? $summary . ' (warnings count as errors with --strict)'
+            : $summary;
+    }
 
-            return Command::FAILURE;
-        }
-
-        $io->success($summary . '.');
-
-        return Command::SUCCESS;
+    /**
+     * Prints a line without interpreting console tags such as `<version>`.
+     */
+    private function writeRaw(OutputInterface $output, string $line): void
+    {
+        $output->writeln($line, OutputInterface::OUTPUT_RAW);
     }
 }

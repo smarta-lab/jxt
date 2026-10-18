@@ -103,7 +103,7 @@ trait CheckProjectTrait
         $findings = array_merge(...array_map($report->findings(...), CheckName::groups()));
 
         return array_map(
-            static fn (Finding $finding): string => sprintf('%s %s: %s', $finding->severity->label(), $finding->check->value, $finding->message),
+            static fn (Finding $finding): string => sprintf('%s %s: %s', $finding->severity->label(), $finding->check->value, $finding->text()),
             $findings,
         );
     }

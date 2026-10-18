@@ -58,6 +58,14 @@ final readonly class GitRepository
     }
 
     /**
+     * Returns the path of the directory relative to the root of the work tree, empty or ending in `/`.
+     */
+    public function prefix(): string
+    {
+        return trim($this->run('rev-parse', '--show-prefix')->output);
+    }
+
+    /**
      * Returns the tracked and the untracked, not ignored files below the directory, or the files of the tag
      * of the view.
      *

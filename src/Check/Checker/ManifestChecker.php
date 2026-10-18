@@ -53,10 +53,12 @@ final readonly class ManifestChecker implements Checker
         $this->checkListedFiles($context, $report);
 
         foreach ($this->unlistedSourceFinder->find($context->manifest->plan, $context->extensionDirectory) as $path) {
-            $report->add(CheckName::ManifestUnlistedFiles, Severity::Warning, sprintf(
-                '%s is not listed in the manifest and therefore not part of the extension',
+            $report->add(
+                CheckName::ManifestUnlistedFiles,
+                Severity::Warning,
+                'not listed in the manifest and therefore not part of the extension',
                 $context->projectPath($path),
-            ));
+            );
         }
 
         $this->checkStrayFiles($context, $report);
@@ -68,19 +70,23 @@ final readonly class ManifestChecker implements Checker
     private function checkVersion(CheckContext $context, CheckReport $report): void
     {
         $version = $context->manifest->version;
+        $manifestFile = $context->projectPath($context->manifest->fileName);
 
         if ($context->tag !== null && !VersionTag::names($context->tag, $version)) {
             $report->add(CheckName::ManifestTagVersion, Severity::Error, sprintf(
                 'tag %s does not name the manifest version %s',
                 $context->tag,
                 $version ?? '(none)',
-            ));
+            ), $manifestFile);
         }
 
         if ($version === null) {
-            $report->add(CheckName::ManifestVersionSemver, Severity::Error, 'the manifest has no <version>');
+            $report->add(CheckName::ManifestVersionSemver, Severity::Error, 'has no <version>', $manifestFile);
         } elseif (preg_match(self::SEMVER_PATTERN, $version) !== 1) {
-            $report->add(CheckName::ManifestVersionSemver, Severity::Error, sprintf('<version> %s is not a semantic version', $version));
+            $report->add(CheckName::ManifestVersionSemver, Severity::Error, sprintf(
+                '<version> %s is not a semantic version',
+                $version,
+            ), $manifestFile);
         }
     }
 
@@ -95,10 +101,10 @@ final readonly class ManifestChecker implements Checker
 
             if (!$exists) {
                 $report->add(CheckName::ManifestListedFiles, Severity::Error, sprintf(
-                    '%s %s listed in the manifest is missing',
+                    'lists %s %s, which is missing',
                     $entry->kind === EntryKind::File ? 'file' : 'directory',
                     $context->projectPath($entry->source),
-                ));
+                ), $context->projectPath($context->manifest->fileName));
             }
         }
     }
@@ -115,10 +121,12 @@ final readonly class ManifestChecker implements Checker
 
         foreach ($context->files as $file) {
             if (!in_array($file->source, $listedFiles, true) && $this->isStray($file->source)) {
-                $report->add(CheckName::ManifestStrayFiles, Severity::Warning, sprintf(
-                    '%s would be part of the extension; delete it or move it out of the listed directory',
+                $report->add(
+                    CheckName::ManifestStrayFiles,
+                    Severity::Warning,
+                    'would be part of the extension; delete it or move it out of the listed directory',
                     $context->projectPath($file->source),
-                ));
+                );
             }
         }
     }

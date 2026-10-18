@@ -70,7 +70,7 @@ final class LanguageCheckerTest extends TestCase
         $this->writeFile('language/de-DE/mod_example.sys.ini', "MOD_EXAMPLE=\"open\nMOD_EXAMPLE_LAYOUT_DEFAULT=\"Standard\"\n[broken\n");
 
         self::assertStringStartsWith(
-            'ERROR language/parse: language/de-DE/mod_example.sys.ini cannot be parsed',
+            'ERROR language/parse: language/de-DE/mod_example.sys.ini: cannot be parsed',
             $this->findings(new LanguageChecker())[0],
         );
     }

@@ -30,7 +30,8 @@ final readonly class ComposerChecker implements Checker
             $report->add(
                 CheckName::ComposerVersionField,
                 Severity::Warning,
-                'composer.json has a "version" field; Composer recommends omitting it and using Git tags',
+                'has a "version" field; Composer recommends omitting it and using Git tags',
+                'composer.json',
             );
         }
     }

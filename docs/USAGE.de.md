@@ -270,6 +270,7 @@ vendor/bin/jxt check            # Vor- oder Endprüfung, siehe unten
 vendor/bin/jxt check --release  # Endprüfung vor dem Taggen eines Releases
 vendor/bin/jxt check --strict   # Warnungen zählen als Fehler, z. B. in der CI
 vendor/bin/jxt check --tag v1.2.0 --release  # Endprüfung eines Tags
+vendor/bin/jxt check --strict --format=github  # Annotationen in GitHub Actions
 ```
 
 Mechanische Prüfungen der Erweiterung, abgeleitet aus dem Manifest und aus
@@ -359,6 +360,26 @@ Option ist die Version schon getaggt, und `jxt check` macht eine Vorprüfung.
 Der Checkout in der CI braucht die früheren Tags für den Vergleich der
 Asset-Versionen (in GitHub Actions `fetch-depth: 0`). Ein unbekannter Tag oder
 ein Projekt ohne Git ist ein falscher Aufruf (Exit-Code 2).
+
+### Annotationen in GitHub Actions
+
+```bash
+vendor/bin/jxt check --strict --format=github
+```
+
+Mit `--format=github` gibt `jxt check` jede Meldung als Workflow-Befehl von
+GitHub Actions aus (`::error`, `::warning`, `::notice`), den GitHub als
+Annotation an Datei und Zeile anzeigt, im Pull Request und in der
+Zusammenfassung des Laufs. Der Titel einer Annotation ist der Name der
+Prüfung. Meldungen ohne Bezug zu einer Datei und falsche Aufrufe erhalten eine
+Annotation ohne Ort; eine Meldung über mehrere Zeilen zeigt auf die erste.
+Pfade sind relativ zum Wurzelordner des Repositorys, auch wenn das
+Projektverzeichnis ein Unterordner davon ist.
+
+Die erste Zeile (Version und Modus) und die Zusammenfassung bleiben normale
+Zeilen, die Exit-Codes sind dieselben wie bei der Textausgabe
+(`--format=text`, Standard). Mit `--strict` lassen Warnungen den Lauf
+scheitern, bleiben aber Warnungs-Annotationen.
 
 ### Prüfungen abschalten
 

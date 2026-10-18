@@ -179,7 +179,7 @@ final class CheckCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute(['--tag' => 'v1.0.0']));
         self::assertStringContainsString(
-            'ERROR tag v1.0.0 does not name the manifest version 1.1.0 [manifest/tag-version]',
+            'ERROR mod_example.xml: tag v1.0.0 does not name the manifest version 1.1.0 [manifest/tag-version]',
             self::display($tester),
         );
     }
@@ -212,6 +212,65 @@ final class CheckCommandTest extends TestCase
         self::assertStringContainsString('--tag needs Git', self::display($tester));
     }
 
+    public function testGithubFormatPrintsAnnotations(): void
+    {
+        $this->writeFile('.editorconfig', "root = true\n\n[*]\ninsert_final_newline = true\ntrim_trailing_whitespace = true\n");
+        $this->writeFile('tmpl/default.php', "<?php\necho 1; ");
+        $this->writeFile('media/css/.DS_Store');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--format' => 'github', '--release' => true]));
+        self::assertSame(
+            [
+                'Checking mod_example 1.1.0: pre-release check, 1.1.0 is released according to CHANGELOG.md (no Git repository).',
+                '::notice::--release has no effect in a pre-release check '
+                    . '(1.1.0 is released according to CHANGELOG.md (no Git repository)).',
+                '::warning file=media/css/.DS_Store,title=manifest/stray-files::would be part of the extension; '
+                    . 'delete it or move it out of the listed directory',
+                '::error file=tmpl/default.php,title=editorconfig/final-newline::no newline at end of file',
+                '::error file=tmpl/default.php,line=2,title=editorconfig/trailing-whitespace::'
+                    . 'trailing whitespace in 1 line(s), first: line 2',
+                '::notice title=changelog/unreleased::[Unreleased] has 0 entries',
+                '::notice title=assets/baseline::asset versions not compared: no Git repository',
+                '2 error(s), 1 warning(s), 2 notice(s).',
+            ],
+            explode("\n", trim($tester->getDisplay())),
+        );
+    }
+
+    public function testGithubFormatGivesPathsRelativeToTheRepositoryRoot(): void
+    {
+        $repository = $this->temporaryDirectory;
+        rename($repository, $repository . '-project');
+        mkdir($repository);
+        rename($repository . '-project', $repository . '/extension');
+        $this->writeFile('extension/tmpl/default.php', '<?php');
+        $this->initGit();
+        $tester = $this->tester($repository . '/extension');
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--format' => 'github']));
+        self::assertStringContainsString(
+            '::error file=extension/tmpl/default.php,title=editorconfig/final-newline::no newline at end of file',
+            $tester->getDisplay(),
+        );
+    }
+
+    public function testGithubFormatReportsAnInvalidCallAsAnnotation(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::INVALID, $tester->execute(['--format' => 'github', '--exclude' => ['manifest/foo']]));
+        self::assertStringStartsWith('::error::Unknown check "manifest/foo"', $tester->getDisplay());
+    }
+
+    public function testUnknownFormatIsAnInvalidCall(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::INVALID, $tester->execute(['--format' => 'json']));
+        self::assertStringContainsString('Unknown format, expected one of: text, github.', self::display($tester));
+    }
+
     /**
      * Runs the command with the given input and returns the tester.
      *
@@ -227,11 +286,13 @@ final class CheckCommandTest extends TestCase
 
     /**
      * Creates the command for the project without global configuration.
+     *
+     * @param string|null $projectDirectory Project directory if it is not the temporary directory
      */
-    private function tester(): CommandTester
+    private function tester(?string $projectDirectory = null): CommandTester
     {
         return new CommandTester(new CheckCommand(
-            $this->temporaryDirectory,
+            $projectDirectory ?? $this->temporaryDirectory,
             new ConfigurationLoader(null),
             new CheckContextFactory($this->processRunner()),
         ));

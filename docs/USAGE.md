@@ -262,6 +262,7 @@ vendor/bin/jxt check            # pre-check or final check, see below
 vendor/bin/jxt check --release  # final check before tagging a release
 vendor/bin/jxt check --strict   # warnings count as errors, e.g. in CI
 vendor/bin/jxt check --tag v1.2.0 --release  # final check of a tag
+vendor/bin/jxt check --strict --format=github  # annotations in GitHub Actions
 ```
 
 Mechanical checks of the extension, derived from the manifest and from files
@@ -348,6 +349,25 @@ version is already tagged, so `jxt check` runs a pre-check. The CI checkout
 needs the earlier tags for the comparison of asset versions (in GitHub Actions
 `fetch-depth: 0`). An unknown tag or a project without Git is an invalid call
 (exit code 2).
+
+### Annotations in GitHub Actions
+
+```bash
+vendor/bin/jxt check --strict --format=github
+```
+
+With `--format=github`, `jxt check` prints each finding as a GitHub Actions
+workflow command (`::error`, `::warning`, `::notice`), which GitHub shows as an
+annotation at the file and line, in the pull request and in the summary of the
+run. The title of an annotation is the check name. Findings that concern no
+file and invalid calls get an annotation without location; a finding that
+covers several lines points to the first one. Paths are relative to the
+repository root, also when the project directory is a subdirectory of it.
+
+The first line (version and mode) and the summary remain plain lines, and the
+exit codes are the same as for the text output (`--format=text`, the
+default). With `--strict`, warnings fail the run but remain warning
+annotations.
 
 ### Excluding checks
 
