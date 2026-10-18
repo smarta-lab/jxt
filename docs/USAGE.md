@@ -461,3 +461,30 @@ Example `~/.config/jxt/config.json`:
     "joomla_root": "/var/www/html"
 }
 ```
+
+## Calling jxt without vendor/bin
+
+Composer installs `jxt` into `vendor/bin/` of the project, which is not in the
+`PATH`; the examples above therefore call `vendor/bin/jxt`. To type just `jxt`,
+[direnv](https://direnv.net) can add `vendor/bin/` to the `PATH` when you enter
+the project directory and remove it again when you leave.
+
+Install direnv once and hook it into the shell (Debian/Ubuntu, Bash; for other
+shells see the direnv documentation), then open a new shell:
+
+```bash
+sudo apt install direnv
+echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
+```
+
+In each project directory, create an `.envrc` and allow it:
+
+```bash
+echo 'PATH_add vendor/bin' > .envrc
+direnv allow
+```
+
+direnv only loads an `.envrc` after `direnv allow`, and again after every
+change to it, so a cloned repository cannot run code unasked. `.envrc` is a
+personal setting; keep it out of the repository, e.g. in the global Git ignore
+file `~/.config/git/ignore`.
