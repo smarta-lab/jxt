@@ -1,5 +1,20 @@
 # Architecture
 
+- [Background](#background)
+  - [Existing packages](#existing-packages)
+- [Technology](#technology)
+- [Core idea: the deployment plan](#core-idea-the-deployment-plan)
+- [State: the installed manifest](#state-the-installed-manifest)
+- [Copying versus installing](#copying-versus-installing)
+- [Permissions: installing as the web server user](#permissions-installing-as-the-web-server-user)
+- [The jxt bridge: sync as web server user](#the-jxt-bridge-sync-as-web-server-user)
+  - [Plan format](#plan-format)
+- [Leftovers after an installation](#leftovers-after-an-installation)
+- [Building and checking a tag](#building-and-checking-a-tag)
+- [Checks: design decisions](#checks-design-decisions)
+  - [EditorConfig parser](#editorconfig-parser)
+- [Code structure](#code-structure)
+
 ## Background
 
 The package replaces a hand-written deployment shell script that was copied into
@@ -319,7 +334,11 @@ an update; it hands the same list as a plan with deletions only to the jxt
 bridge, or deletes directly without it, as `jxt sync` does. For templates, the
 list includes overrides and `user.css`/`user.js` in the template directory; an
 exception for them was not added, since it would also hide real leftovers, and
-the plain `jxt install` shows the list before.
+the plain `jxt install` shows the list before. Modules are not affected:
+overrides and alternative layouts of a module live in the template
+(`templates/<template>/html/mod_x/`), not in `modules/mod_x/`. Uninstalling and
+reinstalling as a shortcut was rejected, since it also deletes the module
+instances and their settings.
 
 ## Building and checking a tag
 
