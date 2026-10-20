@@ -16,6 +16,11 @@
   of the prefix. The jxt bridge runs the Joomla CLI and stages its files in
   `/tmp` as well, so it needs the same. Until then, `jxt sync` works on such
   sites without the bridge, since the files are usually shared with the host.
+- Build steps: a configurable hook (a list of commands run in the project
+  directory before `jxt build`, `jxt install` and `jxt sync`) for projects
+  that generate files first, e.g. CSS from SCSS or a manifest with the version
+  filled in. Projects whose own build pipeline produces the ZIP can already
+  install it with `jxt install --zip`.
 
 ## Done
 
