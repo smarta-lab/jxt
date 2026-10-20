@@ -95,13 +95,17 @@ The plan also records:
   path segment of language files without `folder`). Files in them that the
   manifest does not list are reported.
 
-The element name follows the rules of the Joomla installer: for modules the
-`module` attribute in `<files>`, otherwise `<name>`; for templates `<name>` in
-lower case with spaces replaced by `_`; for plugins the `plugin` attribute in
-`<files>`, unchanged and without a fallback, since the installer would
-otherwise install into the group directory itself. The installer ignores
-`client` for plugins and copies their language files to
-`administrator/language/`. The name Joomla uses for language files and
+The element name follows the rules of the Joomla installer: for modules
+`<element>` unchanged, otherwise the `module` attribute in the first `<files>`
+in lower case; for templates `<element>`, otherwise `<name>`, reduced to the
+characters of the `cmd` filter (`A-Z0-9_.-`) and in lower case; for plugins the
+`plugin` attribute in the first `<files>`, unchanged. Modules and plugins have
+no further fallback, since the installer would abort or install into the
+group directory itself. The installer ignores `client` for plugins and copies
+their language files to `administrator/language/`; the `client` attribute of a
+single `<language>` entry overrides this for any type. As in the installer,
+every child of `<files>` and `<media>` except `<folder>` is a file (usually
+`<filename>`, sometimes `<file>`). The name Joomla uses for language files and
 constants (`mod_x`, `tpl_x`, `plg_<group>_<element>` in lower case) also
 names the ZIP, the prefix of the language constants checked by `jxt check`
 and the extension in the output.

@@ -77,6 +77,7 @@ final class ManifestParserTest extends TestCase
         $xml = <<<'XML'
             <extension type="module">
                 <name>mod_db</name>
+                <element>mod_db</element>
                 <namespace path="src">SmartA\Module\Db</namespace>
                 <scriptfile>script.php</scriptfile>
                 <install>
@@ -106,7 +107,7 @@ final class ManifestParserTest extends TestCase
 
     public function testInstallerMetadataIsEmptyForPlainModule(): void
     {
-        $installer = $this->parser->parse('<extension type="module"><name>mod_x</name></extension>', 'mod_x.xml')->installer;
+        $installer = $this->parser->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml')->installer;
 
         self::assertNull($installer->namespace);
         self::assertNull($installer->namespacePath);
@@ -117,7 +118,7 @@ final class ManifestParserTest extends TestCase
 
     public function testDetectsUpgradeMethod(): void
     {
-        $xml = '<extension type="module" method="upgrade"><name>mod_x</name></extension>';
+        $xml = '<extension type="module" method="upgrade"><name>mod_x</name><element>mod_x</element></extension>';
 
         self::assertTrue($this->parser->parse($xml, 'mod_x.xml')->installer->upgrade);
     }
@@ -168,27 +169,115 @@ final class ManifestParserTest extends TestCase
         self::assertSame(['administrator/modules/mod_admin'], $manifest->plan->exclusiveDirectories);
     }
 
-    public function testModuleElementFallsBackToName(): void
+    public function testModuleElementPrefersElementTagAndKeepsItsCase(): void
     {
         $xml = <<<'XML'
             <extension type="module">
-                <name>MOD_Fallback</name>
-                <files><folder>tmpl</folder></files>
+                <name>Example</name>
+                <element>mod_Custom</element>
+                <files><folder module="mod_other">tmpl</folder></files>
             </extension>
             XML;
 
-        $manifest = $this->parser->parse($xml, 'mod_fallback.xml');
+        $manifest = $this->parser->parse($xml, 'mod_custom.xml');
 
-        self::assertSame('mod_fallback', $manifest->element);
+        self::assertSame('mod_Custom', $manifest->element);
         self::assertSame(ClientType::Site, $manifest->client);
         self::assertNull($manifest->version);
+    }
+
+    public function testModuleAttributeIsWrittenInLowerCase(): void
+    {
+        $xml = '<extension type="module"><name>x</name><files><folder module="MOD_Upper">tmpl</folder></files></extension>';
+
+        self::assertSame('mod_upper', $this->parser->parse($xml, 'mod_upper.xml')->element);
+    }
+
+    /**
+     * @param non-empty-string $xml
+     */
+    #[DataProvider('templateElements')]
+    public function testTemplateElementFollowsTheJoomlaInstaller(string $xml, string $expectedElement): void
+    {
+        self::assertSame($expectedElement, $this->parser->parse($xml, 'templateDetails.xml')->element);
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string, string}>
+     */
+    public static function templateElements(): iterable
+    {
+        yield 'name in lower case without spaces' => [
+            '<extension type="template"><name>Mini Grid</name></extension>',
+            'minigrid',
+        ];
+        yield 'characters outside the cmd filter removed' => [
+            '<extension type="template"><name>.Grün_Tpl-2.0</name></extension>',
+            'grn_tpl-2.0',
+        ];
+        yield 'element tag preferred' => [
+            '<extension type="template"><name>YOOtheme Pro</name><element>YOOtheme</element></extension>',
+            'yootheme',
+        ];
+    }
+
+    public function testTreatsEveryChildExceptFolderAsFile(): void
+    {
+        $xml = <<<'XML'
+            <extension type="plugin" group="sampledata">
+                <name>plg_sampledata_x</name>
+                <files>
+                    <folder plugin="x">services</folder>
+                    <file>script.php</file>
+                    <filename>x.php</filename>
+                    <!-- comments are no entries -->
+                </files>
+                <media destination="plg_sampledata_x" folder="media">
+                    <file>joomla.asset.json</file>
+                </media>
+            </extension>
+            XML;
+
+        self::assertEquals([
+            new PlanEntry('x.xml', 'plugins/sampledata/x/x.xml', EntryKind::File),
+            new PlanEntry('services', 'plugins/sampledata/x/services', EntryKind::Directory),
+            new PlanEntry('script.php', 'plugins/sampledata/x/script.php', EntryKind::File),
+            new PlanEntry('x.php', 'plugins/sampledata/x/x.php', EntryKind::File),
+            new PlanEntry('media/joomla.asset.json', 'media/plg_sampledata_x/joomla.asset.json', EntryKind::File),
+        ], $this->parser->parse($xml, 'x.xml')->plan->entries);
+    }
+
+    public function testClientAttributeOfLanguageFileOverridesTheDefault(): void
+    {
+        $xml = <<<'XML'
+            <extension type="plugin" group="system">
+                <name>plg_system_x</name>
+                <files><filename plugin="x">x.php</filename></files>
+                <languages folder="language">
+                    <language tag="en-GB">en-GB/plg_system_x.ini</language>
+                    <language tag="en-GB" client="site">en-GB/plg_system_x.site.ini</language>
+                    <language tag="en-GB" client="administrator">en-GB/plg_system_x.sys.ini</language>
+                </languages>
+            </extension>
+            XML;
+
+        $targets = array_map(
+            static fn (PlanEntry $entry): string => $entry->target,
+            array_slice($this->parser->parse($xml, 'x.xml')->plan->entries, 2),
+        );
+
+        self::assertSame([
+            'administrator/language/en-GB/plg_system_x.ini',
+            'language/en-GB/plg_system_x.site.ini',
+            'administrator/language/en-GB/plg_system_x.sys.ini',
+        ], $targets);
     }
 
     public function testBuildsPlanForTemplate(): void
     {
         $xml = <<<'XML'
             <extension type="template" client="site" method="upgrade">
-                <name>Mini Grid</name>
+                <name>Mini_Grid</name>
                 <version>1.0.0</version>
                 <files>
                     <filename>index.php</filename>
@@ -308,11 +397,11 @@ final class ManifestParserTest extends TestCase
      */
     public static function extensionNames(): iterable
     {
-        yield 'module' => ['<extension type="module"><name>mod_x</name></extension>', 'mod_x.xml', 'mod_x'];
+        yield 'module' => ['<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml', 'mod_x'];
         yield 'template' => [
             '<extension type="template"><name>Mini Grid</name></extension>',
             'templateDetails.xml',
-            'tpl_mini_grid',
+            'tpl_minigrid',
         ];
         yield 'plugin' => [
             '<extension type="plugin" group="System"><name>x</name><files><filename plugin="x">x.php</filename></files></extension>',
@@ -365,7 +454,7 @@ final class ManifestParserTest extends TestCase
 
     public function testPlanWithoutMediaHasOnlyInstallDirectoryAsExclusive(): void
     {
-        $xml = '<extension type="module"><name>mod_plain</name><files><folder>tmpl</folder></files></extension>';
+        $xml = '<extension type="module"><name>mod_plain</name><element>mod_plain</element><files><folder>tmpl</folder></files></extension>';
 
         $plan = $this->parser->parse($xml, 'mod_plain.xml')->plan;
 
@@ -425,33 +514,61 @@ final class ManifestParserTest extends TestCase
                 . '<files><filename>x.php</filename></files></extension>',
             'attribute plugin',
         ];
+        yield 'module without element' => [
+            '<extension type="module"><name>mod_x</name><files><folder>tmpl</folder></files></extension>',
+            'attribute module',
+        ];
+        yield 'module attribute outside the first files section' => [
+            '<extension type="module"><name>mod_x</name><files><folder>tmpl</folder></files>'
+                . '<files><folder module="mod_x">src</folder></files></extension>',
+            'attribute module',
+        ];
+        yield 'plugin attribute outside the first files section' => [
+            '<extension type="plugin" group="system"><name>x</name><files><folder>src</folder></files>'
+                . '<files><filename plugin="x">x.php</filename></files></extension>',
+            'attribute plugin',
+        ];
+        yield 'template without valid characters' => [
+            '<extension type="template"><name>Ärger</name><element>äöü</element></extension>',
+            'element name',
+        ];
+        yield 'unknown client of a language file' => [
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><languages>'
+                . '<language tag="en-GB" client="api">en-GB/mod_x.ini</language></languages></extension>',
+            'api',
+        ];
         yield 'unknown client' => [
-            '<extension type="module" client="api"><name>mod_x</name></extension>',
+            '<extension type="module" client="api"><name>mod_x</name><element>mod_x</element></extension>',
             'api',
         ];
         yield 'empty name' => ['<extension type="module"><name> </name></extension>', 'extension name'];
         yield 'invalid element name' => [
-            '<extension type="module"><name>../mod_x</name></extension>',
+            '<extension type="module"><name>x</name><element>../mod_x</element></extension>',
             '../mod_x',
         ];
         yield 'path with ..' => [
-            '<extension type="module"><name>mod_x</name><files><folder>../secret</folder></files></extension>',
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><files><folder>../secret</folder></files></extension>',
             '../secret',
         ];
         yield 'absolute path' => [
-            '<extension type="module"><name>mod_x</name><files><filename>/etc/passwd</filename></files></extension>',
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><files><filename>/etc/passwd</filename></files></extension>',
             '/etc/passwd',
         ];
         yield 'empty path' => [
-            '<extension type="module"><name>mod_x</name><files><folder> </folder></files></extension>',
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><files><folder> </folder></files></extension>',
             'Empty path',
         ];
         yield 'media without destination' => [
-            '<extension type="module"><name>mod_x</name><media folder="media"><folder>css</folder></media></extension>',
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><media folder="media"><folder>css</folder></media></extension>',
             'destination',
         ];
+        yield 'language file without tag' => [
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><languages>'
+                . '<language>en-GB/en-GB.mod_x.ini</language></languages></extension>',
+            'Language file en-GB/en-GB.mod_x.ini without attribute tag is not supported',
+        ];
         yield 'invalid language tag' => [
-            '<extension type="module"><name>mod_x</name><languages>'
+            '<extension type="module"><name>mod_x</name><element>mod_x</element><languages>'
                 . '<language tag="../x">language/x.ini</language></languages></extension>',
             '../x',
         ];

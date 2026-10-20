@@ -19,6 +19,7 @@ final readonly class SyncPlan
      * @param list<Deletion> $deletions             Entries to delete, directory contents before the directory
      * @param list<string>   $directories           Directories of the extension, parents first
      * @param list<string>   $changedInstallerFiles New or changed install scripts and SQL files
+     * @param list<string>   $skippedFiles          Targets of language files whose language is not installed
      */
     public function __construct(
         public array $files,
@@ -26,6 +27,7 @@ final readonly class SyncPlan
         public array $directories,
         public ManifestComparison $comparison,
         public array $changedInstallerFiles,
+        public array $skippedFiles = [],
     ) {
     }
 

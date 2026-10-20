@@ -205,13 +205,15 @@ Joomla-Installer:
 
 Administrator-Module landen unter `administrator/modules/` und
 `administrator/language/`, Templates unter `templates/<name>/`. Plugins landen
-unter `plugins/<gruppe>/<element>/`, mit der Gruppe aus dem Attribut `group`
-von `<extension>` und dem Element aus dem Attribut `plugin` in `<files>`
-(z. B. `<folder plugin="example">services</folder>`); ihre Sprachdateien
-landen wie beim Joomla-Installer unter `administrator/language/`. Dateien
-werden nach Größe und Inhalt verglichen, unveränderte Dateien werden nicht
-kopiert. Namen, die mit `.git` beginnen (z. B. `.gitkeep`), werden
-übersprungen.
+unter `plugins/<gruppe>/<element>/`, mit der Gruppe aus dem Attribut `group` von
+`<extension>` und dem Element aus dem Attribut `plugin` in `<files>` (z. B.
+`<folder plugin="example">services</folder>`); ihre Sprachdateien landen wie
+beim Joomla-Installer unter `administrator/language/`. Das Attribut `client`
+eines `<language>`-Eintrags legt den Bereich für diese Datei fest. Sprachdateien
+einer Sprache, die auf dem Server nicht installiert ist, werden wie beim
+Joomla-Installer übersprungen und aufgelistet. Dateien werden nach Größe und
+Inhalt verglichen, unveränderte Dateien werden nicht kopiert. Namen, die mit
+`.git` beginnen (z. B. `.gitkeep`), werden übersprungen.
 
 ### Was gelöscht wird
 

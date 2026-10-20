@@ -22,6 +22,9 @@ use SmartA\Jxt\Manifest\Manifest;
  *   manifest, the actual content is compared; anything not belonging to the new plan is deleted.
  * - In shared directories (e.g. `language/de-DE/`), only files that were listed in the old
  *   manifest and are missing from the new one are deleted.
+ *
+ * Like the Joomla installer, files for a shared directory that does not exist on the server are skipped,
+ * i.e. language files of a language that is not installed.
  */
 final readonly class SyncPlanner
 {
@@ -43,7 +46,11 @@ final readonly class SyncPlanner
      */
     public function plan(Manifest $new, Manifest $old, string $extensionDirectory, string $joomlaRoot): SyncPlan
     {
-        $files = $this->planExpander->expand($new->plan, $extensionDirectory);
+        [$files, $skippedFiles] = $this->withoutMissingSharedDirectories(
+            $this->planExpander->expand($new->plan, $extensionDirectory),
+            $new,
+            $joomlaRoot,
+        );
         $targets = array_fill_keys(array_map(static fn (PlanEntry $file): string => $file->target, $files), true);
         $directories = $this->leftoverFinder->managedDirectories($new, $files);
         $comparison = $this->compare($old, $new);
@@ -67,7 +74,34 @@ final readonly class SyncPlanner
             $directories,
             $comparison,
             $this->changedInstallerFiles($new, $syncFiles),
+            $skippedFiles,
         );
+    }
+
+    /**
+     * Separates the files outside the exclusive directories whose directory is missing on the server.
+     *
+     * @param list<PlanEntry> $files
+     *
+     * @return array{list<PlanEntry>, list<string>} Files to sync and targets of the skipped files
+     */
+    private function withoutMissingSharedDirectories(array $files, Manifest $manifest, string $joomlaRoot): array
+    {
+        $kept = [];
+        $skipped = [];
+
+        foreach ($files as $file) {
+            if (
+                LeftoverFinder::exclusiveDirectoryOf($file->target, $manifest->plan->exclusiveDirectories) === null
+                && !is_dir($joomlaRoot . '/' . dirname($file->target))
+            ) {
+                $skipped[] = $file->target;
+            } else {
+                $kept[] = $file;
+            }
+        }
+
+        return [$kept, $skipped];
     }
 
     /**

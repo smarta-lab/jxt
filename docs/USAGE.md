@@ -201,9 +201,11 @@ Administrator modules go to `administrator/modules/` and
 `plugins/<group>/<element>/` with the group from the attribute `group` of
 `<extension>` and the element from the attribute `plugin` in `<files>` (e.g.
 `<folder plugin="example">services</folder>`); as with the Joomla installer,
-their language files go to `administrator/language/`. Files are compared by
-size and content; unchanged files are not copied. Names starting with `.git`
-(e.g. `.gitkeep`) are skipped.
+their language files go to `administrator/language/`. The attribute `client` of
+a `<language>` entry overrides the area for that file. Language files of a
+language that is not installed on the server are skipped and listed, as the
+Joomla installer does. Files are compared by size and content; unchanged files
+are not copied. Names starting with `.git` (e.g. `.gitkeep`) are skipped.
 
 ### What is deleted
 

@@ -128,7 +128,7 @@ final class BridgeTest extends TestCase
 
         $this->bridge($runner)->apply(
             new SyncPlan([], [], [], new ManifestComparison(null, null, false, []), []),
-            (new ManifestParser())->parse('<extension type="module"><name>mod_x</name></extension>', 'mod_x.xml'),
+            (new ManifestParser())->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml'),
             $this->temporaryDirectory,
             $this->joomla(),
             new Configuration($this->joomla(), 'www-data', '/dist', 0755, 0644),

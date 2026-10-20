@@ -24,6 +24,7 @@ final class ManifestParser
 {
     private const string ELEMENT_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
     private const string LANGUAGE_TAG_PATTERN = '/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/';
+    private const string CMD_FILTER_PATTERN = '/[^A-Z0-9_.-]/i';
     private const array INSTALLER_SECTIONS = ['scriptfile', 'install', 'uninstall', 'update', 'updateservers'];
 
     /**
@@ -233,9 +234,10 @@ final class ManifestParser
     /**
      * Determines the technical name of the extension according to the rules of the Joomla installer.
      *
-     * Modules: attribute `module` of an entry in `<files>`, otherwise `<name>`.
-     * Templates: `<name>` in lower case, spaces become `_`.
-     * Plugins: attribute `plugin` of an entry in `<files>` as it is, without a fallback.
+     * Modules: `<element>` as it is, otherwise the attribute `module` of an entry in the first `<files>`
+     * in lower case, without a fallback.
+     * Templates: `<element>`, otherwise `<name>`, reduced to the characters of the filter `cmd` and in lower case.
+     * Plugins: attribute `plugin` of an entry in the first `<files>` as it is, without a fallback.
      */
     private function element(SimpleXMLElement $root, ExtensionType $type): string
     {
@@ -245,15 +247,29 @@ final class ManifestParser
             throw new ManifestException('The extension name <name> is missing in the manifest.');
         }
 
+        $elementTag = trim((string) $root->element);
         $element = match ($type) {
-            ExtensionType::Module => strtolower($this->filesAttribute($root, 'module') ?? $name),
-            ExtensionType::Template => strtolower(str_replace(' ', '_', $name)),
+            ExtensionType::Module => $elementTag !== '' ? $elementTag : strtolower(
+                $this->filesAttribute($root, 'module') ?? throw new ManifestException(
+                    'The module element (<element> or attribute module of an entry in the first <files>) '
+                    . 'is missing in the manifest.',
+                ),
+            ),
+            ExtensionType::Template => $this->templateElement($elementTag !== '' ? $elementTag : $name),
             ExtensionType::Plugin => $this->filesAttribute($root, 'plugin') ?? throw new ManifestException(
-                'The plugin element (attribute plugin of an entry in <files>) is missing in the manifest.',
+                'The plugin element (attribute plugin of an entry in the first <files>) is missing in the manifest.',
             ),
         };
 
         return $this->validName($element, 'element name');
+    }
+
+    /**
+     * Applies the filter `cmd` of the Joomla installer and converts the result to lower case.
+     */
+    private function templateElement(string $name): string
+    {
+        return strtolower(ltrim((string) preg_replace(self::CMD_FILTER_PATTERN, '', $name), '.'));
     }
 
     /**
@@ -289,17 +305,17 @@ final class ManifestParser
     }
 
     /**
-     * Returns the value of the first attribute with the given name on an entry inside `<files>`.
+     * Returns the value of the first attribute with the given name on an entry inside the first `<files>`.
+     *
+     * Like the Joomla installer, further `<files>` sections are not considered.
      */
     private function filesAttribute(SimpleXMLElement $root, string $attribute): ?string
     {
-        foreach ($this->children($root, 'files') as $files) {
-            foreach ($files->children() as $child) {
-                $value = trim((string) $child[$attribute]);
+        foreach (($this->children($root, 'files')[0] ?? null)?->children() ?? [] as $child) {
+            $value = trim((string) $child[$attribute]);
 
-                if ($value !== '') {
-                    return $value;
-                }
+            if ($value !== '') {
+                return $value;
             }
         }
 
@@ -351,11 +367,12 @@ final class ManifestParser
     /**
      * Creates the entries for the language files in `<languages>`.
      *
-     * The target is the shared language directory of the application area, e.g. `language/de-DE/`.
+     * The target is the shared language directory of the application area, e.g. `language/de-DE/`; the
+     * attribute `client` of a `<language>` entry overrides the default area of the extension.
      *
      * @return list<PlanEntry>
      */
-    private function languageEntries(SimpleXMLElement $root, ClientType $client): array
+    private function languageEntries(SimpleXMLElement $root, ClientType $defaultClient): array
     {
         $entries = [];
 
@@ -364,6 +381,7 @@ final class ManifestParser
 
             foreach ($this->children($languages, 'language') as $language) {
                 $path = RelativePath::normalize((string) $language);
+                $client = $this->languageClient($language) ?? $defaultClient;
                 $target = $client->pathPrefix() . 'language/' . $this->languageTag($language) . '/' . basename($path);
                 $entries[] = new PlanEntry($sourcePrefix . $path, $target, EntryKind::File);
             }
@@ -373,11 +391,37 @@ final class ManifestParser
     }
 
     /**
+     * Returns the application area from the attribute `client` of a `<language>` entry, or null if it is missing.
+     */
+    private function languageClient(SimpleXMLElement $language): ?ClientType
+    {
+        $client = trim((string) $language['client']);
+
+        if ($client === '') {
+            return null;
+        }
+
+        return ClientType::tryFrom($client)
+            ?? throw new ManifestException(sprintf('Unknown client "%s" of a language file in the manifest.', $client));
+    }
+
+    /**
      * Returns the validated attribute `tag` of a `<language>` entry.
+     *
+     * The Joomla installer copies entries without `tag` to the path given in the entry below `language/`;
+     * jxt does not support this, since the jxt bridge only writes to `language/<tag>/`.
      */
     private function languageTag(SimpleXMLElement $language): string
     {
         $tag = trim((string) $language['tag']);
+
+        if ($tag === '') {
+            throw new ManifestException(sprintf(
+                'Language file %s without attribute tag is not supported; please add the language tag, '
+                . 'e.g. <language tag="en-GB">.',
+                trim((string) $language),
+            ));
+        }
 
         if (preg_match(self::LANGUAGE_TAG_PATTERN, $tag) !== 1) {
             throw new ManifestException(sprintf('Invalid language tag "%s" in the manifest.', $tag));
@@ -415,7 +459,10 @@ final class ManifestParser
     }
 
     /**
-     * Creates the entries for the `<filename>` and `<folder>` children of a section.
+     * Creates the entries for the children of a section.
+     *
+     * Like the Joomla installer, every child except `<folder>` counts as a file, usually `<filename>`, but
+     * also e.g. `<file>`.
      *
      * @return list<PlanEntry>
      */
@@ -425,16 +472,9 @@ final class ManifestParser
         $entries = [];
 
         foreach ($section->children() as $child) {
-            $kind = match ($child->getName()) {
-                'filename' => EntryKind::File,
-                'folder' => EntryKind::Directory,
-                default => null,
-            };
-
-            if ($kind !== null) {
-                $path = RelativePath::normalize((string) $child);
-                $entries[] = new PlanEntry($sourcePrefix . $path, $targetDirectory . '/' . $path, $kind);
-            }
+            $kind = $child->getName() === 'folder' ? EntryKind::Directory : EntryKind::File;
+            $path = RelativePath::normalize((string) $child);
+            $entries[] = new PlanEntry($sourcePrefix . $path, $targetDirectory . '/' . $path, $kind);
         }
 
         return $entries;

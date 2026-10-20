@@ -114,6 +114,29 @@ final class SyncPlannerTest extends TestCase
         self::assertEquals([new Deletion('language/de-DE/mod_x.sys.ini', EntryKind::File)], $plan->deletions);
     }
 
+    public function testSkipsLanguageFilesOfLanguagesNotInstalled(): void
+    {
+        $xml = $this->manifestXml(languages: '<languages>'
+            . '<language tag="de-DE">language/de-DE/mod_x.ini</language>'
+            . '<language tag="pt-BR">language/pt-BR/mod_x.ini</language>'
+            . '</languages>');
+        $this->writeFile('project/mod_x.xml', $xml);
+        $this->writeFile('project/tmpl/a.php');
+        $this->writeFile('project/language/de-DE/mod_x.ini');
+        $this->writeFile('project/language/pt-BR/mod_x.ini');
+        $this->writeFile('joomla/modules/mod_x/mod_x.xml', $xml);
+        mkdir($this->joomla() . '/language/de-DE', recursive: true);
+
+        $plan = $this->plan($xml, $xml);
+
+        self::assertSame([
+            'modules/mod_x/mod_x.xml' => FileStatus::Unchanged,
+            'modules/mod_x/tmpl/a.php' => FileStatus::New,
+            'language/de-DE/mod_x.ini' => FileStatus::New,
+        ], $this->statuses($plan));
+        self::assertSame(['language/pt-BR/mod_x.ini'], $plan->skippedFiles);
+    }
+
     public function testListsManagedDirectoriesParentsFirst(): void
     {
         $xml = $this->manifestXml(media: '<media destination="mod_x" folder="media"><folder>css</folder></media>');

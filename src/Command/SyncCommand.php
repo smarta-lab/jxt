@@ -189,6 +189,10 @@ final class SyncCommand extends Command
             ));
         }
 
+        if ($plan->skippedFiles !== []) {
+            $io->note(implode("\n", ['Skipped, language not installed on the server:', ...$plan->skippedFiles]));
+        }
+
         if ($plan->changedInstallerFiles !== []) {
             $io->warning(sprintf('New or changed installer files: %s. %s', implode(', ', $plan->changedInstallerFiles), $installerHint));
         }

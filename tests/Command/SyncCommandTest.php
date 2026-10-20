@@ -124,6 +124,19 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('Not listed in the manifest', self::display($tester));
     }
 
+    public function testSkipsLanguageNotInstalledOnTheServer(): void
+    {
+        $languages = '<languages><language tag="pt-BR">language/pt-BR/mod_x.ini</language></languages>';
+        $this->writeFile('project/mod_x.xml', $this->manifestXml('1.0.0', $languages));
+        $this->writeFile('project/language/pt-BR/mod_x.ini');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertDirectoryDoesNotExist($this->joomla() . '/language/pt-BR');
+        self::assertStringContainsString('Skipped, language not installed', self::display($tester));
+        self::assertStringContainsString('language/pt-BR/mod_x.ini', self::display($tester));
+    }
+
     public function testSyncsFromConfiguredManifestInSubdirectory(): void
     {
         unlink($this->temporaryDirectory . '/project/mod_x.xml');

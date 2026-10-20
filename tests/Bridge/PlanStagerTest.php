@@ -55,7 +55,7 @@ final class PlanStagerTest extends TestCase
         $directory = $stager->stage(
             $this->syncPlan(),
             (new ManifestParser())->parse(
-                '<extension type="module" client="administrator"><name>mod_x</name></extension>',
+                '<extension type="module" client="administrator"><name>mod_x</name><element>mod_x</element></extension>',
                 'mod_x.xml',
             ),
             $this->temporaryDirectory . '/project',

@@ -32,6 +32,25 @@ project follows [Semantic Versioning](https://semver.org/).
   `sudo -u www-data rm -r`.
 - The output names templates like Joomla (`tpl_<name>`) instead of only
   `<name>`, as it already did for the ZIP file.
+- The element name follows the Joomla installer more closely: modules and
+  templates use `<element>` if present; the template name is reduced to the
+  characters of Joomla's `cmd` filter (`My Template` becomes `mytemplate`
+  instead of `my_template`); the attributes `module` and `plugin` only count
+  in the first `<files>`; a module without `<element>` or `module` attribute
+  is rejected instead of falling back to `<name>`, since Joomla could not
+  install it.
+- `jxt sync` skips language files of languages that are not installed on the
+  server, as the Joomla installer does, instead of creating the language
+  directory, and lists them.
+- A language file without the attribute `tag` is rejected with a clear message
+  instead of "Invalid language tag".
+
+### Fixed
+
+- Every child of `<files>` and `<media>` except `<folder>` is a file, as in the
+  Joomla installer; files listed as `<file>` were missing from the ZIP and the
+  sync.
+- The attribute `client` of a `<language>` entry is respected.
 
 ## [0.3.0] - 2026-10-18
 
