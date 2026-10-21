@@ -14,6 +14,13 @@ project follows [Semantic Versioning](https://semver.org/).
   files go to `administrator/language/` as with the Joomla installer. The ZIP
   file is named `plg_<group>_<element>-<version>.zip`, and `jxt check` expects
   the prefix `PLG_<GROUP>_<ELEMENT>_` for language constants.
+- Components: the commands support manifests with `type="component"`. The
+  element is `<element>` or `<name>` with the prefix `com_`; `<files>` goes to
+  `components/`, `<files>` in `<administration>` together with the manifest
+  and the install script to `administrator/components/`, `<files>` in `<api>`
+  to `api/components/`, and `<languages>` in `<administration>` to
+  `administrator/language/`. `jxt sync` deletes leftovers in all three
+  directories and warns when the menu items in `<administration>` change.
 - `jxt bridge add|remove|status`: installs a small Joomla console plugin
   (`plg_console_jxt`, shipped with jxt) on the test site. If it is installed,
   `jxt sync` writes the files as web server user via the Joomla CLI

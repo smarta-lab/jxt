@@ -70,12 +70,8 @@ written:
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
-  `client`), templates and plugins. Plugins fit the model of one install
-  directory (`plugins/<group>/<element>/`) plus `media/`. Components have
-  several install directories with their own `<files>` sections
-  (`administrator/components/`, `components/`, `api/`) and SQL files, so the
-  deployment plan would need more than one install directory; packages
-  (`pkg_`) consist of several manifests.
+  `client`), templates, plugins and components. Packages (`pkg_`) consist of
+  several manifests and are not supported yet.
 
 ## Core idea: the deployment plan
 
@@ -89,8 +85,10 @@ the same plan, so the server and the ZIP always contain the same files.
 The plan also records:
 
 - **Exclusive directories:** the install directory (`modules/<element>/`,
-  `templates/<name>/`, `plugins/<group>/<element>/`) and
-  `media/<destination>/`. They belong to the extension alone.
+  `templates/<name>/`, `plugins/<group>/<element>/`), for components the three
+  directories `administrator/components/<element>/`, `components/<element>/`
+  and `api/components/<element>/`, and `media/<destination>/`. They belong to
+  the extension alone.
 - **Source directories:** the `folder` attributes of the sections (and the first
   path segment of language files without `folder`). Files in them that the
   manifest does not list are reported.
@@ -101,14 +99,28 @@ in lower case; for templates `<element>`, otherwise `<name>`, reduced to the
 characters of the `cmd` filter (`A-Z0-9_.-`) and in lower case; for plugins the
 `plugin` attribute in the first `<files>`, unchanged. Modules and plugins have
 no further fallback, since the installer would abort or install into the
-group directory itself. The installer ignores `client` for plugins and copies
+group directory itself. Components follow the rule of templates and get the
+prefix `com_` if it is missing (`ComponentAdapter::getElement()`). The
+installer ignores `client` for plugins and copies
 their language files to `administrator/language/`; the `client` attribute of a
 single `<language>` entry overrides this for any type. As in the installer,
 every child of `<files>` and `<media>` except `<folder>` is a file (usually
 `<filename>`, sometimes `<file>`). The name Joomla uses for language files and
-constants (`mod_x`, `tpl_x`, `plg_<group>_<element>` in lower case) also
-names the ZIP, the prefix of the language constants checked by `jxt check`
+constants (`mod_x`, `tpl_x`, `plg_<group>_<element>` in lower case, `com_x`)
+also names the ZIP, the prefix of the language constants checked by `jxt check`
 and the extension in the output.
+
+Components have one target directory per area: `<files>` goes to the site
+directory, `<administration><files>` to the administrator directory and
+`<api><files>` to the API directory; `<languages>` belongs to the site,
+`<administration><languages>` to the administrator. The manifest and
+`<scriptfile>` go to the administrator directory, which the installer also
+uses as the base of the SQL files (`extension_root`), and the component is
+registered with `client_id` 1. The installer creates all three directories even
+if the manifest lists no files for one of them, so all three are exclusive.
+The menu items in `<administration>` (`<menu>`, `<submenu>`) are only written
+by the installer and count as installer sections for `jxt sync`. Other types
+ignore `<administration>` and `<api>`.
 
 Because `jxt sync` deletes files on the server, the parser rejects absolute
 paths, paths containing `..`, and invalid element names, plugin groups or
@@ -230,7 +242,8 @@ is no web endpoint.
   in jxt, not against attacks: it does not derive the plan from manifests, it
   executes it and only checks that every target is a normalized relative path
   in a directory that belongs to a single extension (`modules/<element>/`,
-  `plugins/<group>/<element>/`, `media/<x>/`, `language/<tag>/<file>`, …) or
+  `plugins/<group>/<element>/`, `components/<element>/`, `media/<x>/`,
+  `language/<tag>/<file>`, …) or
   is `administrator/cache/autoload_psr4.php`.
 - **Staging:** jxt copies the new and changed files and `plan.json` into a
   directory below `/tmp` with modes 0755/0644, readable for the web server
@@ -304,7 +317,8 @@ validates it in the plugin. Format 1:
 - `files`: all files of the extension; `source` is the staged copy
   (`files/<n>`), `null` means unchanged, so only the mode is set.
 - `extension`: the entry in `#__extensions` whose manifest cache is refreshed
-  (`folder` is the plugin group, `client_id` 0 for site, 1 for administrator).
+  (`folder` is the plugin group, `client_id` 0 for site, 1 for administrator
+  and components).
 - Every `target` is relative to the Joomla root and checked by `TargetPath`.
   For `jxt install --clean`, `files` and `directories` are empty.
 

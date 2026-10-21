@@ -208,7 +208,13 @@ Administrator-Module landen unter `administrator/modules/` und
 unter `plugins/<gruppe>/<element>/`, mit der Gruppe aus dem Attribut `group` von
 `<extension>` und dem Element aus dem Attribut `plugin` in `<files>` (z. B.
 `<folder plugin="example">services</folder>`); ihre Sprachdateien landen wie
-beim Joomla-Installer unter `administrator/language/`. Das Attribut `client`
+beim Joomla-Installer unter `administrator/language/`. Komponenten (Element
+`com_<name>`) haben drei Ordner: `<files>` landet unter
+`components/<element>/`, `<files>` in `<administration>` zusammen mit dem
+Manifest und `<scriptfile>` unter `administrator/components/<element>/` und
+`<files>` in `<api>` unter `api/components/<element>/`; `<languages>` landet
+unter `language/<tag>/`, `<languages>` in `<administration>` unter
+`administrator/language/<tag>/`. Das Attribut `client`
 eines `<language>`-Eintrags legt den Bereich für diese Datei fest. Sprachdateien
 einer Sprache, die auf dem Server nicht installiert ist, werden wie beim
 Joomla-Installer übersprungen und aufgelistet. Dateien werden nach Größe und
@@ -220,9 +226,10 @@ Inhalt verglichen, unveränderte Dateien werden nicht kopiert. Namen, die mit
 Das auf dem Server installierte Manifest beschreibt den zuletzt übertragenen
 Stand.
 
-- In den Ordnern, die der Erweiterung gehören (`modules/<element>/`,
-  `media/<destination>/`), wird alles gelöscht, was nicht zum neuen Manifest
-  gehört, auch ganze Ordner, die aus dem Manifest entfernt wurden.
+- In den Ordnern, die der Erweiterung gehören (`modules/<element>/`, die drei
+  Ordner einer Komponente, `media/<destination>/`), wird alles gelöscht, was
+  nicht zum neuen Manifest gehört, auch ganze Ordner, die aus dem Manifest
+  entfernt wurden.
 - In gemeinsam genutzten Ordnern wie `language/de-DE/` werden nur Dateien
   gelöscht, die im alten Manifest standen und im neuen fehlen. Dateien anderer
   Erweiterungen werden nie angefasst.
@@ -261,7 +268,8 @@ Kopieren ist nicht dasselbe wie eine Installation über den Joomla-Installer.
 - **Geänderter Namespace:** `administrator/cache/autoload_psr4.php` wird
   gelöscht, Joomla erzeugt die Datei neu.
 - **Geänderte Installer-Abschnitte** (`<scriptfile>`, `<install>`,
-  `<uninstall>`, `<update>`, `<updateservers>`) oder **neue/geänderte
+  `<uninstall>`, `<update>`, `<updateservers>`, die Menüeinträge einer
+  Komponente in `<administration>`) oder **neue/geänderte
   Installationsskripte und SQL-Dateien:** Diese wertet nur der Joomla-Installer
   aus. Stattdessen `jxt install` ausführen.
 - **Dateien, die nicht im Manifest stehen:** Dateien in den Quellordnern von
@@ -340,7 +348,8 @@ vendor/bin/jxt build --tag v1.0.0  # aus einem Git-Tag
 
 Erstellt `dist/<element>-<version>.zip` (Templates:
 `dist/tpl_<name>-<version>.zip`, Plugins:
-`dist/plg_<gruppe>_<element>-<version>.zip`) mit dem Manifest und allen darin
+`dist/plg_<gruppe>_<element>-<version>.zip`, Komponenten:
+`dist/com_<name>-<version>.zip`) mit dem Manifest und allen darin
 genannten Dateien, jeweils mit ihrem Pfad relativ zum Manifest. Eine vorhandene
 Datei gleichen Namens wird ersetzt. Wie `jxt sync` warnt `jxt build` vor
 Dateien, die nicht im Manifest stehen.

@@ -19,11 +19,11 @@ Manifest-driven CLI for Joomla!® extension development:
 
 All commands run in the project directory of an extension, like
 `vendor/bin/phpunit`. They read the extension's manifest (`mod_*.xml`,
-`templateDetails.xml`, the plugin's XML file), so there are no include or
-exclude lists to maintain.
+`templateDetails.xml`, the XML file of a plugin or component), so there are no
+include or exclude lists to maintain.
 
-Supported extension types: modules (site and administrator), templates and
-plugins.
+Supported extension types: modules (site and administrator), templates,
+plugins and components.
 
 ## Requirements
 

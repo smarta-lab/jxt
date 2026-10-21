@@ -2,7 +2,6 @@
 
 ## Ideas
 
-- Support components.
 - JSON output of `jxt check`, only for a concrete need; `Finding` already has
   file and line as fields.
 - Test sites in containers (DDEV, Docker): `jxt install` runs the Joomla CLI
@@ -56,6 +55,10 @@
   it when the bundled version differs.
 - `jxt install --clean`: deletes the leftovers that `jxt install` lists, via
   the jxt bridge or directly, like the deletions of `jxt sync`.
+- Components: three install directories (`administrator/components/`,
+  `components/`, `api/components/`) with their own `<files>` sections, the
+  manifest, install script and SQL files in the administrator directory;
+  changed menu items count as installer sections for `jxt sync`.
 - `jxt install --zip`: installs an existing ZIP file. An option instead of a
   positional argument, so that an argument stays free for later features
   (e.g. a project directory).

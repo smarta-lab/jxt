@@ -201,8 +201,14 @@ Administrator modules go to `administrator/modules/` and
 `plugins/<group>/<element>/` with the group from the attribute `group` of
 `<extension>` and the element from the attribute `plugin` in `<files>` (e.g.
 `<folder plugin="example">services</folder>`); as with the Joomla installer,
-their language files go to `administrator/language/`. The attribute `client` of
-a `<language>` entry overrides the area for that file. Language files of a
+their language files go to `administrator/language/`. Components (element
+`com_<name>`) have three directories: `<files>` goes to
+`components/<element>/`, `<files>` in `<administration>` together with the
+manifest and `<scriptfile>` to `administrator/components/<element>/`, and
+`<files>` in `<api>` to `api/components/<element>/`; `<languages>` goes to
+`language/<tag>/`, `<languages>` in `<administration>` to
+`administrator/language/<tag>/`. The attribute `client` of a `<language>` entry
+overrides the area for that file. Language files of a
 language that is not installed on the server are skipped and listed, as the
 Joomla installer does. Files are compared by size and content; unchanged files
 are not copied. Names starting with `.git` (e.g. `.gitkeep`) are skipped.
@@ -211,9 +217,10 @@ are not copied. Names starting with `.git` (e.g. `.gitkeep`) are skipped.
 
 The manifest installed on the server describes the last deployed state.
 
-- In the directories owned by the extension (`modules/<element>/`,
-  `media/<destination>/`), everything that is not part of the new manifest is
-  deleted, including whole directories that were removed from the manifest.
+- In the directories owned by the extension (`modules/<element>/`, the three
+  directories of a component, `media/<destination>/`), everything that is not
+  part of the new manifest is deleted, including whole directories that were
+  removed from the manifest.
 - In shared directories such as `language/de-DE/`, only files that were listed
   in the old manifest and are missing from the new one are deleted. Files of
   other extensions are never touched.
@@ -251,7 +258,8 @@ therefore reports:
 - **Changed namespace:** `administrator/cache/autoload_psr4.php` is deleted;
   Joomla rebuilds it.
 - **Changed installer sections** (`<scriptfile>`, `<install>`, `<uninstall>`,
-  `<update>`, `<updateservers>`) or **new/changed install scripts and SQL
+  `<update>`, `<updateservers>`, the menu items of a component in
+  `<administration>`) or **new/changed install scripts and SQL
   files:** these are only processed by the Joomla installer. Run `jxt install`
   instead.
 - **Files not listed in the manifest:** files in the source directories of
@@ -327,7 +335,8 @@ vendor/bin/jxt build --tag v1.0.0  # from a Git tag
 
 Creates `dist/<element>-<version>.zip` (templates:
 `dist/tpl_<name>-<version>.zip`, plugins:
-`dist/plg_<group>_<element>-<version>.zip`) containing the manifest and all
+`dist/plg_<group>_<element>-<version>.zip`, components:
+`dist/com_<name>-<version>.zip`) containing the manifest and all
 files it lists, with their paths relative to the manifest. An existing file with
 the same name is replaced. Like `jxt sync`, `jxt build` warns about files that
 are not listed in the manifest.
