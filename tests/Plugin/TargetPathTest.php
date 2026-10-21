@@ -36,6 +36,9 @@ final class TargetPathTest extends TestCase
         yield 'template' => ['templates/cassiopeia/index.php'];
         yield 'administrator template' => ['administrator/templates/atum/index.php'];
         yield 'plugin' => ['plugins/system/example/example.xml'];
+        yield 'site component' => ['components/com_x/src/Controller/DisplayController.php'];
+        yield 'administrator component' => ['administrator/components/com_x/x.xml'];
+        yield 'api component' => ['api/components/com_x'];
         yield 'media' => ['media/templates/site/cassiopeia/css/template.css'];
         yield 'language file' => ['language/de-DE/mod_x.ini'];
         yield 'administrator language file' => ['administrator/language/en-GB/plg_system_example.ini'];
@@ -69,6 +72,10 @@ final class TargetPathTest extends TestCase
         yield 'configuration' => ['configuration.php', 'outside the directories of extensions'];
         yield 'all modules' => ['modules', 'outside the directories of extensions'];
         yield 'plugin group' => ['plugins/system', 'outside the directories of extensions'];
+        yield 'all components' => ['components', 'outside the directories of extensions'];
+        yield 'all administrator components' => ['administrator/components', 'outside the directories of extensions'];
+        yield 'all api components' => ['api/components', 'outside the directories of extensions'];
+        yield 'api entry point' => ['api/index.php', 'outside the directories of extensions'];
         yield 'all media' => ['media', 'outside the directories of extensions'];
         yield 'language directory' => ['language/de-DE', 'outside the directories of extensions'];
         yield 'nested language file' => ['language/de-DE/sub/x.ini', 'outside the directories of extensions'];

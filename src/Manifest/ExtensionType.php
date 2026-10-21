@@ -19,11 +19,14 @@ enum ExtensionType: string
     case Module = 'module';
     case Template = 'template';
     case Plugin = 'plugin';
+    case Component = 'component';
 
     /**
      * Returns the install directory of the extension relative to the Joomla root directory.
      *
-     * Plugins are always installed in `plugins/<group>/<element>`, regardless of the client.
+     * It receives the manifest and the install script. Plugins are always installed in
+     * `plugins/<group>/<element>`, regardless of the client; for components it is the administrator directory
+     * `administrator/components/<element>`, the base of the SQL files as well.
      *
      * @param string|null $group Plugin group (attribute `group` in the manifest), null for other types
      */
@@ -33,16 +36,45 @@ enum ExtensionType: string
             self::Module => $client->pathPrefix() . 'modules/' . $element,
             self::Template => $client->pathPrefix() . 'templates/' . $element,
             self::Plugin => 'plugins/' . ($group ?? throw new LogicException('A plugin needs a group.')) . '/' . $element,
+            self::Component => 'administrator/components/' . $element,
+        };
+    }
+
+    /**
+     * Returns all directories that the Joomla installer creates for the extension, the install directory first.
+     *
+     * For components these are the directories of the administrator, the site and the API, which the installer
+     * creates even if the manifest lists no files for them.
+     *
+     * @param string|null $group Plugin group (attribute `group` in the manifest), null for other types
+     *
+     * @return list<string>
+     */
+    public function installDirectories(ClientType $client, string $element, ?string $group = null): array
+    {
+        return match ($this) {
+            self::Component => [
+                $this->installDirectory($client, $element),
+                'components/' . $element,
+                'api/components/' . $element,
+            ],
+            default => [$this->installDirectory($client, $element, $group)],
         };
     }
 
     /**
      * Returns the client whose language directory receives the files listed in `<languages>`.
      *
-     * The Joomla installer copies the language files of plugins to `administrator/language/`.
+     * The Joomla installer copies the language files of plugins to `administrator/language/`. For components
+     * this is the section `<languages>` directly below `<extension>`, whose files go to the site; those in
+     * `<administration>` go to the administrator.
      */
     public function languageClient(ClientType $client): ClientType
     {
-        return $this === self::Plugin ? ClientType::Administrator : $client;
+        return match ($this) {
+            self::Plugin => ClientType::Administrator,
+            self::Component => ClientType::Site,
+            default => $client,
+        };
     }
 }

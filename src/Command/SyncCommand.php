@@ -178,8 +178,8 @@ final class SyncCommand extends Command
     private function warn(SymfonyStyle $io, SyncPlan $plan, bool $viaBridge): void
     {
         $comparison = $plan->comparison;
-        $installerHint = 'jxt sync does not run install scripts, SQL files or update server entries. '
-            . 'Please run jxt install.';
+        $installerHint = 'jxt sync does not run install scripts or SQL files and does not create update server entries '
+            . 'or administrator menu items. Please run jxt install.';
 
         if ($comparison->changedInstallerSections !== []) {
             $io->warning(sprintf(

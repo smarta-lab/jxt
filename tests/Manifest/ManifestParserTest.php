@@ -408,6 +408,112 @@ final class ManifestParserTest extends TestCase
             'x.xml',
             'plg_system_x',
         ];
+        yield 'component' => ['<extension type="component"><name>Example</name></extension>', 'example.xml', 'com_example'];
+    }
+
+    public function testBuildsPlanForComponent(): void
+    {
+        $manifest = $this->parser->parse($this->componentXml(), 'example.xml');
+
+        self::assertSame(ExtensionType::Component, $manifest->type);
+        self::assertSame(ClientType::Administrator, $manifest->client);
+        self::assertSame('com_example', $manifest->element);
+        self::assertSame('administrator/components/com_example/example.xml', $manifest->installedManifest());
+        self::assertEquals([
+            new PlanEntry('example.xml', 'administrator/components/com_example/example.xml', EntryKind::File),
+            new PlanEntry('site/src', 'components/com_example/src', EntryKind::Directory),
+            new PlanEntry('site/tmpl', 'components/com_example/tmpl', EntryKind::Directory),
+            new PlanEntry('admin/services', 'administrator/components/com_example/services', EntryKind::Directory),
+            new PlanEntry('admin/sql', 'administrator/components/com_example/sql', EntryKind::Directory),
+            new PlanEntry('admin/access.xml', 'administrator/components/com_example/access.xml', EntryKind::File),
+            new PlanEntry('api/src', 'api/components/com_example/src', EntryKind::Directory),
+            new PlanEntry('script.php', 'administrator/components/com_example/script.php', EntryKind::File),
+            new PlanEntry('site/language/en-GB/com_example.ini', 'language/en-GB/com_example.ini', EntryKind::File),
+            new PlanEntry(
+                'admin/language/en-GB/com_example.ini',
+                'administrator/language/en-GB/com_example.ini',
+                EntryKind::File,
+            ),
+            new PlanEntry(
+                'admin/language/en-GB/com_example.sys.ini',
+                'language/en-GB/com_example.sys.ini',
+                EntryKind::File,
+            ),
+            new PlanEntry('media/js', 'media/com_example/js', EntryKind::Directory),
+        ], $manifest->plan->entries);
+        self::assertSame([
+            'administrator/components/com_example',
+            'components/com_example',
+            'api/components/com_example',
+            'media/com_example',
+        ], $manifest->plan->exclusiveDirectories);
+        self::assertSame(['site', 'admin', 'api', 'site/language', 'admin/language', 'media'], $manifest->plan->sourceDirectories);
+    }
+
+    public function testComponentInstallerMetadataIsRelativeToTheAdministratorDirectory(): void
+    {
+        $installer = $this->parser->parse($this->componentXml(), 'example.xml')->installer;
+
+        self::assertSame(
+            ['scriptfile', 'install', 'update', 'administration/menu', 'administration/submenu'],
+            array_keys($installer->sections),
+        );
+        self::assertSame('<menu link="option=com_example">COM_EXAMPLE</menu>', $installer->sections['administration/menu']);
+        self::assertSame([
+            'administrator/components/com_example/script.php',
+            'administrator/components/com_example/sql/install.mysql.sql',
+            'administrator/components/com_example/sql/updates/mysql',
+        ], $installer->targets);
+    }
+
+    /**
+     * @param non-empty-string $xml
+     */
+    #[DataProvider('componentElements')]
+    public function testComponentElementFollowsTheJoomlaInstaller(string $xml, string $expectedElement): void
+    {
+        self::assertSame($expectedElement, $this->parser->parse($xml, 'x.xml')->element);
+    }
+
+    /**
+     * @return iterable<string, array{non-empty-string, string}>
+     */
+    public static function componentElements(): iterable
+    {
+        yield 'name with prefix' => ['<extension type="component"><name>com_phocacart</name></extension>', 'com_phocacart'];
+        yield 'name without prefix, filtered' => ['<extension type="component"><name>Phoca Cart</name></extension>', 'com_phocacart'];
+        yield 'name with prefix in upper case' => ['<extension type="component"><name>COM_Example</name></extension>', 'com_example'];
+        yield 'element tag preferred' => [
+            '<extension type="component"><name>Example Shop</name><element>Shop</element></extension>',
+            'com_shop',
+        ];
+    }
+
+    public function testComponentAcceptsTrailingSlashInFolder(): void
+    {
+        $xml = '<extension type="component"><name>com_x</name><api><files folder="api/"><folder>src</folder></files></api></extension>';
+
+        $plan = $this->parser->parse($xml, 'x.xml')->plan;
+
+        self::assertEquals(new PlanEntry('api/src', 'api/components/com_x/src', EntryKind::Directory), $plan->entries[1]);
+        self::assertSame(['api'], $plan->sourceDirectories);
+    }
+
+    public function testOtherTypesIgnoreAdministrationAndApiSections(): void
+    {
+        $xml = <<<'XML'
+            <extension type="module">
+                <name>mod_x</name>
+                <element>mod_x</element>
+                <administration><files folder="admin"><folder>src</folder></files></administration>
+                <api><files folder="api"><folder>src</folder></files></api>
+            </extension>
+            XML;
+
+        $plan = $this->parser->parse($xml, 'mod_x.xml')->plan;
+
+        self::assertCount(1, $plan->entries);
+        self::assertSame([], $plan->sourceDirectories);
     }
 
     public function testRespectsFolderAttributeOfFilesAndIncludesScriptfile(): void
@@ -497,8 +603,12 @@ final class ManifestParserTest extends TestCase
         yield 'no XML' => ['not xml', 'not valid XML'];
         yield 'wrong root element' => ['<phpunit/>', '<extension>'];
         yield 'unsupported type' => [
-            '<extension type="component"><name>com_x</name></extension>',
-            'component',
+            '<extension type="library"><name>lib_x</name></extension>',
+            'library',
+        ];
+        yield 'component without valid characters' => [
+            '<extension type="component"><name>Ärger</name><element>äöü</element></extension>',
+            'element name',
         ];
         yield 'plugin without group' => [
             '<extension type="plugin"><name>x</name><files><filename plugin="x">x.php</filename></files></extension>',
@@ -601,6 +711,54 @@ final class ManifestParserTest extends TestCase
                 <config>
                     <fields name="params"/>
                 </config>
+            </extension>
+            XML;
+    }
+
+    /**
+     * Returns a component manifest in the classic layout with `site/`, `admin/` and `api/`.
+     */
+    private function componentXml(): string
+    {
+        return <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="component" method="upgrade">
+                <name>COM_EXAMPLE</name>
+                <version>1.0.0</version>
+                <namespace path="src">SmartA\Component\Example</namespace>
+                <scriptfile>script.php</scriptfile>
+                <install>
+                    <sql><file driver="mysql" charset="utf8">sql/install.mysql.sql</file></sql>
+                </install>
+                <update><schemas><schemapath type="mysql">sql/updates/mysql</schemapath></schemas></update>
+                <files folder="site">
+                    <folder>src</folder>
+                    <folder>tmpl</folder>
+                </files>
+                <languages folder="site/language">
+                    <language tag="en-GB">en-GB/com_example.ini</language>
+                </languages>
+                <media destination="com_example" folder="media">
+                    <folder>js</folder>
+                </media>
+                <administration>
+                    <menu link="option=com_example">COM_EXAMPLE</menu>
+                    <submenu>
+                        <menu link="option=com_example&amp;view=items">COM_EXAMPLE_ITEMS</menu>
+                    </submenu>
+                    <files folder="admin">
+                        <folder>services</folder>
+                        <folder>sql</folder>
+                        <filename>access.xml</filename>
+                    </files>
+                    <languages folder="admin/language">
+                        <language tag="en-GB">en-GB/com_example.ini</language>
+                        <language tag="en-GB" client="site">en-GB/com_example.sys.ini</language>
+                    </languages>
+                </administration>
+                <api>
+                    <files folder="api"><folder>src</folder></files>
+                </api>
             </extension>
             XML;
     }

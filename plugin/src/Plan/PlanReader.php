@@ -34,7 +34,7 @@ final class PlanReader
 
     private const string SOURCE_PATTERN = '#^files/[0-9]+$#';
     private const string NAME_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
-    private const array EXTENSION_TYPES = ['module', 'template', 'plugin'];
+    private const array EXTENSION_TYPES = ['module', 'template', 'plugin', 'component'];
 
     /**
      * Returns the validated plan of the staging directory.

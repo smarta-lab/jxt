@@ -18,14 +18,23 @@ use SmartA\Jxt\Deployment\PlanEntry;
  * Reads a Joomla manifest and derives the deployment plan from it.
  *
  * Takes `<files>`, `<scriptfile>`, `<languages>`, `<media>` and the manifest file itself
- * into account. All paths are relative to the extension directory, i.e. the directory of the manifest.
+ * into account, for components also `<files>` and `<languages>` in `<administration>` and `<files>` in `<api>`.
+ * All paths are relative to the extension directory, i.e. the directory of the manifest.
  */
 final class ManifestParser
 {
     private const string ELEMENT_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
     private const string LANGUAGE_TAG_PATTERN = '/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/';
     private const string CMD_FILTER_PATTERN = '/[^A-Z0-9_.-]/i';
-    private const array INSTALLER_SECTIONS = ['scriptfile', 'install', 'uninstall', 'update', 'updateservers'];
+    private const array INSTALLER_SECTIONS = [
+        'scriptfile',
+        'install',
+        'uninstall',
+        'update',
+        'updateservers',
+        'administration/menu',
+        'administration/submenu',
+    ];
 
     /**
      * Reads and parses the manifest file.
@@ -61,15 +70,19 @@ final class ManifestParser
         $client = $this->clientType($root, $type);
         $element = $this->element($root, $type);
         $group = $this->group($root, $type);
-        $installDirectory = $type->installDirectory($client, $element, $group);
+        $installDirectories = $type->installDirectories($client, $element, $group);
+        $installDirectory = $installDirectories[0];
         $manifestFile = basename(RelativePath::normalize($fileName));
+        $fileSections = $this->fileSections($root, $type, $installDirectories);
+        $languageSections = $this->languageSections($root, $type, $type->languageClient($client));
+        $mediaSections = $this->children($root, 'media');
 
         $entries = [
             new PlanEntry($manifestFile, $installDirectory . '/' . $manifestFile, EntryKind::File),
-            ...$this->fileEntries($root, $installDirectory),
+            ...$this->fileEntries($fileSections),
             ...$this->scriptfileEntries($root, $installDirectory),
-            ...$this->languageEntries($root, $type->languageClient($client)),
-            ...$this->mediaEntries($root),
+            ...$this->languageEntries($languageSections),
+            ...$this->mediaEntries($mediaSections),
         ];
 
         return new Manifest(
@@ -80,8 +93,12 @@ final class ManifestParser
             $manifestFile,
             new DeploymentPlan(
                 $this->withoutDuplicateTargets($entries),
-                [$installDirectory, ...array_map($this->mediaDirectory(...), $this->children($root, 'media'))],
-                $this->sourceDirectories($root),
+                [...$installDirectories, ...array_map($this->mediaDirectory(...), $mediaSections)],
+                $this->sourceDirectories([
+                    ...array_column($fileSections, 0),
+                    ...array_column($languageSections, 0),
+                    ...$mediaSections,
+                ]),
             ),
             $this->installerMetadata($root, $installDirectory),
             $group,
@@ -95,21 +112,21 @@ final class ManifestParser
      * without `folder` the first path segment (e.g. `language`). Without `folder` on `<files>` or `<media>`
      * this would be the extension directory itself, which may also contain dev files; it is therefore not checked.
      *
+     * @param list<SimpleXMLElement> $sections `<files>`, `<languages>` and `<media>` sections
+     *
      * @return list<string>
      */
-    private function sourceDirectories(SimpleXMLElement $root): array
+    private function sourceDirectories(array $sections): array
     {
         $directories = [];
 
-        foreach (['files', 'languages', 'media'] as $sectionName) {
-            foreach ($this->children($root, $sectionName) as $section) {
-                $prefix = $this->sourcePrefix($section);
+        foreach ($sections as $section) {
+            $prefix = $this->sourcePrefix($section);
 
-                if ($prefix !== '') {
-                    $directories[] = rtrim($prefix, '/');
-                } elseif ($sectionName === 'languages') {
-                    $directories = [...$directories, ...$this->languageRootDirectories($section)];
-                }
+            if ($prefix !== '') {
+                $directories[] = rtrim($prefix, '/');
+            } elseif ($section->getName() === 'languages') {
+                $directories = [...$directories, ...$this->languageRootDirectories($section)];
             }
         }
 
@@ -145,7 +162,7 @@ final class ManifestParser
         $sections = [];
 
         foreach (self::INSTALLER_SECTIONS as $name) {
-            foreach ($this->children($root, $name) as $section) {
+            foreach ($root->xpath($name) ?: [] as $section) {
                 $sections[$name] = ($sections[$name] ?? '') . $this->normalizedXml($section);
             }
         }
@@ -217,11 +234,16 @@ final class ManifestParser
     /**
      * Determines the application area from the attribute `client`; defaults to `site`.
      *
-     * The Joomla installer ignores the attribute for plugins, which always belong to the site.
+     * The Joomla installer ignores the attribute for plugins, which always belong to the site, and for
+     * components, which it registers for the administrator.
      */
     private function clientType(SimpleXMLElement $root, ExtensionType $type): ClientType
     {
         $client = trim((string) $root['client']);
+
+        if ($type === ExtensionType::Component) {
+            return ClientType::Administrator;
+        }
 
         if ($client === '' || $type === ExtensionType::Plugin) {
             return ClientType::Site;
@@ -238,6 +260,7 @@ final class ManifestParser
      * in lower case, without a fallback.
      * Templates: `<element>`, otherwise `<name>`, reduced to the characters of the filter `cmd` and in lower case.
      * Plugins: attribute `plugin` of an entry in the first `<files>` as it is, without a fallback.
+     * Components: as templates, with the prefix `com_` if it is missing.
      */
     private function element(SimpleXMLElement $root, ExtensionType $type): string
     {
@@ -255,7 +278,8 @@ final class ManifestParser
                     . 'is missing in the manifest.',
                 ),
             ),
-            ExtensionType::Template => $this->templateElement($elementTag !== '' ? $elementTag : $name),
+            ExtensionType::Template => $this->cmdElement($elementTag !== '' ? $elementTag : $name),
+            ExtensionType::Component => $this->componentElement($elementTag !== '' ? $elementTag : $name),
             ExtensionType::Plugin => $this->filesAttribute($root, 'plugin') ?? throw new ManifestException(
                 'The plugin element (attribute plugin of an entry in the first <files>) is missing in the manifest.',
             ),
@@ -267,9 +291,21 @@ final class ManifestParser
     /**
      * Applies the filter `cmd` of the Joomla installer and converts the result to lower case.
      */
-    private function templateElement(string $name): string
+    private function cmdElement(string $name): string
     {
         return strtolower(ltrim((string) preg_replace(self::CMD_FILTER_PATTERN, '', $name), '.'));
+    }
+
+    /**
+     * Applies the filter `cmd` and adds the prefix `com_` if it is missing.
+     *
+     * A name without valid characters is rejected before, so that it does not become the bare prefix.
+     */
+    private function componentElement(string $name): string
+    {
+        $element = $this->validName($this->cmdElement($name), 'element name');
+
+        return str_starts_with($element, 'com_') ? $element : 'com_' . $element;
     }
 
     /**
@@ -333,16 +369,75 @@ final class ManifestParser
     }
 
     /**
+     * Returns the `<files>` sections with their target directories.
+     *
+     * Components have one directory each for `<files>` (site), `<administration><files>` and `<api><files>`;
+     * other types only know `<files>`, which goes to the install directory.
+     *
+     * @param list<string> $installDirectories Directories of the extension, the install directory first
+     *
+     * @return list<array{SimpleXMLElement, string}>
+     */
+    private function fileSections(SimpleXMLElement $root, ExtensionType $type, array $installDirectories): array
+    {
+        if ($type !== ExtensionType::Component) {
+            return $this->withValue($this->children($root, 'files'), $installDirectories[0]);
+        }
+
+        [$administrator, $site, $api] = $installDirectories;
+
+        return [
+            ...$this->withValue($this->children($root, 'files'), $site),
+            ...$this->withValue($this->grandchildren($root, 'administration', 'files'), $administrator),
+            ...$this->withValue($this->grandchildren($root, 'api', 'files'), $api),
+        ];
+    }
+
+    /**
+     * Returns the `<languages>` sections with the application area of their files.
+     *
+     * For components, `<administration><languages>` belongs to the administrator.
+     *
+     * @return list<array{SimpleXMLElement, ClientType}>
+     */
+    private function languageSections(SimpleXMLElement $root, ExtensionType $type, ClientType $client): array
+    {
+        return [
+            ...$this->withValue($this->children($root, 'languages'), $client),
+            ...$type === ExtensionType::Component
+                ? $this->withValue($this->grandchildren($root, 'administration', 'languages'), ClientType::Administrator)
+                : [],
+        ];
+    }
+
+    /**
+     * Pairs each section with the same value.
+     *
+     * @template T
+     *
+     * @param list<SimpleXMLElement> $sections
+     * @param T                      $value
+     *
+     * @return list<array{SimpleXMLElement, T}>
+     */
+    private function withValue(array $sections, mixed $value): array
+    {
+        return array_map(static fn (SimpleXMLElement $section): array => [$section, $value], $sections);
+    }
+
+    /**
      * Creates the entries for all `<files>` sections.
+     *
+     * @param list<array{SimpleXMLElement, string}> $sections Sections with their target directories
      *
      * @return list<PlanEntry>
      */
-    private function fileEntries(SimpleXMLElement $root, string $installDirectory): array
+    private function fileEntries(array $sections): array
     {
         $entries = [];
 
-        foreach ($this->children($root, 'files') as $files) {
-            $entries = [...$entries, ...$this->sectionEntries($files, $installDirectory)];
+        foreach ($sections as [$files, $targetDirectory]) {
+            $entries = [...$entries, ...$this->sectionEntries($files, $targetDirectory)];
         }
 
         return $entries;
@@ -368,15 +463,17 @@ final class ManifestParser
      * Creates the entries for the language files in `<languages>`.
      *
      * The target is the shared language directory of the application area, e.g. `language/de-DE/`; the
-     * attribute `client` of a `<language>` entry overrides the default area of the extension.
+     * attribute `client` of a `<language>` entry overrides the default area of the section.
+     *
+     * @param list<array{SimpleXMLElement, ClientType}> $sections Sections with their default application area
      *
      * @return list<PlanEntry>
      */
-    private function languageEntries(SimpleXMLElement $root, ClientType $defaultClient): array
+    private function languageEntries(array $sections): array
     {
         $entries = [];
 
-        foreach ($this->children($root, 'languages') as $languages) {
+        foreach ($sections as [$languages, $defaultClient]) {
             $sourcePrefix = $this->sourcePrefix($languages);
 
             foreach ($this->children($languages, 'language') as $language) {
@@ -433,13 +530,15 @@ final class ManifestParser
     /**
      * Creates the entries for all `<media>` sections.
      *
+     * @param list<SimpleXMLElement> $sections
+     *
      * @return list<PlanEntry>
      */
-    private function mediaEntries(SimpleXMLElement $root): array
+    private function mediaEntries(array $sections): array
     {
         $entries = [];
 
-        foreach ($this->children($root, 'media') as $media) {
+        foreach ($sections as $media) {
             $entries = [...$entries, ...$this->sectionEntries($media, $this->mediaDirectory($media))];
         }
 
@@ -506,6 +605,23 @@ final class ManifestParser
         }
 
         return $children;
+    }
+
+    /**
+     * Returns the children with the given name of all direct children with the parent name, e.g. the
+     * `<files>` in `<administration>`.
+     *
+     * @return list<SimpleXMLElement>
+     */
+    private function grandchildren(SimpleXMLElement $root, string $parentName, string $name): array
+    {
+        $grandchildren = [];
+
+        foreach ($this->children($root, $parentName) as $parent) {
+            $grandchildren = [...$grandchildren, ...$this->children($parent, $name)];
+        }
+
+        return $grandchildren;
     }
 
     /**

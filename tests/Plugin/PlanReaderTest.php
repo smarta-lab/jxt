@@ -154,8 +154,8 @@ final class PlanReaderTest extends TestCase
             'files' => [['target' => 'modules/mod_x/x.php', 'source' => 'files/1']],
         ], 'files/1'];
         yield 'unknown extension type' => [
-            ['extension' => ['type' => 'component', 'element' => 'com_x', 'folder' => '', 'client_id' => 1]],
-            'component',
+            ['extension' => ['type' => 'library', 'element' => 'x', 'folder' => '', 'client_id' => 0]],
+            'library',
         ];
         yield 'invalid element' => [
             ['extension' => ['type' => 'module', 'element' => '../x', 'folder' => '', 'client_id' => 0]],
