@@ -416,8 +416,8 @@ fail the check.
 | `language/parse` | a language file cannot be parsed | error | error |
 | `language/files` | a language file is missing in one language | error | error |
 | `language/keys` | a key is missing in one language | error | error |
-| `language/undefined` | a language constant used in PHP, XML or JS is not defined | error | error |
-| `language/unused` | a defined constant is not found in the code (it may be built at runtime; the extension name, template positions and layouts are never reported) | notice | notice |
+| `language/undefined` | a language constant used in PHP, XML, JS or SQL (outside of comments) is not defined | error | error |
+| `language/unused` | a defined constant is not found in the code outside of comments (it may be built at runtime; the extension name, template positions and layouts are never reported) | notice | notice |
 | `composer/version-field` | `composer.json` has a `version` field | warning | warning |
 
 The whitespace checks cover the tracked and untracked, not ignored files of

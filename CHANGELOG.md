@@ -6,6 +6,17 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `jxt check` ignores language constants in comments of PHP, XML, JS and SQL
+  files; commented-out code was reported as using undefined constants and
+  counted as using defined ones.
+- `jxt check` also looks for language constants in SQL files, e.g. mail
+  templates or statuses inserted by the install script, which were reported
+  as unused.
+- Language keys without the prefix of the extension are searched literally;
+  they were always reported as unused.
+
 ## [0.4.0] - 2026-10-22
 
 ### Added

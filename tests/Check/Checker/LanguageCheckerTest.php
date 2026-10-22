@@ -70,6 +70,54 @@ final class LanguageCheckerTest extends TestCase
         ], $this->findings(new LanguageChecker()));
     }
 
+    public function testIgnoresConstantsInComments(): void
+    {
+        $this->writeFile(
+            'tmpl/default.php',
+            "<?php\n// echo Text::_('MOD_EXAMPLE_OLD');\necho Text::_('MOD_EXAMPLE_TITLE');\n/* Text::_('MOD_EXAMPLE_TEXT') */\n",
+        );
+        $this->writeFile('tmpl/default.xml', "<metadata>\n<!-- <layout title=\"MOD_EXAMPLE_LAYOUT\"/> -->\n</metadata>\n");
+        $this->writeFile('media/js/site.js', "// Joomla.Text._('MOD_EXAMPLE_GONE');\n");
+
+        self::assertSame([
+            'INFO language/unused: MOD_EXAMPLE_TEXT is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
+    }
+
+    public function testFindsConstantsInSqlFiles(): void
+    {
+        $this->writeFile('mod_example.xml', str_replace(
+            '<folder module="mod_example">tmpl</folder>',
+            '<folder module="mod_example">tmpl</folder><folder>sql</folder>',
+            self::MANIFEST,
+        ));
+        $this->writeFile('tmpl/default.php', "<?php\necho Text::_('MOD_EXAMPLE_TITLE');\n");
+        $this->writeFile(
+            'sql/install.mysql.sql',
+            "-- MOD_EXAMPLE_COMMENT\nINSERT INTO `#__example` (`title`) VALUES ('MOD_EXAMPLE_TEXT'), ('MOD_EXAMPLE_STATUS');\n",
+        );
+
+        self::assertSame([
+            'ERROR language/undefined: MOD_EXAMPLE_STATUS is used in sql/install.mysql.sql but not defined',
+        ], $this->findings(new LanguageChecker()));
+    }
+
+    public function testFindsKeysWithoutPrefixLiterally(): void
+    {
+        $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\nEXAMPLE_LEGACY=\"Legacy\"\nEXAMPLE_UNUSED=\"Unused\"\n";
+        $this->writeFile('language/en-GB/mod_example.ini', $keys);
+        $this->writeFile('language/de-DE/mod_example.ini', $keys);
+        $this->writeFile(
+            'tmpl/default.php',
+            "<?php\necho Text::_('MOD_EXAMPLE_TITLE'), Text::_('MOD_EXAMPLE_TEXT'), Text::_('EXAMPLE_LEGACY');\n"
+                . "// Text::_('EXAMPLE_UNUSED');\n",
+        );
+
+        self::assertSame([
+            'INFO language/unused: EXAMPLE_UNUSED is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
+    }
+
     public function testReportsUnparsableFiles(): void
     {
         $this->writeFile('language/de-DE/mod_example.sys.ini', "MOD_EXAMPLE=\"open\nMOD_EXAMPLE_LAYOUT_DEFAULT=\"Standard\"\n[broken\n");
