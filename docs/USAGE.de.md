@@ -452,8 +452,8 @@ Manifest. Hinweise lassen die Prüfung nie scheitern.
 | `language/parse` | eine Sprachdatei lässt sich nicht lesen | Fehler | Fehler |
 | `language/files` | eine Sprachdatei fehlt in einer Sprache | Fehler | Fehler |
 | `language/keys` | ein Schlüssel fehlt in einer Sprache | Fehler | Fehler |
-| `language/undefined` | eine in PHP, XML oder JS verwendete Sprachkonstante ist nicht definiert | Fehler | Fehler |
-| `language/unused` | eine definierte Konstante steht nicht im Code (sie kann zur Laufzeit zusammengesetzt werden; Name der Erweiterung, Template-Positionen und Layouts werden nie gemeldet) | Hinweis | Hinweis |
+| `language/undefined` | eine in PHP, XML, JS oder SQL (außerhalb von Kommentaren) verwendete Sprachkonstante ist nicht definiert | Fehler | Fehler |
+| `language/unused` | eine definierte Konstante steht nicht im Code außerhalb von Kommentaren (sie kann zur Laufzeit zusammengesetzt werden; Name der Erweiterung, Template-Positionen und Layouts werden nie gemeldet) | Hinweis | Hinweis |
 | `composer/version-field` | `composer.json` hat ein `version`-Feld | Warnung | Warnung |
 
 Die Whitespace-Prüfungen umfassen die versionierten und die nicht versionierten,

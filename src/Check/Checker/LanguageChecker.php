@@ -12,17 +12,18 @@ namespace SmartA\Jxt\Check\Checker;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CommentStripper;
 use SmartA\Jxt\Check\Severity;
-use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\PhpErrors;
 
 /**
  * Checks the language files of the extension.
  *
  * Every language must have the same files with the same keys. Language constants with the prefix of the
- * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`) used in PHP, XML or JS files must be defined. Defined
- * constants not found in the code are only a notice, as constants may be built at runtime; constants that
- * Joomla uses itself (the extension name, template positions and layouts) are never reported.
+ * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`, `COM_X_`) used in PHP, XML, JS or SQL files outside of
+ * comments must be defined. Defined constants not found in the code are only a notice, as constants may be
+ * built at runtime; keys without the prefix are searched literally, and constants that Joomla uses itself
+ * (the extension name, template positions and layouts) are never reported.
  */
 final readonly class LanguageChecker implements Checker
 {
@@ -47,7 +48,8 @@ final readonly class LanguageChecker implements Checker
 
         $prefix = $this->prefix($context);
         $defined = array_unique(array_merge(...array_merge(...array_map(array_values(...), array_values($keys)))));
-        $used = $this->usedConstants($context, $prefix);
+        $code = $this->readCode($context);
+        $used = $this->usedConstants($code, $prefix);
 
         foreach ($used as $constant => $files) {
             if (!in_array($constant, $defined, true)) {
@@ -62,7 +64,11 @@ final readonly class LanguageChecker implements Checker
         $implicit = '/^' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|_LAYOUT_.+)?$/';
 
         foreach ($defined as $constant) {
-            if (!isset($used[$constant]) && preg_match($implicit, $constant) !== 1) {
+            if (
+                !isset($used[$constant])
+                && preg_match($implicit, $constant) !== 1
+                && (str_starts_with($constant, $prefix) || !$this->containsLiterally($code, $constant))
+            ) {
                 $report->add(CheckName::LanguageUnused, Severity::Notice, sprintf(
                     '%s is defined but not found in the code (may be built at runtime)',
                     $constant,
@@ -146,28 +152,66 @@ final readonly class LanguageChecker implements Checker
     }
 
     /**
-     * Returns the language constants with the prefix found in the PHP, XML and JS files of the plan.
+     * Reads the PHP, XML, JS and SQL files of the plan without comments.
+     *
+     * @return array<string, string> Code by file (relative to the project)
+     */
+    private function readCode(CheckContext $context): array
+    {
+        $stripper = new CommentStripper();
+        $code = [];
+
+        foreach ($context->files as $entry) {
+            if (preg_match('/\.(php|xml|js|sql)$/', $entry->source) !== 1) {
+                continue;
+            }
+
+            $content = (string) file_get_contents($context->absolutePath($entry->source));
+            $code[$context->projectPath($entry->source)] = $stripper->strip($entry->source, $content);
+        }
+
+        return $code;
+    }
+
+    /**
+     * Returns the language constants with the prefix found in the code.
+     *
+     * @param array<string, string> $code Code by file
      *
      * @return array<string, list<string>> Files (relative to the project) by constant
      */
-    private function usedConstants(CheckContext $context, string $prefix): array
+    private function usedConstants(array $code, string $prefix): array
     {
         $pattern = '/\b' . preg_quote($prefix, '/') . '[A-Z0-9_]*[A-Z0-9]\b/';
         $used = [];
 
-        foreach ($context->files as $entry) {
-            if (preg_match('/\.(php|xml|js)$/', $entry->source) !== 1) {
-                continue;
-            }
-
-            preg_match_all($pattern, (string) file_get_contents($context->absolutePath($entry->source)), $matches);
+        foreach ($code as $file => $content) {
+            preg_match_all($pattern, $content, $matches);
 
             foreach (array_unique($matches[0]) as $constant) {
-                $used[$constant][] = $context->projectPath($entry->source);
+                $used[$constant][] = $file;
             }
         }
 
         return $used;
+    }
+
+    /**
+     * Tells whether the key occurs in the code as a whole word.
+     *
+     * @param array<string, string> $code Code by file
+     */
+    private function containsLiterally(array $code, string $key): bool
+    {
+        $pattern = '/(?<!\w)' . preg_quote($key, '/') . '(?!\w)/';
+
+        foreach ($code as $content) {
+            if (preg_match($pattern, $content) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

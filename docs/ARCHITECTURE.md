@@ -422,6 +422,14 @@ a check that rests on a guess (`language/unused`) only reports notices.
 - **Implicit language constants:** the bare prefix (the extension name) and
   `<PREFIX>_POSITION_…`/`<PREFIX>_LAYOUT_…` are used by Joomla itself and never
   reported as unused.
+- **Language constants in the code:** PHP, XML, JS and SQL files count (SQL
+  for values such as mail templates or statuses that are translated after
+  reading them from the database), without comments (`CommentStripper`), so
+  that commented-out code neither uses a constant nor needs it defined. PHP
+  is tokenized exactly; for JS and SQL a regular expression skips string
+  literals, which is enough without a full parser. Constants are found by the
+  prefix; defined keys without it are searched literally, since the prefix
+  pattern cannot find them.
 - **Selecting checks** works as in Ruff, ShellCheck or PHP_CodeSniffer:
   `--exclude` and `--include` with `all`, a group or a single check; the order
   does not matter. The command line overrides `.jxt.json`, within one source
@@ -501,7 +509,8 @@ Namespaces below `SmartA\Jxt`:
   the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
   `CheckReport`, which drops the checks excluded by `CheckSelection`. All
   checks are cases of `CheckName`. `GithubAnnotation` formats findings as
-  workflow commands for `--format=github`.
+  workflow commands for `--format=github`; `CommentStripper` removes comments
+  before the `LanguageChecker` looks for constants.
 - **`EditorConfig`:** `EditorConfigResolver` reads `.editorconfig` files
   (`EditorConfigFile`) and resolves the properties of a file; `GlobTranslator`
   turns section names into regular expressions as the reference implementation
