@@ -421,7 +421,11 @@ a check that rests on a guess (`language/unused`) only reports notices.
   are a violation, a single one (` * ` in doc comments) is not.
 - **Implicit language constants:** the bare prefix (the extension name) and
   `<PREFIX>_POSITION_…`/`<PREFIX>_LAYOUT_…` are used by Joomla itself and never
-  reported as unused.
+  reported as unused; for templates also the names of layout overrides
+  (`TPL_X_MOD_MENU_LAYOUT_…`, `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`).
+- **Language file names:** Joomla loads `<extension>.ini` and
+  `<tag>.<extension>.ini`, so the language files of different languages are
+  compared by their name without the tag in front.
 - **Language constants in the code:** PHP, XML, JS and SQL files count (SQL
   for values such as mail templates or statuses that are translated after
   reading them from the database), without comments (`CommentStripper`), so
