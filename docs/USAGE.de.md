@@ -2,6 +2,27 @@
 
 [English](USAGE.md)
 
+- [jxt install – auf dem Testserver installieren](#jxt-install--auf-dem-testserver-installieren)
+  - [Git-Tag installieren](#git-tag-installieren)
+  - [Vorhandene ZIP-Datei installieren](#vorhandene-zip-datei-installieren)
+  - [Altlasten](#altlasten)
+  - [Einrichtung: sudo ohne Passwort für den Joomla-Installer](#einrichtung-sudo-ohne-passwort-für-den-joomla-installer)
+- [jxt sync – Dateien direkt übertragen](#jxt-sync--dateien-direkt-übertragen)
+  - [Was kopiert wird](#was-kopiert-wird)
+  - [Was gelöscht wird](#was-gelöscht-wird)
+  - [Erste Installation](#erste-installation)
+  - [Rechte](#rechte)
+  - [Warnungen und Hinweise](#warnungen-und-hinweise)
+- [jxt bridge – sync als Webserver-Benutzer](#jxt-bridge--sync-als-webserver-benutzer)
+- [jxt build – installierbare ZIP-Datei erstellen](#jxt-build--installierbare-zip-datei-erstellen)
+- [jxt check – vor einem Release prüfen](#jxt-check--vor-einem-release-prüfen)
+  - [Git-Tag prüfen](#git-tag-prüfen)
+  - [Annotationen in GitHub Actions](#annotationen-in-github-actions)
+  - [Prüfungen abschalten](#prüfungen-abschalten)
+- [jxt config – Konfiguration anzeigen und ändern](#jxt-config--konfiguration-anzeigen-und-ändern)
+- [Konfiguration](#konfiguration)
+- [jxt ohne vendor/bin aufrufen](#jxt-ohne-vendorbin-aufrufen)
+
 Alle Befehle werden im Projektordner einer Erweiterung ausgeführt. Meist ist das
 der Ordner mit dem Manifest (`mod_*.xml`, `templateDetails.xml` oder die
 XML-Datei eines Plugins oder einer Komponente, z. B. `example.xml`). Das

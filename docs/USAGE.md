@@ -2,6 +2,27 @@
 
 [Deutsch](USAGE.de.md)
 
+- [jxt install – install on the test server](#jxt-install--install-on-the-test-server)
+  - [Installing a Git tag](#installing-a-git-tag)
+  - [Installing an existing ZIP file](#installing-an-existing-zip-file)
+  - [Leftovers](#leftovers)
+  - [Setup: sudo without password for the Joomla installer](#setup-sudo-without-password-for-the-joomla-installer)
+- [jxt sync – copy files directly](#jxt-sync--copy-files-directly)
+  - [What is copied](#what-is-copied)
+  - [What is deleted](#what-is-deleted)
+  - [First installation](#first-installation)
+  - [Permissions](#permissions)
+  - [Warnings and notes](#warnings-and-notes)
+- [jxt bridge – sync as web server user](#jxt-bridge--sync-as-web-server-user)
+- [jxt build – build an installable ZIP](#jxt-build--build-an-installable-zip)
+- [jxt check – check before a release](#jxt-check--check-before-a-release)
+  - [Checking a Git tag](#checking-a-git-tag)
+  - [Annotations in GitHub Actions](#annotations-in-github-actions)
+  - [Excluding checks](#excluding-checks)
+- [jxt config – show and change the configuration](#jxt-config--show-and-change-the-configuration)
+- [Configuration](#configuration)
+- [Calling jxt without vendor/bin](#calling-jxt-without-vendorbin)
+
 All commands are run in the project directory of an extension. Usually this is
 the directory containing the manifest (`mod_*.xml`, `templateDetails.xml` or the
 XML file of a plugin or component, e.g. `example.xml`). The manifest is found
