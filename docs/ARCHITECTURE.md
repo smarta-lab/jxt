@@ -373,6 +373,9 @@ work as for the working copy.
   directory belongs to the working copy.
 - **Only tags:** the value must be an existing tag and is passed as
   `refs/tags/<tag>`, so neither a branch nor a Git option can be given.
+- **Options, not arguments:** like `--tag`, the existing ZIP file of
+  `jxt install --zip` is an option instead of a positional argument, so that
+  an argument stays free for later features (e.g. a project directory).
 - **Version mismatch:** for `build` and `install`, a tag that does not name the
   manifest version is a warning, not an error; the ZIP name always comes from
   the manifest. For `check`, it is an error (`manifest/tag-version`), since the
