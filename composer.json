@@ -5,7 +5,7 @@
         "joomla",
         "joomla-extension",
         "cli",
-        "deployment",
+        "release",
         "developer-tools"
     ],
     "license": "MIT",

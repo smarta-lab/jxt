@@ -4,8 +4,9 @@
 
 All commands are run in the project directory of an extension. Usually this is
 the directory containing the manifest (`mod_*.xml`, `templateDetails.xml` or the
-plugin's XML file, e.g. `example.xml`). The manifest is found automatically: it
-is the only XML file in that directory whose root element is `<extension>`.
+XML file of a plugin or component, e.g. `example.xml`). The manifest is found
+automatically: it is the only XML file in that directory whose root element is
+`<extension>`.
 
 If the extension lives in a subdirectory of the project (e.g. `extension/`, with
 `composer.json`, `tests/` and `docs/` in the project directory), or if the

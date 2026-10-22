@@ -1,5 +1,7 @@
 # jxt
 
+[![CI](https://github.com/smarta-lab/jxt/actions/workflows/ci.yml/badge.svg)](https://github.com/smarta-lab/jxt/actions/workflows/ci.yml)
+
 Manifest-driven CLI for Joomla!® extension development:
 
 - **`jxt install`** builds the ZIP file and installs it on a local Joomla test
@@ -33,17 +35,21 @@ plugins and components.
 
 ## Installation
 
-The package is not published on Packagist. Add it to an extension project as a
-Composer `path` repository (or as a `vcs` repository pointing to the Git
-repository):
+Add it to an extension project as a development dependency:
+
+```bash
+composer require --dev smarta-lab/jxt
+```
+
+Add `/dist/` to the project's `.gitignore`.
+
+To work on jxt itself while using it in a project, a Composer `path`
+repository creates a symlink, so changes to jxt take effect immediately:
 
 ```bash
 composer config repositories.jxt '{"type": "path", "url": "../jxt"}'
 composer require --dev "smarta-lab/jxt:@dev"
 ```
-
-With a `path` repository, Composer creates a symlink, so changes to jxt take
-effect immediately. Add `/dist/` to the project's `.gitignore`.
 
 ## Quick start
 

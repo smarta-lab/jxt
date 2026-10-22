@@ -60,8 +60,7 @@ written:
   `--tag` and the release comparisons of `jxt check`. Quality tools: PHPUnit,
   PHPStan (level max), PHP_CodeSniffer (PSR-12).
 - Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects
-  require it as a Composer dev dependency; until it is published on Packagist,
-  via a `path` or `vcs` repository.
+  require it as a Composer dev dependency from Packagist.
 - Linux or WSL only: `ext-posix` is needed to find the developer's home
   directory when jxt is started via sudo, and `jxt install` relies on `sudo`
   unless `web_user` is `null`.

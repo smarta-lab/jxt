@@ -4,9 +4,9 @@
 
 Alle Befehle werden im Projektordner einer Erweiterung ausgeführt. Meist ist das
 der Ordner mit dem Manifest (`mod_*.xml`, `templateDetails.xml` oder die
-XML-Datei des Plugins, z. B. `example.xml`). Das Manifest wird automatisch
-gefunden: Es ist die einzige XML-Datei in diesem Ordner mit dem Wurzelelement
-`<extension>`.
+XML-Datei eines Plugins oder einer Komponente, z. B. `example.xml`). Das
+Manifest wird automatisch gefunden: Es ist die einzige XML-Datei in diesem
+Ordner mit dem Wurzelelement `<extension>`.
 
 Liegt die Erweiterung in einem Unterordner des Projekts (z. B. `extension/`,
 während `composer.json`, `tests/` und `docs/` im Projektordner liegen) oder
