@@ -20,5 +20,10 @@ Released changes are listed in the [changelog](../CHANGELOG.md).
   that generate files first, e.g. CSS from SCSS or a manifest with the version
   filled in. Projects whose own build pipeline produces the ZIP can already
   install it with `jxt install --zip`.
+- Language check for components: the constants Joomla builds itself (the
+  `_N_ITEMS_…` messages of `AdminController`, `Text::plural` suffixes, the
+  `_MAIL_<id>_TITLE/_DESC` of mail templates), a literal followed by `.` as
+  the start of a key built at runtime, and checking site and administrator
+  code against the language files of their own area.
 - JSON output of `jxt check`, only for a concrete need; `Finding` already has
   file and line as fields.
