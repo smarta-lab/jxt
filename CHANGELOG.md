@@ -16,6 +16,11 @@ project follows [Semantic Versioning](https://semver.org/).
   as unused.
 - Language keys without the prefix of the extension are searched literally;
   they were always reported as unused.
+- `jxt check` compares language files without the language tag in front of
+  the file name (`de-DE.plg_system_example.ini`), which Joomla also loads;
+  every such file was reported as missing in all other languages.
+- The names of layout overrides of a template (`TPL_X_MOD_MENU_LAYOUT_…`,
+  `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`) are no longer reported as unused.
 
 ## [0.4.0] - 2026-10-22
 

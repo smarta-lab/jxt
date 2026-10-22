@@ -14,16 +14,19 @@ use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
 use SmartA\Jxt\Check\CommentStripper;
 use SmartA\Jxt\Check\Severity;
+use SmartA\Jxt\Manifest\ExtensionType;
 use SmartA\Jxt\PhpErrors;
 
 /**
  * Checks the language files of the extension.
  *
- * Every language must have the same files with the same keys. Language constants with the prefix of the
+ * Every language must have the same files with the same keys; as in Joomla, the language tag in front of a
+ * file name (`de-DE.mod_x.ini`) is optional. Language constants with the prefix of the
  * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`, `COM_X_`) used in PHP, XML, JS or SQL files outside of
  * comments must be defined. Defined constants not found in the code are only a notice, as constants may be
  * built at runtime; keys without the prefix are searched literally, and constants that Joomla uses itself
- * (the extension name, template positions and layouts) are never reported.
+ * (the extension name, template positions and layouts, including the layout overrides of templates) are never
+ * reported.
  */
 final readonly class LanguageChecker implements Checker
 {
@@ -38,13 +41,13 @@ final readonly class LanguageChecker implements Checker
     #[\Override]
     public function check(CheckContext $context, CheckReport $report): void
     {
-        $keys = $this->readLanguageFiles($context, $report);
+        [$keys, $actualNames] = $this->readLanguageFiles($context, $report);
 
         if ($keys === []) {
             return;
         }
 
-        $this->compareLanguages($keys, $report);
+        $this->compareLanguages($keys, $actualNames, $report);
 
         $prefix = $this->prefix($context);
         $defined = array_unique(array_merge(...array_merge(...array_map(array_values(...), array_values($keys)))));
@@ -61,7 +64,7 @@ final readonly class LanguageChecker implements Checker
             }
         }
 
-        $implicit = '/^' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|_LAYOUT_.+)?$/';
+        $implicit = $this->implicitConstants($context, $prefix);
 
         foreach ($defined as $constant) {
             if (
@@ -78,13 +81,27 @@ final readonly class LanguageChecker implements Checker
     }
 
     /**
-     * Reads the keys of all language files of the plan.
+     * Returns the pattern of the constants that Joomla uses itself: the extension name, template positions and
+     * layouts; for templates also the layout overrides of other extensions (`TPL_X_MOD_MENU_LAYOUT_…`,
+     * `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`).
+     */
+    private function implicitConstants(CheckContext $context, string $prefix): string
+    {
+        $layout = $context->manifest->type === ExtensionType::Template ? '(_.+)?_LAYOUT_.+' : '_LAYOUT_.+';
+
+        return '/^' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|' . $layout . ')?$/';
+    }
+
+    /**
+     * Reads the keys of all language files of the plan, by file name without the language tag in front.
      *
-     * @return array<string, array<string, list<string>>> Keys by language tag and file name
+     * @return array{array<string, array<string, list<string>>>, array<string, array<string, string>>} Keys and
+     *     actual file names, both by language tag and file name without the tag
      */
     private function readLanguageFiles(CheckContext $context, CheckReport $report): array
     {
         $keys = [];
+        $actualNames = [];
 
         foreach ($context->files as $entry) {
             if (preg_match(self::LANGUAGE_FILE_PATTERN, $entry->target, $match) !== 1) {
@@ -106,20 +123,23 @@ final readonly class LanguageChecker implements Checker
                 continue;
             }
 
-            $keys[$match[1]][$match[2]] = array_map(strval(...), array_keys($parsed));
+            $name = preg_replace('/^' . preg_quote($match[1], '/') . '\\./', '', $match[2]) ?? $match[2];
+            $keys[$match[1]][$name] = array_map(strval(...), array_keys($parsed));
+            $actualNames[$match[1]][$name] = $match[2];
         }
 
         ksort($keys);
 
-        return $keys;
+        return [$keys, $actualNames];
     }
 
     /**
      * Reports files and keys that are missing in one of the languages.
      *
-     * @param array<string, array<string, list<string>>> $keys Keys by language tag and file name
+     * @param array<string, array<string, list<string>>> $keys        Keys by language tag and file name without the tag
+     * @param array<string, array<string, string>>       $actualNames Actual file names, by the same indexes
      */
-    private function compareLanguages(array $keys, CheckReport $report): void
+    private function compareLanguages(array $keys, array $actualNames, CheckReport $report): void
     {
         $fileNames = array_unique(array_merge(...array_map(array_keys(...), array_values($keys))));
         sort($fileNames);
@@ -143,7 +163,7 @@ final readonly class LanguageChecker implements Checker
                     $report->add(CheckName::LanguageKeys, Severity::Error, sprintf(
                         '%s/%s lacks %s',
                         $tag,
-                        $fileName,
+                        $actualNames[$tag][$fileName],
                         implode(', ', $missing),
                     ));
                 }

@@ -70,6 +70,22 @@ final class LanguageCheckerTest extends TestCase
         ], $this->findings(new LanguageChecker()));
     }
 
+    public function testLanguageTagPrefixOfFileNamesIsOptional(): void
+    {
+        $this->writeFile('mod_example.xml', str_replace(
+            '<language tag="de-DE">language/de-DE/mod_example.ini</language>',
+            '<language tag="de-DE">language/de-DE/de-DE.mod_example.ini</language>',
+            self::MANIFEST,
+        ));
+        unlink($this->temporaryDirectory . '/language/de-DE/mod_example.ini');
+        $this->writeFile('language/de-DE/de-DE.mod_example.ini', "MOD_EXAMPLE_TITLE=\"Titel\"\n");
+
+        self::assertSame(
+            ['ERROR language/keys: de-DE/de-DE.mod_example.ini lacks MOD_EXAMPLE_TEXT'],
+            $this->findings(new LanguageChecker()),
+        );
+    }
+
     public function testIgnoresConstantsInComments(): void
     {
         $this->writeFile(
@@ -143,10 +159,22 @@ final class LanguageCheckerTest extends TestCase
         $this->writeFile('index.php', "<?php echo Text::_('TPL_EXAMPLE_COLOR');\n");
         $this->writeFile(
             'language/en-GB/tpl_example.ini',
-            "TPL_EXAMPLE=\"Example\"\nTPL_EXAMPLE_COLOR=\"Color\"\nTPL_EXAMPLE_POSITION_TOP=\"Top\"\n",
+            "TPL_EXAMPLE=\"Example\"\nTPL_EXAMPLE_COLOR=\"Color\"\nTPL_EXAMPLE_POSITION_TOP=\"Top\"\n"
+                . "TPL_EXAMPLE_MOD_MENU_LAYOUT_DROPDOWN=\"Dropdown\"\nTPL_EXAMPLE_COM_CONTENT_ARTICLE_LAYOUT_WIDE=\"Wide\"\n",
         );
 
         self::assertSame([], $this->findings(new LanguageChecker(), $this->context(manifest: 'templateDetails.xml')));
+    }
+
+    public function testOnlyTemplatesHaveLayoutsOfOtherExtensions(): void
+    {
+        $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\nMOD_EXAMPLE_MOD_MENU_LAYOUT_DROPDOWN=\"Dropdown\"\n";
+        $this->writeFile('language/en-GB/mod_example.ini', $keys);
+        $this->writeFile('language/de-DE/mod_example.ini', $keys);
+
+        self::assertSame([
+            'INFO language/unused: MOD_EXAMPLE_MOD_MENU_LAYOUT_DROPDOWN is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
     }
 
     public function testPluginPrefixContainsGroup(): void
