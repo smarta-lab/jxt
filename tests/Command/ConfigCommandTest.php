@@ -117,6 +117,38 @@ final class ConfigCommandTest extends TestCase
         self::assertMatchesRegularExpression('/check_include\s+–\s+not set/', $tester->getDisplay());
     }
 
+    public function testSetCommandKeepsArgumentsAsTheyAre(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([
+            'action' => 'set',
+            'key' => 'cli_command',
+            'value' => ['docker', 'exec', '-u', 'www-data', 'web', 'php', '-d', 'error_log=a,b'],
+        ]));
+        self::assertJsonStringEqualsJsonFile(
+            $this->project() . '/.jxt.json',
+            '{"cli_command": ["docker", "exec", "-u", "www-data", "web", "php", "-d", "error_log=a,b"]}',
+        );
+        self::assertStringContainsString('cli_command = docker exec -u www-data web php -d error_log=a,b', self::display($tester));
+    }
+
+    public function testSetCommandNullStoresJsonNull(): void
+    {
+        self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'cli_command', 'value' => ['null']]));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"cli_command": null}');
+    }
+
+    public function testShowsCommandAsCommandLineAndUnusedWebUser(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"cli_command": ["docker", "exec", "my web", "php"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertMatchesRegularExpression("/cli_command\\s+docker exec 'my web' php\\s+project/", $tester->getDisplay());
+        self::assertStringContainsString('web_user is not used, since cli_command is set.', self::display($tester));
+    }
+
     public function testUnsetRemovesKey(): void
     {
         $this->writeFile('project/.jxt.json', '{"web_user": "apache", "dist_dir": "build"}');

@@ -16,6 +16,8 @@ enum ConfigurationKey: string
 {
     case JoomlaRoot = 'joomla_root';
     case WebUser = 'web_user';
+    case CliCommand = 'cli_command';
+    case CliRoot = 'cli_root';
     case Manifest = 'manifest';
     case DistDirectory = 'dist_dir';
     case DirectoryMode = 'dir_mode';
@@ -54,15 +56,23 @@ enum ConfigurationKey: string
      */
     public function isList(): bool
     {
-        return in_array($this, [self::CheckExclude, self::CheckInclude], true);
+        return in_array($this, [self::CliCommand, self::CheckExclude, self::CheckInclude], true);
+    }
+
+    /**
+     * Checks whether the value is a command whose arguments are kept as they are, in order and with duplicates.
+     */
+    public function isCommand(): bool
+    {
+        return $this === self::CliCommand;
     }
 
     /**
      * Validates a value and returns it normalized; null is always allowed.
      *
      * Single values must be non-empty strings; modes are returned with four digits, e.g. `775` as
-     * `0775`. Lists must contain check names (`group` or `group/check`) and are returned without
-     * duplicates.
+     * `0775`. Commands must be non-empty lists of non-empty arguments. Other lists must contain check
+     * names (`group` or `group/check`) and are returned without duplicates.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
      *
@@ -76,7 +86,11 @@ enum ConfigurationKey: string
             return null;
         }
 
-        return $this->isList() ? $this->validateList($value, $source) : $this->validateString($value, $source);
+        return match (true) {
+            $this->isCommand() => $this->validateCommand($value, $source),
+            $this->isList() => $this->validateList($value, $source),
+            default => $this->validateString($value, $source),
+        };
     }
 
     /**
@@ -92,6 +106,31 @@ enum ConfigurationKey: string
             $source,
             implode(', ', array_map(static fn (self $key): string => $key->value, self::cases())),
         ));
+    }
+
+    /**
+     * Validates a command as list of arguments.
+     *
+     * @return non-empty-list<string>
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validateCommand(mixed $value, string $source): array
+    {
+        if (
+            !is_array($value)
+            || $value === []
+            || !array_is_list($value)
+            || array_filter($value, static fn (mixed $argument): bool => is_string($argument) && $argument !== '') !== $value
+        ) {
+            throw new ConfigurationException(sprintf(
+                'Value of "%s" in %s must be a non-empty list of arguments, e.g. ["docker", "exec", "web", "php"].',
+                $this->value,
+                $source,
+            ));
+        }
+
+        return $value;
     }
 
     /**
@@ -134,7 +173,7 @@ enum ConfigurationKey: string
         }
 
         $isValid = match ($this) {
-            self::JoomlaRoot => str_starts_with($value, '/'),
+            self::JoomlaRoot, self::CliRoot => str_starts_with($value, '/'),
             self::Manifest => !str_starts_with($value, '/'),
             self::DirectoryMode, self::FileMode => preg_match(self::MODE_PATTERN, $value) === 1,
             default => true,

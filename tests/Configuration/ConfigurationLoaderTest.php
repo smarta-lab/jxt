@@ -52,6 +52,8 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertNull($configuration->manifestFile);
         self::assertSame([], $configuration->checkExclude);
         self::assertSame([], $configuration->checkInclude);
+        self::assertSame([], $configuration->cliCommand);
+        self::assertNull($configuration->cliRoot);
     }
 
     public function testWorksWithoutGlobalConfigurationFile(): void
@@ -94,6 +96,8 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertEquals([
             new ConfigurationEntry(ConfigurationKey::JoomlaRoot, '/var/www/html', ConfigurationSource::Global),
             new ConfigurationEntry(ConfigurationKey::WebUser, null, ConfigurationSource::Project),
+            new ConfigurationEntry(ConfigurationKey::CliCommand, null, ConfigurationSource::None),
+            new ConfigurationEntry(ConfigurationKey::CliRoot, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::Manifest, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::DistDirectory, 'dist', ConfigurationSource::Default),
             new ConfigurationEntry(ConfigurationKey::DirectoryMode, '0770', ConfigurationSource::Project),
@@ -117,8 +121,62 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame(['manifest/version-semver'], $configuration->checkInclude);
         self::assertEquals(
             new ConfigurationEntry(ConfigurationKey::CheckInclude, ['manifest/version-semver'], ConfigurationSource::Project),
-            $loader->describe($this->project())[7],
+            $loader->describe($this->project())[9],
         );
+    }
+
+    public function testCliCommandReplacesWebUser(): void
+    {
+        $this->writeFile('config.json', (string) json_encode([
+            'joomla_root' => '/home/user/site',
+            'cli_command' => ['docker', 'exec', 'web', 'php', '-d', 'memory_limit=-1', '-d', 'display_errors=0'],
+            'cli_root' => '/var/www/html/',
+        ]));
+
+        $configuration = (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+
+        self::assertNull($configuration->webUser);
+        self::assertSame(
+            ['docker', 'exec', 'web', 'php', '-d', 'memory_limit=-1', '-d', 'display_errors=0'],
+            $configuration->cliCommand,
+        );
+        self::assertSame('/var/www/html', $configuration->cliRoot);
+    }
+
+    public function testAllowsExplicitNullWebUserWithCliCommand(): void
+    {
+        $this->writeFile('config.json', '{"web_user": "apache"}');
+        $this->writeFile('project/.jxt.json', '{"web_user": null, "cli_command": ["docker", "exec", "web", "php"]}');
+
+        $configuration = (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+
+        self::assertNull($configuration->webUser);
+        self::assertSame(['docker', 'exec', 'web', 'php'], $configuration->cliCommand);
+    }
+
+    public function testRejectsExplicitWebUserWithCliCommand(): void
+    {
+        $this->writeFile('config.json', '{"web_user": "apache"}');
+        $this->writeFile('project/.jxt.json', '{"cli_command": ["docker", "exec", "web", "php"]}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessage(sprintf(
+            'web_user (in %s) and cli_command (in %s) cannot be combined',
+            $this->directory . '/config.json',
+            $this->project() . '/.jxt.json',
+        ));
+
+        (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+    }
+
+    public function testRejectsCliRootWithoutCliCommand(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"cli_root": "/var/www/html"}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessage('cli_root is only used together with cli_command');
+
+        (new ConfigurationLoader(null))->load($this->project());
     }
 
     public function testRejectsCheckListsInGlobalConfiguration(): void
@@ -193,6 +251,10 @@ final class ConfigurationLoaderTest extends TestCase
         yield 'number in a list' => ['{"check_include": [1]}', 'must be a list of check names'];
         yield 'invalid check name' => ['{"check_exclude": ["Manifest"]}', 'Invalid check name "Manifest" for "check_exclude"'];
         yield 'check name with three parts' => ['{"check_exclude": ["a/b/c"]}', 'Invalid check name "a/b/c"'];
+        yield 'string for a command' => ['{"cli_command": "docker exec web php"}', 'must be a non-empty list of arguments'];
+        yield 'empty command' => ['{"cli_command": []}', 'must be a non-empty list of arguments'];
+        yield 'empty argument in a command' => ['{"cli_command": ["php", ""]}', 'must be a non-empty list of arguments'];
+        yield 'relative CLI root' => ['{"cli_command": ["php"], "cli_root": "html"}', 'Invalid value "html" for "cli_root"'];
     }
 
     /**

@@ -17,7 +17,7 @@ final readonly class Configuration
     /**
      * @param string|null  $joomlaRoot    Absolute path of the Joomla test server without trailing `/`
      * @param string|null  $webUser       User of the web server that runs the Joomla CLI for `jxt install`;
-     *                                    null to run it as the current user without sudo
+     *                                    null to run it as the current user without sudo or via `$cliCommand`
      * @param string       $distDirectory Absolute output directory for `jxt build`
      * @param int          $directoryMode Mode for directories, e.g. 0755
      * @param int          $fileMode      Mode for files, e.g. 0644
@@ -25,6 +25,10 @@ final readonly class Configuration
      *                                    in the project directory
      * @param list<string> $checkExclude  Checks or groups that `jxt check` skips
      * @param list<string> $checkInclude  Checks or groups that `jxt check` runs despite `$checkExclude`
+     * @param list<string> $cliCommand    Command that starts PHP for the Joomla CLI, e.g. in a container;
+     *                                    empty to use the PHP running jxt
+     * @param string|null  $cliRoot       Path of the Joomla root as `$cliCommand` sees it, without trailing `/`;
+     *                                    null if it equals `$joomlaRoot`
      */
     public function __construct(
         public ?string $joomlaRoot,
@@ -35,6 +39,8 @@ final readonly class Configuration
         public ?string $manifestFile = null,
         public array $checkExclude = [],
         public array $checkInclude = [],
+        public array $cliCommand = [],
+        public ?string $cliRoot = null,
     ) {
     }
 

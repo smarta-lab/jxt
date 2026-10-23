@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
+use SmartA\Jxt\Configuration\ConfigurationEntry;
 use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
@@ -50,7 +51,8 @@ final class ConfigCommand extends Command
             ->addArgument(
                 'value',
                 InputArgument::OPTIONAL | InputArgument::IS_ARRAY,
-                'New value; "null" overrides a global value with null in the project; lists take several values, also comma-separated',
+                'New value; "null" overrides a global value with null in the project; lists take several values, also '
+                . 'comma-separated; cli_command takes its arguments as they are, after "--" if one starts with "-"',
             )
             ->addOption('global', null, InputOption::VALUE_NONE, 'Change the global instead of the project configuration');
     }
@@ -99,13 +101,20 @@ final class ConfigCommand extends Command
         $table->setStyle('compact');
         $table->setHeaders(['Key', 'Value', 'Origin']);
 
-        foreach ($this->configurationLoader->describe($this->projectDirectory) as $entry) {
-            $value = $entry->value === null || $entry->value === [] ? '–' : $this->format($entry->value);
+        $entries = $this->configurationLoader->describe($this->projectDirectory);
+
+        foreach ($entries as $entry) {
+            $value = $entry->value === null || $entry->value === [] ? '–' : $this->format($entry->key, $entry->value);
             $table->addRow([$entry->key->value, $value, $entry->source->value]);
         }
 
         $table->render();
         $io->newLine();
+
+        if ($this->usesCliCommand($entries)) {
+            $io->writeln('web_user is not used, since cli_command is set.');
+        }
+
         $io->writeln(sprintf('global:  %s', $this->describeFile($this->configurationLoader->globalFile())));
         $io->writeln(sprintf('project: %s', $this->describeFile($this->configurationLoader->projectFile($this->projectDirectory))));
     }
@@ -118,10 +127,14 @@ final class ConfigCommand extends Command
         $file = $this->targetFile($input);
         $key = $this->key($input, $file);
         $arguments = $this->valueArguments($input);
-        $value = $key->validate($key->isList() ? $this->listValue($arguments) : $this->singleValue($key, $arguments), $file->path);
+        $value = $key->validate(match (true) {
+            $key->isCommand() => $arguments === ['null'] ? null : $arguments,
+            $key->isList() => $this->listValue($arguments),
+            default => $this->singleValue($key, $arguments),
+        }, $file->path);
         $file->write([...$file->read(), $key->value => $value]);
 
-        $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($value), $file->path));
+        $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($key, $value), $file->path));
     }
 
     /**
@@ -174,13 +187,41 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Formats a value for the output; lists are comma-separated.
+     * Formats a value for the output; commands as command line, other lists comma-separated.
      *
      * @param string|list<string>|null $value
      */
-    private function format(string|array|null $value): string
+    private function format(ConfigurationKey $key, string|array|null $value): string
     {
-        return is_array($value) ? implode(', ', $value) : $value ?? 'null';
+        return match (true) {
+            !is_array($value) => $value ?? 'null',
+            $key->isCommand() => implode(' ', array_map($this->quoteArgument(...), $value)),
+            default => implode(', ', $value),
+        };
+    }
+
+    /**
+     * Quotes an argument of a command for the output if the shell would split or interpret it.
+     */
+    private function quoteArgument(string $argument): string
+    {
+        return preg_match('#^[\w@%+=:,./-]+$#', $argument) === 1 ? $argument : escapeshellarg($argument);
+    }
+
+    /**
+     * Checks whether `cli_command` is set, so that `web_user` is not used.
+     *
+     * @param list<ConfigurationEntry> $entries
+     */
+    private function usesCliCommand(array $entries): bool
+    {
+        foreach ($entries as $entry) {
+            if ($entry->key === ConfigurationKey::CliCommand) {
+                return $entry->value !== null && $entry->value !== [];
+            }
+        }
+
+        return false;
     }
 
     /**
