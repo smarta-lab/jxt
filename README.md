@@ -31,7 +31,7 @@ plugins and components.
 
 - PHP 8.4+ with the extensions `libxml`, `simplexml`, `zip` and `posix`
 - Linux or WSL; `jxt install` uses `sudo` to run the Joomla CLI as the web
-  server user
+  server user, or a command such as `docker exec` for test sites in containers
 
 ## Installation
 

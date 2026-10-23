@@ -6,6 +6,16 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Test sites in containers: `cli_command` runs the Joomla CLI for
+  `jxt install`, `jxt bridge` and the bridge in `jxt sync` via a command such
+  as `docker exec -u www-data <container> php`, and `cli_root` is the path of
+  the site in the container. The ZIP file and the staged plan go to the site's
+  `tmp/` directory, which the container can see. Tested with DDEV and the
+  official Joomla Docker image.
+- `jxt bridge status` shows how jxt runs the Joomla CLI.
+
 ### Fixed
 
 - The jxt bridge 0.1.1 no longer makes PHP warn about a `use` statement without

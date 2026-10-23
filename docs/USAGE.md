@@ -14,6 +14,9 @@
   - [Permissions](#permissions)
   - [Warnings and notes](#warnings-and-notes)
 - [jxt bridge – sync as web server user](#jxt-bridge--sync-as-web-server-user)
+- [Test sites in containers](#test-sites-in-containers)
+  - [DDEV](#ddev)
+  - [Official Joomla image](#official-joomla-image)
 - [jxt build – build an installable ZIP](#jxt-build--build-an-installable-zip)
 - [jxt check – check before a release](#jxt-check--check-before-a-release)
   - [Checking a Git tag](#checking-a-git-tag)
@@ -178,8 +181,9 @@ script it allows running arbitrary code as `www-data`; that is intended, since
 this is exactly the code developed for the test server. The web server gets no
 access to your home directory.
 
-If PHP on the test server already runs as your own user (e.g. in a container),
-`jxt config set web_user null` disables sudo.
+If PHP on the test server already runs as your own user,
+`jxt config set web_user null` disables sudo. For a site in a container, see
+[Test sites in containers](#test-sites-in-containers).
 
 ## jxt sync – copy files directly
 
@@ -312,8 +316,10 @@ JavaScript or layouts without building and installing a ZIP.
   Afterwards it checks that the Joomla CLI runs the plugin's commands.
 - **How `jxt sync` uses it:** if the bridge is installed on the site, `jxt sync`
   stages the changed files and the plan in a directory below `/tmp` (readable
-  for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`;
-  the output says `via jxt bridge`. Without the bridge, `jxt sync` copies the
+  for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`,
+  or in the site's `tmp/` directory via `cli_command` (see
+  [Test sites in containers](#test-sites-in-containers)); the output says
+  `via jxt bridge`. Without the bridge, `jxt sync` copies the
   files itself as before.
 - **Updates:** if the installed bridge is older than the one shipped with your
   jxt, `jxt sync` installs the bundled version first and says so. A newer
@@ -346,7 +352,96 @@ user ALL=(www-data) NOPASSWD: /usr/bin/php8.5 /var/www/html/cli/joomla.php jxt\:
 CLI otherwise asks for confirmation; `jxt:apply` and `jxt:status` are the
 commands of the bridge. Each command needs its own rule, since sudo-rs (the
 default `sudo` of newer Ubuntu releases) only accepts `*` as a whole argument,
-not inside one such as `jxt\:*`.
+not inside one such as `jxt\:*`. With `cli_command`, no sudoers rules are
+needed.
+
+`jxt bridge status` also shows how jxt runs the Joomla CLI (`Runs via`): via
+sudo as web server user, as your own user or via `cli_command`.
+
+## Test sites in containers
+
+For a site in a container (DDEV, Docker Compose, …), the PHP of the host
+usually cannot run the site's Joomla CLI: it may lack the PHP version or
+extensions, and it cannot resolve a database host such as `db` that only exists
+between the containers. `cli_command` runs the Joomla CLI in the container
+instead:
+
+```bash
+vendor/bin/jxt config set joomla_root /home/user/sites/example
+vendor/bin/jxt config set cli_command -- docker exec -u www-data example-joomla-1 php
+vendor/bin/jxt config set cli_root /var/www/html
+```
+
+- **`cli_command`** is the command that starts PHP in the container. jxt
+  appends `<cli_root>/cli/joomla.php` and the arguments and runs it without a
+  shell and without sudo, for `jxt install`, `jxt bridge` and the bridge in
+  `jxt sync`. `web_user` is not used then; setting it explicitly next to
+  `cli_command` is an error. In `jxt config set`, put `--` before the command,
+  otherwise options such as `-u` are taken as options of jxt; `--global` goes
+  before the `--`.
+- **`joomla_root`** is the directory of the site on your machine, **`cli_root`**
+  its path in the container (default: `joomla_root`). The site's files must be
+  shared with your machine as bind mount: jxt reads the installed manifests
+  there, and `jxt sync` compares with them. Sites in a named volume are not
+  supported.
+- **Files for the Joomla CLI:** jxt puts the ZIP file of `jxt install` and the
+  plan of the bridge into the site's `tmp/` directory, which the container sees
+  as `<cli_root>/tmp`, and removes them afterwards. You need write permission
+  there; if it is missing, jxt says how to grant it.
+- **User:** the files belong to whoever runs PHP in the container. Without
+  `-u`, `docker exec` runs as the container's default user, which is root in
+  many images, so the extension's files would belong to root.
+
+If a call fails, jxt shows the command, so that you can try it by hand, e.g.
+with `list` as argument. Other tools work the same way, as long as a command
+starts PHP in the container, e.g. `podman exec`.
+
+### DDEV
+
+DDEV runs PHP as your own user, and the files of the site belong to you. The
+web container is called `ddev-<project>-web`, and `docker exec` uses your user
+by default:
+
+```json
+{
+    "joomla_root": "/home/user/sites/example",
+    "cli_command": ["docker", "exec", "ddev-example-web", "php"],
+    "cli_root": "/var/www/html"
+}
+```
+
+`["ddev", "exec", "-p", "example", "php"]` works as well; the project name is
+needed, since jxt runs in the directory of the extension, not of the DDEV
+project. If Joomla is in a subdirectory of the project (DDEV's `docroot`), add
+it to both paths. `jxt sync` writes the files directly; the bridge is not
+needed. `ddev stop` removes the containers; `docker exec` then reports
+`No such container`.
+
+### Official Joomla image
+
+With the official `joomla` image and Docker Compose, the site is mounted with
+e.g. `./site:/var/www/html`, Apache runs as `www-data`, and the files belong to
+`www-data` (UID 33). The container is called `<project>-<service>-<number>`,
+and `docker exec` runs as root by default, so `-u www-data` is required:
+
+```json
+{
+    "joomla_root": "/home/user/sites/example/site",
+    "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
+    "cli_root": "/var/www/html"
+}
+```
+
+Your user cannot write to the site, not even to `tmp/`. Allow it once, as root
+in the container; the sticky bit keeps others from deleting your files, and
+Joomla keeps using the directory:
+
+```bash
+docker exec example-joomla-1 chmod 1777 /var/www/html/tmp
+```
+
+Then install the bridge with `jxt bridge add`, so that `jxt sync` writes the
+files as `www-data`.
 
 ## jxt build – build an installable ZIP
 
@@ -519,19 +614,23 @@ project. Unknown names are rejected.
 vendor/bin/jxt config                               # show values and origin
 vendor/bin/jxt config set <key> <value> [--global]  # set a value
 vendor/bin/jxt config set <key> <value>...          # set a list, also comma-separated
+vendor/bin/jxt config set cli_command -- <command>  # set a command, arguments as they are
 vendor/bin/jxt config unset <key> [--global]        # remove a value
 ```
 
 Without `--global`, `set` and `unset` change the project file `.jxt.json`; with
 `--global`, the global file `~/.config/jxt/config.json`. `set <key> null` stores
 an explicit `null`. For lists, `set` takes several values, also comma-separated,
-and replaces the whole list. Run `jxt config` without sudo, otherwise the file
+and replaces the whole list; `cli_command` keeps its arguments as they are,
+without splitting at commas. Run `jxt config` without sudo, otherwise the file
 would be owned by root; it refuses to write under sudo.
 
 ```
 Key           Value         Origin
 joomla_root   /var/www/html global
 web_user      www-data      default
+cli_command   –             not set
+cli_root      –             not set
 manifest      –             not set
 dist_dir      dist          default
 dir_mode      0775          project
@@ -541,7 +640,8 @@ check_include –             not set
 ```
 
 The origin is one of: project file (`project`), global file (`global`), default
-value (`default`) or not set (`not set`).
+value (`default`) or not set (`not set`). With `cli_command`, a note below the
+table says that `web_user` is not used.
 
 ## Configuration
 
@@ -559,6 +659,8 @@ called sudo (`SUDO_USER`), not from `/root`.
 |---|---|---|
 | `joomla_root` | Absolute path of the Joomla test server; must contain `configuration.php` | – (required for `jxt install` and `jxt sync`) |
 | `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo; `null` to run it without sudo | `www-data` |
+| `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
+| `cli_root` | Path of `joomla_root` as `cli_command` sees it; only with `cli_command` | `joomla_root` |
 | `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories in `jxt sync` | `0755` |
@@ -566,8 +668,8 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `check_exclude` | List of checks, groups or `all` that `jxt check` skips; only in `.jxt.json` | – |
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
-All values are strings, lists of strings (`check_exclude`, `check_include`) or
-`null`. `null` resets a key to its default; only for
+All values are strings, lists of strings (`cli_command`, `check_exclude`,
+`check_include`) or `null`. `null` resets a key to its default; only for
 `web_user` it means "without sudo". Modes are stored with four digits (`775`
 becomes `0775`). Unknown keys are rejected, so typos do not go unnoticed.
 

@@ -9,6 +9,7 @@
 - [Permissions: installing as the web server user](#permissions-installing-as-the-web-server-user)
 - [The jxt bridge: sync as web server user](#the-jxt-bridge-sync-as-web-server-user)
   - [Plan format](#plan-format)
+- [Test sites in containers](#test-sites-in-containers)
 - [Leftovers after an installation](#leftovers-after-an-installation)
 - [Building and checking a tag](#building-and-checking-a-tag)
 - [Checks: design decisions](#checks-design-decisions)
@@ -246,9 +247,9 @@ is no web endpoint.
   is `administrator/cache/autoload_psr4.php`.
 - **Staging:** jxt copies the new and changed files and `plan.json` into a
   directory below `/tmp` with modes 0755/0644, readable for the web server
-  user but writable only by the developer, and removes it afterwards. The
-  location is a constructor argument, so that a container setup could use a
-  directory the container can see.
+  user but writable only by the developer, and removes it afterwards. With
+  `cli_command`, the directory is in the site's `tmp/` directory instead (see
+  [Test sites in containers](#test-sites-in-containers)).
 - **Version check with a plan format:** the plugin's manifest has its own
   version. jxt compares the bundled manifest with the installed one
   (`plugins/console/jxt/jxt.xml`, readable without sudo) and installs the
@@ -329,6 +330,52 @@ an older bridge then rejects the plan with a hint on how to resolve the
 mismatch. A minor version would add nothing: a bridge can only apply a plan it
 reads or reject it. Raise `MIN_FORMAT` only when reading an old format is no
 longer worth the effort.
+
+## Test sites in containers
+
+On a site in a container (DDEV, Docker Compose, …), the PHP of the host usually
+cannot run the Joomla CLI: it may lack the PHP version or extensions, and the
+database host in `configuration.php` (often `db`) only resolves between the
+containers. The files of such sites are usually shared with the host as bind
+mount, so `jxt sync` without the bridge already worked where the developer may
+write.
+
+Chosen: the key `cli_command`, a list with the command that starts PHP for the
+Joomla CLI, including `php` (e.g. `["docker", "exec", "-u", "www-data", "web",
+"php"]`), and `cli_root`, the path of the site as that command sees it.
+`JoomlaCli` appends `<cli_root>/cli/joomla.php` and the arguments and runs the
+list without a shell, like every process of jxt. A plain list covers Docker,
+Podman, `ddev exec -p <project>` and a different PHP on the host alike.
+
+- **`web_user` stays:** it is the case in which jxt builds the command itself
+  and can explain a failure: the sudoers rules need the exact PHP binary
+  (`PHP_BINARY`), the absolute path of the script and escaped colons, and
+  `sudo -n` must not be forgotten, or `jxt install` would wait for a password.
+  A list could not carry these rules, nor be a default, since `PHP_BINARY`
+  depends on the PHP running jxt. With `cli_command`, sudo is not used; an
+  explicit `web_user` next to it is rejected instead of being ignored silently,
+  while its default does not get in the way.
+- **Rejected:** `web_user` as a special case of a command prefix (it would
+  change the meaning of an existing key and lose the sudoers hints); a prefix
+  without `php` (no different PHP on the host); keys for Docker such as a
+  container name (tied to one tool); `docker cp` instead of a bind mount (tied
+  to Docker, and jxt reads the installed manifests on the host anyway).
+- **Files for the Joomla CLI:** the ZIP file of `jxt install` and the staged
+  plan of the bridge go to `<joomla_root>/tmp`, which every Joomla site has,
+  and the CLI gets them as `<cli_root>/tmp/…`. A key for a staging directory of
+  its own was rejected: a separate mount inside the site, e.g.
+  `./staging:/var/www/html/tmp/jxt`, is not visible below `joomla_root` on the
+  host, so the paths could not be translated via `cli_root`. Where the
+  developer may not write to `tmp/` (official image, files of `www-data`),
+  `chmod 1777` as root in the container is enough, without sudo on the host;
+  jxt names this in the error message.
+- **The site as an object:** `TestSite` holds the directory, the web server
+  user, the command and `cli_root`, so the commands no longer pass
+  `joomla_root` and `web_user` separately. It is the place for further
+  properties of the site.
+- **Tests:** the commands are tested with recorded processes; there are no
+  tests with Docker, since CI runs with `--fail-on-skipped`. DDEV and the
+  official Joomla image were tested by hand.
 
 ## Leftovers after an installation
 
@@ -508,8 +555,12 @@ Namespaces below `SmartA\Jxt`:
 - **`Git`:** `GitRepository` reads tags, files and file states and archives
   tags, used by `jxt check` and `--tag`.
 - **`Install`:** `JoomlaCli` runs commands of the Joomla CLI, as web server
-  user via sudo, through a `ProcessRunner` (`SystemProcessRunner` uses
-  `proc_open` without a shell); `JoomlaInstaller` hands it the ZIP.
+  user via sudo or via `cli_command`, through a `ProcessRunner`
+  (`SystemProcessRunner` uses `proc_open` without a shell); `JoomlaInstaller`
+  hands it the ZIP; `CommandLine` formats commands for the output.
+- **`Site`:** `TestSite` describes the test site: directory, web server user,
+  `cli_command` and `cli_root`, with the translation of paths and the staging
+  directory for the Joomla CLI.
 - **`Bridge`:** `Bridge` builds, installs, removes and queries the bridge
   plugin and applies a sync plan through it; `PlanStager` writes the plan and
   the files for it.
