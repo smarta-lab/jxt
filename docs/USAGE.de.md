@@ -450,7 +450,7 @@ Manifest. Hinweise lassen die Prüfung nie scheitern.
 | `assets/version-coupled` | eine Version war beim letzten Release gleich der Erweiterungsversion, ist es jetzt aber nicht | – | Hinweis |
 | `assets/baseline` | kein Git oder noch kein Release-Tag, Asset-Versionen werden nicht verglichen | Hinweis | Hinweis |
 | `language/parse` | eine Sprachdatei lässt sich nicht lesen | Fehler | Fehler |
-| `language/files` | eine Sprachdatei fehlt in einer Sprache (wie in Joomla ist der Sprach-Tag vor dem Dateinamen, `de-DE.mod_example.ini`, optional) | Fehler | Fehler |
+| `language/files` | eine Sprachdatei fehlt in einer Sprache, verglichen je Zielordner (wie in Joomla ist der Sprach-Tag vor dem Dateinamen, `de-DE.mod_example.ini`, optional) | Fehler | Fehler |
 | `language/keys` | ein Schlüssel fehlt in einer Sprache | Fehler | Fehler |
 | `language/undefined` | eine in PHP, XML, JS oder SQL (außerhalb von Kommentaren) verwendete Sprachkonstante ist nicht definiert | Fehler | Fehler |
 | `language/unused` | eine definierte Konstante steht nicht im Code außerhalb von Kommentaren (sie kann zur Laufzeit zusammengesetzt werden; Name der Erweiterung, Template-Positionen und Layouts, auch Layout-Overrides von Templates, werden nie gemeldet) | Hinweis | Hinweis |

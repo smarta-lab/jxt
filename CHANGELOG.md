@@ -19,6 +19,11 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt check` compares language files without the language tag in front of
   the file name (`de-DE.plg_system_example.ini`), which Joomla also loads;
   every such file was reported as missing in all other languages.
+- `jxt check` keeps language files of the same name in `language/` and
+  `administrator/language/` apart, e.g. `com_example.ini` of a component;
+  the second file replaced the first, so its constants were reported as
+  undefined. The messages of `language/files` and `language/keys` name the
+  target path of the file.
 - The names of layout overrides of a template (`TPL_X_MOD_MENU_LAYOUT_…`,
   `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`) are no longer reported as unused.
 

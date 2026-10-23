@@ -20,8 +20,9 @@ use SmartA\Jxt\PhpErrors;
 /**
  * Checks the language files of the extension.
  *
- * Every language must have the same files with the same keys; as in Joomla, the language tag in front of a
- * file name (`de-DE.mod_x.ini`) is optional. Language constants with the prefix of the
+ * Every language must have the same files with the same keys, compared per target directory (`language/`,
+ * `administrator/language/`); as in Joomla, the language tag in front of a file name (`de-DE.mod_x.ini`) is
+ * optional. Language constants with the prefix of the
  * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`, `COM_X_`) used in PHP, XML, JS or SQL files outside of
  * comments must be defined. Defined constants not found in the code are only a notice, as constants may be
  * built at runtime; keys without the prefix are searched literally, and constants that Joomla uses itself
@@ -30,7 +31,9 @@ use SmartA\Jxt\PhpErrors;
  */
 final readonly class LanguageChecker implements Checker
 {
-    private const string LANGUAGE_FILE_PATTERN = '#(?:^|/)([a-z]{2,3}-[A-Z]{2})/([^/]+\.ini)$#';
+    private const string LANGUAGE_FILE_PATTERN = '#^(.*/)?([a-z]{2,3}-[A-Z]{2})/([^/]+\.ini)$#';
+
+    private const string TAG_PLACEHOLDER = '{tag}';
 
     #[\Override]
     public function group(): string
@@ -93,10 +96,14 @@ final readonly class LanguageChecker implements Checker
     }
 
     /**
-     * Reads the keys of all language files of the plan, by file name without the language tag in front.
+     * Reads the keys of all language files of the plan.
+     *
+     * A file is identified by its target path with a placeholder for the language tag and without the tag in
+     * front of the file name (`administrator/language/{tag}/com_x.ini`), so that the site and administrator
+     * files of a component with the same name stay apart.
      *
      * @return array{array<string, array<string, list<string>>>, array<string, array<string, string>>} Keys and
-     *     actual file names, both by language tag and file name without the tag
+     *     target paths, both by language tag and file identifier
      */
     private function readLanguageFiles(CheckContext $context, CheckReport $report): array
     {
@@ -104,7 +111,7 @@ final readonly class LanguageChecker implements Checker
         $actualNames = [];
 
         foreach ($context->files as $entry) {
-            if (preg_match(self::LANGUAGE_FILE_PATTERN, $entry->target, $match) !== 1) {
+            if (preg_match(self::LANGUAGE_FILE_PATTERN, $entry->target, $match, PREG_UNMATCHED_AS_NULL) !== 1) {
                 continue;
             }
 
@@ -123,9 +130,11 @@ final readonly class LanguageChecker implements Checker
                 continue;
             }
 
-            $name = preg_replace('/^' . preg_quote($match[1], '/') . '\\./', '', $match[2]) ?? $match[2];
-            $keys[$match[1]][$name] = array_map(strval(...), array_keys($parsed));
-            $actualNames[$match[1]][$name] = $match[2];
+            [, $directory, $tag, $name] = $match;
+            $name = preg_replace('/^' . preg_quote((string) $tag, '/') . '\\./', '', (string) $name) ?? $name;
+            $file = $directory . self::TAG_PLACEHOLDER . '/' . $name;
+            $keys[(string) $tag][$file] = array_map(strval(...), array_keys($parsed));
+            $actualNames[(string) $tag][$file] = $entry->target;
         }
 
         ksort($keys);
@@ -136,8 +145,8 @@ final readonly class LanguageChecker implements Checker
     /**
      * Reports files and keys that are missing in one of the languages.
      *
-     * @param array<string, array<string, list<string>>> $keys        Keys by language tag and file name without the tag
-     * @param array<string, array<string, string>>       $actualNames Actual file names, by the same indexes
+     * @param array<string, array<string, list<string>>> $keys        Keys by language tag and file identifier
+     * @param array<string, array<string, string>>       $actualNames Target paths, by the same indexes
      */
     private function compareLanguages(array $keys, array $actualNames, CheckReport $report): void
     {
@@ -152,7 +161,10 @@ final readonly class LanguageChecker implements Checker
 
             foreach ($keys as $tag => $files) {
                 if (!isset($files[$fileName])) {
-                    $report->add(CheckName::LanguageFiles, Severity::Error, sprintf('%s/%s is missing', $tag, $fileName));
+                    $report->add(CheckName::LanguageFiles, Severity::Error, sprintf(
+                        '%s is missing',
+                        str_replace(self::TAG_PLACEHOLDER, $tag, $fileName),
+                    ));
 
                     continue;
                 }
@@ -161,8 +173,7 @@ final readonly class LanguageChecker implements Checker
 
                 if ($missing !== []) {
                     $report->add(CheckName::LanguageKeys, Severity::Error, sprintf(
-                        '%s/%s lacks %s',
-                        $tag,
+                        '%s lacks %s',
                         $actualNames[$tag][$fileName],
                         implode(', ', $missing),
                     ));
