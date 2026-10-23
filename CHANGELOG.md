@@ -15,6 +15,13 @@ project follows [Semantic Versioning](https://semver.org/).
   library of Joomla (`joomla`, `php-encryption`, `phpass`, `src`, `vendor`)
   are rejected. The jxt bridge 0.2.0 accepts the targets of libraries.
 
+### Changed
+
+- `jxt install` shows HTML that install scripts output for the backend as
+  plain text: block elements start a new line, headings are underlined, lists
+  get bullets or numbers, and lines are wrapped at 80 characters. Other lines
+  of the Joomla CLI stay unchanged. jxt now requires `ext-dom`.
+
 ## [0.5.0] - 2026-10-23
 
 ### Added

@@ -93,6 +93,10 @@ The Joomla CLI is a console application, not a web application. An install
 script that expects the latter, e.g. by declaring `$app` as `CMSApplication`,
 fails there; such an extension can only be installed in the backend.
 
+Install scripts often output HTML, which the backend displays. `jxt install`
+converts it into plain text, wrapped at 80 characters; the other lines of the
+Joomla CLI stay unchanged.
+
 ### Installing a Git tag
 
 ```bash

@@ -18,6 +18,7 @@ use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PackagePlanExpander;
 use SmartA\Jxt\Install\InstallException;
+use SmartA\Jxt\Install\InstallerOutput;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
@@ -123,7 +124,7 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
-        $io->writeln(trim($result->output));
+        $io->writeln((new InstallerOutput())->toText($result->output), OutputInterface::OUTPUT_RAW);
 
         if ($result->exitCode !== 0) {
             $this->explainFailure($io, $result, $manifest, $site);

@@ -56,7 +56,8 @@ written:
 ## Technology
 
 - PHP 8.4+ with `ext-zip` (`ZipArchive`), `ext-simplexml`/`ext-libxml`
-  (manifests) and `ext-posix`; `symfony/console` 8.x,
+  (manifests), `ext-dom` (HTML5 parser for the output of install scripts) and
+  `ext-posix`; `symfony/console` 8.x,
   `symfony/polyfill-mbstring` (so `ext-mbstring` is optional); `git` for
   `--tag` and the release comparisons of `jxt check`. Quality tools: PHPUnit,
   PHPStan (level max), PHP_CodeSniffer (PSR-12).
@@ -218,6 +219,16 @@ Consequences when only files are copied after the first installation:
   installation.
 - Default values of new parameters are not written to existing module instances,
   but that is also true for a real upgrade.
+
+Install scripts output messages with `echo` or as Joomla messages, usually as
+HTML for the backend; the Joomla CLI passes it on unchanged. `jxt install`
+converts it into plain text (`InstallerOutput`, `HtmlToText`). Only lines with
+tags of known HTML elements count as HTML, so a message such as "missing
+`<extension>` element" stays as it is, and the lines of the Joomla CLI keep
+their layout. Rejected: Composer packages such as `soundasleep/html2text`
+(more than needed, a runtime dependency for a small feature),
+`html2text/html2text` (GPL, jxt is MIT) and `league/html-to-markdown` (Markdown
+syntax is noise in the console).
 
 ## Permissions: installing as the web server user
 

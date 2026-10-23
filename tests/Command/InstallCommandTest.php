@@ -68,6 +68,15 @@ final class InstallCommandTest extends TestCase
         self::assertStringContainsString('mod_x 1.0.0 installed', self::display($tester));
     }
 
+    public function testShowsHtmlOfInstallScriptsAsText(): void
+    {
+        $output = "<div><b>Folder <i>images/x</i> created!</b></div>\n<info>tag</info>\n [OK] Extension installed successfully.";
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, $output)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('Folder images/x created! <info>tag</info> [OK] Extension', self::display($tester));
+    }
+
     public function testRunsWithoutSudoIfWebUserIsNull(): void
     {
         $this->writeFile(

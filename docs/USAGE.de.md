@@ -95,6 +95,10 @@ Installationsskript, das Letztere erwartet, z. B. weil es `$app` als
 `CMSApplication` deklariert, scheitert dort; eine solche Erweiterung lässt sich
 nur im Backend installieren.
 
+Installationsskripte geben oft HTML aus, das das Backend darstellt.
+`jxt install` wandelt es in reinen Text um, umbrochen bei 80 Zeichen; die
+übrigen Zeilen der Joomla-CLI bleiben unverändert.
+
 ### Git-Tag installieren
 
 ```bash
