@@ -13,5 +13,3 @@ Released changes are listed in the [changelog](../CHANGELOG.md).
   (e.g. plural forms, messages of list views, fieldset labels) or by the
   extension (a literal followed by `.`), and check site and administrator code
   against the language files of their own area.
-- JSON output of `jxt check`, only for a concrete need; `Finding` already has
-  file and line as fields.

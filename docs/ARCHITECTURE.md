@@ -571,7 +571,13 @@ a check that rests on a guess (`language/unused`) only reports notices.
   root; without it, annotations of a project in a subdirectory (e.g. several
   extensions in one repository) would not be attached to their files.
   Findings about the manifest itself (missing listed files, version) point to
-  the manifest. JSON is left out until there is a concrete need.
+  the manifest.
+- **No JSON output:** people read the text, CI uses `--format=github`, and no
+  tool needs the findings as data yet. Since `Finding` already holds check,
+  severity, message, file and line as fields, JSON would only need another
+  case of `CheckFormat` and a formatter like `GithubAnnotation`. It would
+  become part of the stable interface, though, so it waits for a concrete
+  consumer that shows which fields and which structure it needs.
 - **No manifest is not a check:** without a readable manifest nothing can be
   checked, so it is an invalid call (exit code 2) and cannot be excluded.
 
