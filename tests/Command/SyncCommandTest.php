@@ -163,6 +163,31 @@ final class SyncCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute([]));
         self::assertStringContainsString('Please install the extension once', self::display($tester));
+        self::assertStringNotContainsString('jxt bridge add', self::display($tester));
+    }
+
+    public function testFailsForFileMissingFromProjectWithoutPointingToBridge(): void
+    {
+        unlink($this->temporaryDirectory . '/project/tmpl/default.php');
+        rmdir($this->temporaryDirectory . '/project/tmpl');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Directory tmpl listed in the manifest is missing', self::display($tester));
+        self::assertStringNotContainsString('jxt bridge add', self::display($tester));
+    }
+
+    public function testPointsToBridgeWhenWritingFails(): void
+    {
+        chmod($this->joomla() . '/modules/mod_x/tmpl', 0555);
+        $tester = $this->tester();
+
+        try {
+            self::assertSame(Command::FAILURE, $tester->execute([]));
+            self::assertStringContainsString('jxt bridge add', self::display($tester));
+        } finally {
+            chmod($this->joomla() . '/modules/mod_x/tmpl', 0755);
+        }
     }
 
     public function testFailsWithoutJoomlaRoot(): void

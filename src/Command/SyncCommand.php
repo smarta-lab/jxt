@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
@@ -106,17 +107,14 @@ final class SyncCommand extends Command
             $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
 
             if (!$dryRun && $bridgeVersion === null) {
-                $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
+                if (!$this->applyDirectly($io, $plan, $extensionDirectory, $joomlaRoot, $configuration)) {
+                    return Command::FAILURE;
+                }
             } elseif (!$dryRun && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration, $bridgeVersion)) {
                 return Command::FAILURE;
             }
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
-
-            if ($exception instanceof DeploymentException) {
-                $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt sync then writes '
-                    . 'the files as web server user via the Joomla CLI.');
-            }
 
             return Command::FAILURE;
         }
@@ -130,6 +128,29 @@ final class SyncCommand extends Command
         $io->success($dryRun ? 'Dry run, nothing changed: ' . $summary : $summary);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Applies the plan with the permissions of the current user; a failed file operation points to the bridge.
+     */
+    private function applyDirectly(
+        SymfonyStyle $io,
+        SyncPlan $plan,
+        string $extensionDirectory,
+        string $joomlaRoot,
+        Configuration $configuration,
+    ): bool {
+        try {
+            $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
+        } catch (DeploymentException $exception) {
+            $io->error($exception->getMessage());
+            $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt sync then writes '
+                . 'the files as web server user via the Joomla CLI.');
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
