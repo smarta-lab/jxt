@@ -26,6 +26,9 @@ project follows [Semantic Versioning](https://semver.org/).
   target path of the file.
 - The names of layout overrides of a template (`TPL_X_MOD_MENU_LAYOUT_…`,
   `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`) are no longer reported as unused.
+- `jxt sync` points to `jxt bridge add` only when a file operation fails,
+  no longer when the extension is not installed or a file listed in the
+  manifest is missing.
 
 ## [0.4.0] - 2026-10-22
 
