@@ -54,8 +54,8 @@ final class LanguageCheckerTest extends TestCase
         $this->writeFile('language/de-DE/mod_example.ini', "MOD_EXAMPLE_TITLE=\"Titel\"\n");
 
         self::assertSame([
-            'ERROR language/keys: de-DE/mod_example.ini lacks MOD_EXAMPLE_TEXT',
-            'ERROR language/files: de-DE/mod_example.sys.ini is missing',
+            'ERROR language/keys: language/de-DE/mod_example.ini lacks MOD_EXAMPLE_TEXT',
+            'ERROR language/files: language/de-DE/mod_example.sys.ini is missing',
         ], $this->findings(new LanguageChecker()));
     }
 
@@ -81,7 +81,7 @@ final class LanguageCheckerTest extends TestCase
         $this->writeFile('language/de-DE/de-DE.mod_example.ini', "MOD_EXAMPLE_TITLE=\"Titel\"\n");
 
         self::assertSame(
-            ['ERROR language/keys: de-DE/de-DE.mod_example.ini lacks MOD_EXAMPLE_TEXT'],
+            ['ERROR language/keys: language/de-DE/de-DE.mod_example.ini lacks MOD_EXAMPLE_TEXT'],
             $this->findings(new LanguageChecker()),
         );
     }
@@ -175,6 +175,38 @@ final class LanguageCheckerTest extends TestCase
         self::assertSame([
             'INFO language/unused: MOD_EXAMPLE_MOD_MENU_LAYOUT_DROPDOWN is defined but not found in the code (may be built at runtime)',
         ], $this->findings(new LanguageChecker()));
+    }
+
+    public function testComparesSiteAndAdministratorFilesOfTheSameNameSeparately(): void
+    {
+        $this->writeFile('example.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="component" method="upgrade">
+                <name>com_example</name>
+                <version>1.0.0</version>
+                <files folder="site"><folder>tmpl</folder></files>
+                <languages folder="site/language">
+                    <language tag="en-GB">en-GB/com_example.ini</language>
+                    <language tag="de-DE">de-DE/com_example.ini</language>
+                </languages>
+                <administration>
+                    <files folder="admin"><folder>tmpl</folder></files>
+                    <languages folder="admin/language">
+                        <language tag="en-GB">en-GB/com_example.ini</language>
+                    </languages>
+                </administration>
+            </extension>
+            XML);
+        $this->writeFile('site/tmpl/default.php', "<?php echo Text::_('COM_EXAMPLE_SITE');\n");
+        $this->writeFile('admin/tmpl/default.php', "<?php echo Text::_('COM_EXAMPLE_ADMIN');\n");
+        $this->writeFile('site/language/en-GB/com_example.ini', "COM_EXAMPLE_SITE=\"Site\"\n");
+        $this->writeFile('site/language/de-DE/com_example.ini', "COM_EXAMPLE_SITE=\"Website\"\n");
+        $this->writeFile('admin/language/en-GB/com_example.ini', "COM_EXAMPLE_ADMIN=\"Administrator\"\n");
+
+        self::assertSame(
+            ['ERROR language/files: administrator/language/de-DE/com_example.ini is missing'],
+            $this->findings(new LanguageChecker(), $this->context(manifest: 'example.xml')),
+        );
     }
 
     public function testPluginPrefixContainsGroup(): void
