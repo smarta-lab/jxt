@@ -84,15 +84,19 @@ final readonly class LanguageChecker implements Checker
     }
 
     /**
-     * Returns the pattern of the constants that Joomla uses itself: the extension name, template positions and
-     * layouts; for templates also the layout overrides of other extensions (`TPL_X_MOD_MENU_LAYOUT_…`,
-     * `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`).
+     * Returns the pattern of the constants that Joomla uses itself: the extension name, the `<name>` of the
+     * manifest (Joomla upper-cases every key, so the template `lightning` is translated with `LIGHTNING`),
+     * template positions and layouts; for templates also the layout overrides of other extensions
+     * (`TPL_X_MOD_MENU_LAYOUT_…`, `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`).
      */
     private function implicitConstants(CheckContext $context, string $prefix): string
     {
         $layout = $context->manifest->type === ExtensionType::Template ? '(_.+)?_LAYOUT_.+' : '_LAYOUT_.+';
+        $manifest = simplexml_load_file($context->absolutePath($context->manifest->fileName));
+        $name = $manifest === false ? '' : strtoupper(trim((string) $manifest->name));
 
-        return '/^' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|' . $layout . ')?$/';
+        return '/^(' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|' . $layout . ')?'
+            . ($name === '' ? '' : '|' . preg_quote($name, '/')) . ')$/';
     }
 
     /**

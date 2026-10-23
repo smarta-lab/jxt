@@ -166,6 +166,23 @@ final class LanguageCheckerTest extends TestCase
         self::assertSame([], $this->findings(new LanguageChecker(), $this->context(manifest: 'templateDetails.xml')));
     }
 
+    public function testNameOfTheManifestIsTranslatedByJoomla(): void
+    {
+        $this->writeFile('templateDetails.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="template" client="site">
+                <name>lightning</name>
+                <version>1.0.0</version>
+                <files><filename>index.php</filename></files>
+                <languages><language tag="en-GB">language/en-GB/tpl_lightning.sys.ini</language></languages>
+            </extension>
+            XML);
+        $this->writeFile('index.php', "<?php\n");
+        $this->writeFile('language/en-GB/tpl_lightning.sys.ini', "LIGHTNING=\"Lightning - Site template\"\n");
+
+        self::assertSame([], $this->findings(new LanguageChecker(), $this->context(manifest: 'templateDetails.xml')));
+    }
+
     public function testOnlyTemplatesHaveLayoutsOfOtherExtensions(): void
     {
         $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\nMOD_EXAMPLE_MOD_MENU_LAYOUT_DROPDOWN=\"Dropdown\"\n";
