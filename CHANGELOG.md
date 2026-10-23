@@ -6,6 +6,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-23
+
 ### Added
 
 - Test sites in containers: `cli_command` runs the Joomla CLI for
@@ -199,7 +201,8 @@ First public release.
 - `jxt build`: build an installable ZIP file from the manifest.
 - `jxt config`: show and change the global and per-project configuration.
 
-[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/smarta-lab/jxt/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/smarta-lab/jxt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/smarta-lab/jxt/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/smarta-lab/jxt/compare/v0.2.0...v0.3.0
