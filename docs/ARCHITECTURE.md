@@ -62,9 +62,13 @@ written:
   PHPStan (level max), PHP_CodeSniffer (PSR-12).
 - Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects
   require it as a Composer dev dependency from Packagist.
-- Linux or WSL only: `ext-posix` is needed to find the developer's home
-  directory when jxt is started via sudo, and `jxt install` relies on `sudo`
-  unless `web_user` is `null`.
+- Linux or WSL only: `ext-posix` gives the current user and, when jxt is
+  started via sudo, the developer's home directory. By default, the Joomla
+  CLI runs via `sudo -n -u <web_user>`; it runs without sudo if `web_user` is
+  `null` or `cli_command` is set (see
+  [Test sites in containers](#test-sites-in-containers)). Native Windows is
+  not supported: besides `ext-posix`, `joomla_root` must be an absolute path
+  starting with `/`, and the paths are built with `/`.
 - A single binary `jxt` with subcommands (`install`, `sync`, `build`, …)
   instead of one binary per command, to avoid name collisions in `vendor/bin`.
   The name does not contain "Joomla" so that it is not mistaken for an official
