@@ -6,6 +6,12 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The jxt bridge 0.1.1 no longer makes PHP warn about a `use` statement without
+  effect on every run of the Joomla CLI, visible where PHP shows warnings, e.g.
+  in the official Joomla Docker image.
+
 ## [0.4.1] - 2026-10-23
 
 ### Fixed

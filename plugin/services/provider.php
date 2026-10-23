@@ -15,7 +15,6 @@ use Joomla\Database\DatabaseInterface;
 use Joomla\DI\Container;
 use Joomla\DI\ServiceProviderInterface;
 use SmartA\Plugin\Console\Jxt\Extension\Jxt;
-use UnexpectedValueException;
 
 return new class () implements ServiceProviderInterface {
     /**
@@ -30,7 +29,7 @@ return new class () implements ServiceProviderInterface {
                 $db = $container->get(DatabaseInterface::class);
 
                 if (!$db instanceof DatabaseInterface) {
-                    throw new UnexpectedValueException('No database in the container.');
+                    throw new \UnexpectedValueException('No database in the container.');
                 }
 
                 $plugin = new Jxt((array) PluginHelper::getPlugin('console', 'jxt'), JPATH_ROOT);

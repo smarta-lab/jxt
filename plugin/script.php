@@ -16,7 +16,6 @@ use Joomla\CMS\Installer\InstallerAdapter;
 use Joomla\CMS\Installer\InstallerScriptInterface;
 use Joomla\Database\DatabaseAwareInterface;
 use Joomla\Database\DatabaseAwareTrait;
-use UnexpectedValueException;
 
 /**
  * Enables the plugin after installing or updating it: the Joomla installer leaves new plugins disabled, and the
@@ -111,6 +110,6 @@ return new class () implements InstallerScriptInterface, DatabaseAwareInterface 
     {
         $quoted = $this->getDatabase()->quoteName($name);
 
-        return is_string($quoted) ? $quoted : throw new UnexpectedValueException('Cannot quote ' . $name);
+        return is_string($quoted) ? $quoted : throw new \UnexpectedValueException('Cannot quote ' . $name);
     }
 };
