@@ -119,6 +119,54 @@ final class InstallCommandTest extends TestCase
         self::assertSame([], $runner->command);
     }
 
+    public function testInstallsViaCliCommandWithACopyInTheSite(): void
+    {
+        $this->useCliCommand();
+        mkdir($this->joomla() . '/tmp');
+        $runner = new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.'));
+
+        self::assertSame(Command::SUCCESS, $this->tester($runner)->execute([]));
+        self::assertSame(
+            ['docker', 'exec', 'web', 'php', '/var/www/html/cli/joomla.php', 'extension:install'],
+            array_slice($runner->command, 0, 6),
+        );
+        self::assertMatchesRegularExpression('#^--path=/var/www/html/tmp/jxt-[0-9a-f]+-mod_x-1\.0\.0\.zip$#', $runner->command[6]);
+    }
+
+    public function testShowsTheCliCommandIfTheInstallationFails(): void
+    {
+        $this->useCliCommand();
+        mkdir($this->joomla() . '/tmp');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(1, 'Error response from daemon: No such container: web')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('No such container: web', self::display($tester));
+        self::assertStringContainsString('The Joomla installer failed (exit code 1).', self::display($tester));
+        self::assertStringContainsString('docker exec web php /var/www/html/cli/joomla.php list', self::display($tester));
+        self::assertStringNotContainsString('sudo', self::display($tester));
+    }
+
+    public function testExplainsAMissingTmpDirectoryWithCliCommand(): void
+    {
+        $this->useCliCommand();
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('chmod 1777 /var/www/html/tmp as root in the container', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
+    public function testPointsToTheBindMountIfJoomlaIsMissingWithCliCommand(): void
+    {
+        $this->useCliCommand();
+        unlink($this->joomla() . '/configuration.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('a named volume is not supported', self::display($tester));
+    }
+
     public function testInstallsAnExistingZipWithoutBuilding(): void
     {
         $this->writeZip('project/old/mod_x-0.9.0.zip', str_replace('1.0.0', '0.9.0', self::MANIFEST));
@@ -421,6 +469,18 @@ final class InstallCommandTest extends TestCase
                 temporaryDirectory: $temporaryDirectory,
             ),
         ));
+    }
+
+    /**
+     * Configures the project to run the Joomla CLI in a container that sees the site at `/var/www/html`.
+     */
+    private function useCliCommand(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'cli_command' => ['docker', 'exec', 'web', 'php'],
+            'cli_root' => '/var/www/html',
+        ]));
     }
 
     /**

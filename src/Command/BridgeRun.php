@@ -14,6 +14,7 @@ use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\Manifest;
+use SmartA\Jxt\Site\TestSite;
 use SmartA\Jxt\Sync\SyncPlan;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -51,28 +52,28 @@ final readonly class BridgeRun
         Configuration $configuration,
         string $installedVersion,
     ): bool {
-        $joomlaRoot = $configuration->validJoomlaRoot();
+        $site = $configuration->testSite();
         $bundledVersion = $this->bridge->bundledVersion();
 
         if (version_compare($installedVersion, $bundledVersion, '>')) {
             $io->note(sprintf('jxt bridge %s on the site is newer than the bundled %s; using it.', $installedVersion, $bundledVersion));
         } elseif ($installedVersion !== $bundledVersion) {
             $io->note(sprintf('Updating the jxt bridge on the site: %s → %s.', $installedVersion ?: '?', $bundledVersion));
-            $result = $this->bridge->install($joomlaRoot, $configuration->webUser);
+            $result = $this->bridge->install($site);
 
             if ($result->exitCode !== 0) {
                 $io->writeln(trim($result->output));
-                $this->explainFailure($io, $result, $configuration, $joomlaRoot, 'Updating the jxt bridge');
+                $this->explainFailure($io, $result, $site, 'Updating the jxt bridge');
 
                 return false;
             }
         }
 
-        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $joomlaRoot, $configuration);
+        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $site, $configuration);
 
         if ($result->exitCode !== 0) {
             $io->writeln(trim($result->output));
-            $this->explainFailure($io, $result, $configuration, $joomlaRoot, 'jxt:apply');
+            $this->explainFailure($io, $result, $site, 'jxt:apply');
 
             return false;
         }
@@ -87,27 +88,24 @@ final readonly class BridgeRun
     }
 
     /**
-     * Reports a failed call of the Joomla CLI, with the sudoers rules if sudo refused; the caller shows the output.
+     * Reports a failed call of the Joomla CLI, with the sudoers rules if sudo refused or the command if it ran via
+     * `cli_command`; the caller shows the output.
      *
      * @param string $subject What failed, e.g. `jxt:apply`
      */
-    public function explainFailure(
-        SymfonyStyle $io,
-        ProcessResult $result,
-        Configuration $configuration,
-        string $joomlaRoot,
-        string $subject,
-    ): void {
-        if ($configuration->webUser !== null && $result->sudoRefused()) {
+    public function explainFailure(SymfonyStyle $io, ProcessResult $result, TestSite $site, string $subject): void
+    {
+        if (!$site->usesCliCommand() && $site->webUser !== null && $result->sudoRefused()) {
             SudoersHint::show(
                 $io,
-                $configuration->webUser,
-                $this->bridge->sudoersRules($this->currentUser, $joomlaRoot, $configuration->webUser),
+                $site->webUser,
+                $this->bridge->sudoersRules($this->currentUser, $site->joomlaRoot, $site->webUser),
             );
 
             return;
         }
 
         $io->error(sprintf('%s failed (exit code %d).', $subject, $result->exitCode));
+        CliCommandHint::show($io, $site);
     }
 }

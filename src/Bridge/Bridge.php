@@ -17,6 +17,7 @@ use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestException;
 use SmartA\Jxt\Manifest\ManifestParser;
+use SmartA\Jxt\Site\TestSite;
 use SmartA\Jxt\Sync\SyncPlan;
 
 /**
@@ -74,18 +75,16 @@ final readonly class Bridge
     /**
      * Builds the bundled plugin and installs it with the Joomla installer.
      *
-     * @param string|null $webUser User that runs the Joomla CLI; null to run it as the current user
-     *
      * @throws \SmartA\Jxt\JxtException if the plugin cannot be built or the Joomla CLI cannot be started
      */
-    public function install(string $joomlaRoot, ?string $webUser): ProcessResult
+    public function install(TestSite $site): ProcessResult
     {
         $directory = sprintf('%s/jxt-bridge-%s', $this->temporaryDirectory ?? sys_get_temp_dir(), bin2hex(random_bytes(6)));
 
         try {
             $package = $this->packageBuilder->build($this->bundledManifest(), $this->pluginDirectory, $directory);
 
-            return $this->installer->install($package->path, $joomlaRoot, $webUser);
+            return $this->installer->install($package->path, $site);
         } finally {
             $this->stager->remove($directory);
         }
@@ -98,15 +97,15 @@ final readonly class Bridge
      *
      * @throws \SmartA\Jxt\JxtException if the extension ID cannot be determined or the Joomla CLI cannot be started
      */
-    public function remove(string $joomlaRoot, ?string $webUser): ProcessResult
+    public function remove(TestSite $site): ProcessResult
     {
-        $status = $this->cli->run($joomlaRoot, $webUser, ['jxt:status']);
+        $status = $this->cli->run($site, ['jxt:status']);
 
         if ($status->exitCode !== 0) {
             return $status;
         }
 
-        return $this->cli->run($joomlaRoot, $webUser, ['extension:remove', '-n', (string) $this->extensionId($status)]);
+        return $this->cli->run($site, ['extension:remove', '-n', (string) $this->extensionId($status)]);
     }
 
     /**
@@ -114,9 +113,9 @@ final readonly class Bridge
      *
      * @throws \SmartA\Jxt\Install\InstallException if the Joomla CLI cannot be started
      */
-    public function status(string $joomlaRoot, ?string $webUser): ProcessResult
+    public function status(TestSite $site): ProcessResult
     {
-        return $this->cli->run($joomlaRoot, $webUser, ['jxt:status']);
+        return $this->cli->run($site, ['jxt:status']);
     }
 
     /**
@@ -135,19 +134,21 @@ final readonly class Bridge
     /**
      * Stages the plan and applies it with `jxt:apply`; the staging directory is removed afterwards.
      *
+     * With the site's `cli_command`, the plan is staged in the site's `tmp/` directory, which the command can see.
+     *
      * @throws \SmartA\Jxt\JxtException if the plan cannot be staged or the Joomla CLI cannot be started
      */
     public function apply(
         SyncPlan $plan,
         Manifest $manifest,
         string $extensionDirectory,
-        string $joomlaRoot,
+        TestSite $site,
         Configuration $configuration,
     ): ProcessResult {
-        $directory = $this->stager->stage($plan, $manifest, $extensionDirectory, $configuration);
+        $directory = $this->stager->stage($plan, $manifest, $extensionDirectory, $configuration, $site->stagingDirectory());
 
         try {
-            return $this->cli->run($joomlaRoot, $configuration->webUser, ['jxt:apply', $directory]);
+            return $this->cli->run($site, ['jxt:apply', $site->cliPath($directory)]);
         } finally {
             $this->stager->remove($directory);
         }

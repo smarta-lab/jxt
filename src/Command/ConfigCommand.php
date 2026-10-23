@@ -14,6 +14,7 @@ use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\CommandLine;
 use SmartA\Jxt\JxtException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -195,17 +196,9 @@ final class ConfigCommand extends Command
     {
         return match (true) {
             !is_array($value) => $value ?? 'null',
-            $key->isCommand() => implode(' ', array_map($this->quoteArgument(...), $value)),
+            $key->isCommand() => CommandLine::format($value),
             default => implode(', ', $value),
         };
-    }
-
-    /**
-     * Quotes an argument of a command for the output if the shell would split or interpret it.
-     */
-    private function quoteArgument(string $argument): string
-    {
-        return preg_match('#^[\w@%+=:,./-]+$#', $argument) === 1 ? $argument : escapeshellarg($argument);
     }
 
     /**

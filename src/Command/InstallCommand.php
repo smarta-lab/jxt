@@ -25,6 +25,7 @@ use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestException;
 use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Jxt\Manifest\PackageManifestReader;
+use SmartA\Jxt\Site\TestSite;
 use SmartA\Jxt\Sync\Deletion;
 use SmartA\Jxt\Sync\LeftoverFinder;
 use SmartA\Jxt\Sync\ManifestComparison;
@@ -106,7 +107,8 @@ final class InstallCommand extends Command
 
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
-            $joomlaRoot = $configuration->validJoomlaRoot();
+            $site = $configuration->testSite();
+            $joomlaRoot = $site->joomlaRoot;
             [$manifest, $packagePath] = is_string($zip)
                 ? $this->existingPackage($zip)
                 : $this->newPackage($io, $configuration, is_string($tag) ? $tag : null);
@@ -114,7 +116,7 @@ final class InstallCommand extends Command
             $previous = $this->installedManifest($manifest, $joomlaRoot);
 
             $io->writeln(sprintf('<info>%s</info> → %s', basename($packagePath), $joomlaRoot));
-            $result = $this->installer->install($packagePath, $joomlaRoot, $configuration->webUser);
+            $result = $this->installer->install($packagePath, $site);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
@@ -124,7 +126,7 @@ final class InstallCommand extends Command
         $io->writeln(trim($result->output));
 
         if ($result->exitCode !== 0) {
-            $this->explainFailure($io, $result, $manifest, $configuration, $joomlaRoot);
+            $this->explainFailure($io, $result, $manifest, $site);
 
             return Command::FAILURE;
         }
@@ -301,24 +303,25 @@ final class InstallCommand extends Command
     }
 
     /**
-     * Reports the failure with the sudoers rule if sudo refused, otherwise with a hint on `method="upgrade"`.
+     * Reports the failure with the sudoers rule if sudo refused, otherwise with the command if it ran via
+     * `cli_command` and a hint on `method="upgrade"`.
      */
     private function explainFailure(
         SymfonyStyle $io,
         ProcessResult $result,
         Manifest $manifest,
-        Configuration $configuration,
-        string $joomlaRoot,
+        TestSite $site,
     ): void {
-        $webUser = $configuration->webUser;
+        $webUser = $site->webUser;
 
-        if ($webUser !== null && $result->sudoRefused()) {
-            SudoersHint::show($io, $webUser, [$this->installer->sudoersRule($this->currentUser, $joomlaRoot, $webUser)]);
+        if (!$site->usesCliCommand() && $webUser !== null && $result->sudoRefused()) {
+            SudoersHint::show($io, $webUser, [$this->installer->sudoersRule($this->currentUser, $site->joomlaRoot, $webUser)]);
 
             return;
         }
 
         $io->error(sprintf('The Joomla installer failed (exit code %d).', $result->exitCode));
+        CliCommandHint::show($io, $site);
 
         if (!$manifest->installer->upgrade) {
             $io->note('The manifest has no method="upgrade". Without it, the Joomla installer refuses to update an installed extension.');

@@ -53,6 +53,7 @@ final class BridgeCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertStringContainsString('Installed: no', self::display($tester));
+        self::assertStringContainsString('Runs via: sudo -u www-data', self::display($tester));
         self::assertStringContainsString('jxt bridge add', self::display($tester));
         self::assertSame([], $this->runner->commands);
     }
@@ -94,6 +95,23 @@ final class BridgeCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $tester->execute(['action' => 'add']));
         self::assertStringContainsString('and add these lines:', $tester->getDisplay());
         self::assertStringContainsString('/cli/joomla.php jxt\:status', $tester->getDisplay());
+    }
+
+    public function testStatusViaCliCommand(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'cli_command' => ['docker', 'exec', 'web', 'php'],
+            'cli_root' => '/var/www/html',
+        ]));
+        $this->installBridge('0.0.1');
+        $tester = $this->tester(new ProcessResult(1, 'Error response from daemon: container web is not running'));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Runs via: docker exec web php /var/www/html/cli/joomla.php', self::display($tester));
+        self::assertStringContainsString('jxt:status failed (exit code 1).', self::display($tester));
+        self::assertStringContainsString('ran via cli_command', self::display($tester));
+        self::assertSame([['docker', 'exec', 'web', 'php', '/var/www/html/cli/joomla.php', 'jxt:status']], $this->runner->commands);
     }
 
     public function testRemoveWithoutBridge(): void

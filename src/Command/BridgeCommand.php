@@ -10,10 +10,10 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Site\TestSite;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -68,12 +68,12 @@ final class BridgeCommand extends Command
 
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
-            $joomlaRoot = $configuration->validJoomlaRoot();
+            $site = $configuration->testSite();
 
             return match ($action) {
-                BridgeAction::Status => $this->status($io, $configuration, $joomlaRoot),
-                BridgeAction::Add => $this->add($io, $configuration, $joomlaRoot),
-                BridgeAction::Remove => $this->remove($io, $configuration, $joomlaRoot),
+                BridgeAction::Status => $this->status($io, $site),
+                BridgeAction::Add => $this->add($io, $site),
+                BridgeAction::Remove => $this->remove($io, $site),
             };
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
@@ -85,14 +85,16 @@ final class BridgeCommand extends Command
     /**
      * Shows the bundled and the installed version and whether the Joomla CLI runs the plugin's commands.
      */
-    private function status(SymfonyStyle $io, Configuration $configuration, string $joomlaRoot): int
+    private function status(SymfonyStyle $io, TestSite $site): int
     {
+        $joomlaRoot = $site->joomlaRoot;
         $bundled = $this->bridge->bundledVersion();
         $installed = $this->bridge->installedVersion($joomlaRoot);
 
         $io->writeln(sprintf('<info>jxt bridge</info> on %s', $joomlaRoot));
         $io->writeln(sprintf('  Bundled:   %s', $bundled));
         $io->writeln(sprintf('  Installed: %s', $installed ?? 'no'));
+        $io->writeln(sprintf('  Runs via:  %s', $site->describeCli()));
 
         if ($installed === null) {
             $io->note('Install it with jxt bridge add, so that jxt sync writes the files as web server user.');
@@ -100,11 +102,11 @@ final class BridgeCommand extends Command
             return Command::SUCCESS;
         }
 
-        $result = $this->bridge->status($joomlaRoot, $configuration->webUser);
+        $result = $this->bridge->status($site);
 
         if ($result->exitCode !== 0) {
             $io->writeln(trim($result->output));
-            $this->explainFailure($io, $result, $configuration, $joomlaRoot, 'jxt:status');
+            $this->explainFailure($io, $result, $site, 'jxt:status');
 
             return Command::FAILURE;
         }
@@ -123,23 +125,24 @@ final class BridgeCommand extends Command
     /**
      * Installs the bundled plugin and checks that the Joomla CLI runs its commands.
      */
-    private function add(SymfonyStyle $io, Configuration $configuration, string $joomlaRoot): int
+    private function add(SymfonyStyle $io, TestSite $site): int
     {
+        $joomlaRoot = $site->joomlaRoot;
         $io->writeln(sprintf('<info>jxt bridge %s</info> → %s', $this->bridge->bundledVersion(), $joomlaRoot));
-        $result = $this->bridge->install($joomlaRoot, $configuration->webUser);
+        $result = $this->bridge->install($site);
         $io->writeln(trim($result->output));
 
         if ($result->exitCode !== 0) {
-            $this->explainFailure($io, $result, $configuration, $joomlaRoot, 'The Joomla installer');
+            $this->explainFailure($io, $result, $site, 'The Joomla installer');
 
             return Command::FAILURE;
         }
 
-        $status = $this->bridge->status($joomlaRoot, $configuration->webUser);
+        $status = $this->bridge->status($site);
 
         if ($status->exitCode !== 0) {
             $io->writeln(trim($status->output));
-            $this->explainFailure($io, $status, $configuration, $joomlaRoot, 'The bridge is installed, but jxt:status');
+            $this->explainFailure($io, $status, $site, 'The bridge is installed, but jxt:status');
 
             return Command::FAILURE;
         }
@@ -152,19 +155,20 @@ final class BridgeCommand extends Command
     /**
      * Uninstalls the plugin if it is installed.
      */
-    private function remove(SymfonyStyle $io, Configuration $configuration, string $joomlaRoot): int
+    private function remove(SymfonyStyle $io, TestSite $site): int
     {
+        $joomlaRoot = $site->joomlaRoot;
         if ($this->bridge->installedVersion($joomlaRoot) === null) {
             $io->success(sprintf('The jxt bridge is not installed on %s.', $joomlaRoot));
 
             return Command::SUCCESS;
         }
 
-        $result = $this->bridge->remove($joomlaRoot, $configuration->webUser);
+        $result = $this->bridge->remove($site);
 
         if ($result->exitCode !== 0) {
             $io->writeln(trim($result->output));
-            $this->explainFailure($io, $result, $configuration, $joomlaRoot, 'Removing the bridge');
+            $this->explainFailure($io, $result, $site, 'Removing the bridge');
 
             return Command::FAILURE;
         }
@@ -182,10 +186,9 @@ final class BridgeCommand extends Command
     private function explainFailure(
         SymfonyStyle $io,
         ProcessResult $result,
-        Configuration $configuration,
-        string $joomlaRoot,
+        TestSite $site,
         string $subject,
     ): void {
-        (new BridgeRun($this->bridge, $this->currentUser))->explainFailure($io, $result, $configuration, $joomlaRoot, $subject);
+        (new BridgeRun($this->bridge, $this->currentUser))->explainFailure($io, $result, $site, $subject);
     }
 }

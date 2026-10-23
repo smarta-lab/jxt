@@ -18,6 +18,7 @@ use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Manifest\ManifestParser;
+use SmartA\Jxt\Site\TestSite;
 use SmartA\Jxt\Sync\ManifestComparison;
 use SmartA\Jxt\Sync\SyncPlan;
 use SmartA\Jxt\Tests\Install\ScriptedProcessRunner;
@@ -81,7 +82,7 @@ final class BridgeTest extends TestCase
                     }
                 };
 
-        $result = $this->bridge($runner)->install($this->joomla(), 'www-data');
+        $result = $this->bridge($runner)->install(new TestSite($this->joomla(), 'www-data'));
 
         self::assertSame('installed', $result->output);
         self::assertContains('jxt.xml', $entries);
@@ -96,7 +97,7 @@ final class BridgeTest extends TestCase
     {
         $runner = new ScriptedProcessRunner(new ProcessResult(0, "{\"extension_id\":270}\n"), new ProcessResult(0, 'removed'));
 
-        $result = $this->bridge($runner)->remove($this->joomla(), null);
+        $result = $this->bridge($runner)->remove(new TestSite($this->joomla()));
 
         self::assertSame('removed', $result->output);
         self::assertSame([['jxt:status'], ['extension:remove', '-n', '270']], $runner->cliArguments());
@@ -106,7 +107,7 @@ final class BridgeTest extends TestCase
     {
         $runner = new ScriptedProcessRunner(new ProcessResult(1, 'Command "jxt:status" is not defined.'));
 
-        self::assertSame(1, $this->bridge($runner)->remove($this->joomla(), null)->exitCode);
+        self::assertSame(1, $this->bridge($runner)->remove(new TestSite($this->joomla()))->exitCode);
         self::assertCount(1, $runner->commands);
     }
 
@@ -130,12 +131,36 @@ final class BridgeTest extends TestCase
             new SyncPlan([], [], [], new ManifestComparison(null, null, false, []), []),
             (new ManifestParser())->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml'),
             $this->temporaryDirectory,
-            $this->joomla(),
+            new TestSite($this->joomla(), 'www-data'),
             new Configuration($this->joomla(), 'www-data', '/dist', 0755, 0644),
         );
 
         self::assertSame('jxt:apply', $runner->cliArguments()[0][0]);
         self::assertStringContainsString('"element": "mod_x"', (string) $planFile);
+        self::assertSame([], glob($this->temporaryDirectory . '/tmp/*'));
+    }
+
+    public function testStagesPlanInTheSiteWithCliCommand(): void
+    {
+        mkdir($this->joomla() . '/tmp');
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, 'Applied: 0 copied, 0 deleted.'));
+        $planFile = null;
+        $runner->inspector = function (string $argument) use (&$planFile): void {
+            $planFile = (string) file_get_contents($this->joomla() . substr($argument, strlen('/var/www/html')) . '/plan.json');
+        };
+
+        $this->bridge($runner)->apply(
+            new SyncPlan([], [], [], new ManifestComparison(null, null, false, []), []),
+            (new ManifestParser())->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml'),
+            $this->temporaryDirectory,
+            new TestSite($this->joomla(), null, ['docker', 'exec', 'web', 'php'], '/var/www/html'),
+            new Configuration($this->joomla(), null, '/dist', 0755, 0644, cliCommand: ['docker', 'exec', 'web', 'php']),
+        );
+
+        self::assertSame(['docker', 'exec', 'web', 'php', '/var/www/html/cli/joomla.php', 'jxt:apply'], array_slice($runner->commands[0], 0, 6));
+        self::assertMatchesRegularExpression('#^/var/www/html/tmp/jxt-sync-[0-9a-f]+$#', $runner->commands[0][6]);
+        self::assertStringContainsString('"element": "mod_x"', (string) $planFile);
+        self::assertSame([], glob($this->joomla() . '/tmp/*'));
         self::assertSame([], glob($this->temporaryDirectory . '/tmp/*'));
     }
 

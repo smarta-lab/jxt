@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Configuration;
 
+use SmartA\Jxt\Site\TestSite;
+
 /**
  * Merged configuration from the global and the project configuration file.
  */
@@ -57,11 +59,26 @@ final readonly class Configuration
         ));
 
         if (!is_file($joomlaRoot . '/configuration.php')) {
-            throw new ConfigurationException(
-                sprintf('%s is not a Joomla installation (configuration.php is missing).', $joomlaRoot),
-            );
+            throw new ConfigurationException(sprintf(
+                '%s is not a Joomla installation (configuration.php is missing).%s',
+                $joomlaRoot,
+                $this->cliCommand === []
+                    ? ''
+                    : ' With cli_command, joomla_root is the directory of the site on this machine, shared with the '
+                        . 'container as bind mount, and cli_root its path in the container; a named volume is not supported.',
+            ));
         }
 
         return $joomlaRoot;
+    }
+
+    /**
+     * Returns the test site after checking that `joomla_root` contains a Joomla installation.
+     *
+     * @throws ConfigurationException if `joomla_root` is missing or not a Joomla installation
+     */
+    public function testSite(): TestSite
+    {
+        return new TestSite($this->validJoomlaRoot(), $this->webUser, $this->cliCommand, $this->cliRoot);
     }
 }

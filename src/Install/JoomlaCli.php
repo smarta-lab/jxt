@@ -9,8 +9,11 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Install;
 
+use SmartA\Jxt\Site\TestSite;
+
 /**
- * Runs commands of the Joomla CLI (`cli/joomla.php`), with a web server user via `sudo -n -u <user>`.
+ * Runs commands of the Joomla CLI (`cli/joomla.php`), with a web server user via `sudo -n -u <user>`, or via the
+ * site's `cli_command`, e.g. in a container.
  *
  * `sudo -n` makes a missing sudoers rule fail instead of asking for a password. The PHP binary must match the
  * sudoers rule exactly, since sudo compares the command path.
@@ -31,16 +34,20 @@ final readonly class JoomlaCli
     /**
      * Runs a command of the Joomla CLI.
      *
-     * @param string|null  $webUser   User that runs the Joomla CLI; null to run it as the current user
-     * @param list<string> $arguments Command name and its arguments, e.g. `['extension:install', '--path=…']`
+     * @param list<string> $arguments Command name and its arguments, e.g. `['extension:install', '--path=…']`;
+     *                                paths as the Joomla CLI sees them
      *
      * @throws InstallException if the process cannot be started
      */
-    public function run(string $joomlaRoot, ?string $webUser, array $arguments): ProcessResult
+    public function run(TestSite $site, array $arguments): ProcessResult
     {
-        $command = [$this->phpBinary, $joomlaRoot . '/' . self::SCRIPT, ...$arguments];
+        $script = $site->cliRoot . '/' . self::SCRIPT;
 
-        return $this->processRunner->run($webUser === null ? $command : ['sudo', '-n', '-u', $webUser, ...$command]);
+        return $this->processRunner->run(match (true) {
+            $site->usesCliCommand() => [...$site->cliCommand, $script, ...$arguments],
+            $site->webUser === null => [$this->phpBinary, $script, ...$arguments],
+            default => ['sudo', '-n', '-u', $site->webUser, $this->phpBinary, $script, ...$arguments],
+        });
     }
 
     /**

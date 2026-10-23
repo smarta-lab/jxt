@@ -51,11 +51,20 @@ final readonly class PlanStager
     /**
      * Creates the staging directory and returns its path.
      *
+     * @param string|null $parentDirectory Parent of the staging directory, e.g. the site's `tmp/` directory;
+     *                                     null for the one given to the constructor
+     *
      * @throws BridgeException if a directory or file cannot be written
      */
-    public function stage(SyncPlan $plan, Manifest $manifest, string $extensionDirectory, Configuration $configuration): string
-    {
-        $directory = sprintf('%s/jxt-sync-%s', $this->temporaryDirectory ?? sys_get_temp_dir(), bin2hex(random_bytes(6)));
+    public function stage(
+        SyncPlan $plan,
+        Manifest $manifest,
+        string $extensionDirectory,
+        Configuration $configuration,
+        ?string $parentDirectory = null,
+    ): string {
+        $parent = $parentDirectory ?? $this->temporaryDirectory ?? sys_get_temp_dir();
+        $directory = sprintf('%s/jxt-sync-%s', $parent, bin2hex(random_bytes(6)));
         $this->run(static fn (): bool => mkdir($directory . '/files', 0755, true) && chmod($directory, 0755), $directory);
 
         $files = [];

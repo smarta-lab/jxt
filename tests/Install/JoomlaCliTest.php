@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Tests\Install;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Site\TestSite;
 
 /**
  * Tests for running commands of the Joomla CLI.
@@ -22,7 +23,7 @@ final class JoomlaCliTest extends TestCase
     {
         $runner = new ScriptedProcessRunner(new ProcessResult(0, ''));
 
-        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run('/var/www/html', 'www-data', ['jxt:apply', '/tmp/x']);
+        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run(new TestSite('/var/www/html', 'www-data'), ['jxt:apply', '/tmp/x']);
 
         self::assertSame(
             [['sudo', '-n', '-u', 'www-data', '/usr/bin/php8.5', '/var/www/html/cli/joomla.php', 'jxt:apply', '/tmp/x']],
@@ -34,9 +35,22 @@ final class JoomlaCliTest extends TestCase
     {
         $runner = new ScriptedProcessRunner(new ProcessResult(0, ''));
 
-        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run('/var/www/html', null, ['jxt:status']);
+        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run(new TestSite('/var/www/html'), ['jxt:status']);
 
         self::assertSame([['/usr/bin/php8.5', '/var/www/html/cli/joomla.php', 'jxt:status']], $runner->commands);
+    }
+
+    public function testRunsViaCliCommandWithTheCliRoot(): void
+    {
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, ''));
+        $site = new TestSite('/home/anna/site', null, ['docker', 'exec', '-u', 'www-data', 'web', 'php'], '/var/www/html');
+
+        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run($site, ['jxt:status']);
+
+        self::assertSame(
+            [['docker', 'exec', '-u', 'www-data', 'web', 'php', '/var/www/html/cli/joomla.php', 'jxt:status']],
+            $runner->commands,
+        );
     }
 
     public function testCreatesSudoersRule(): void
