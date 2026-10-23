@@ -92,8 +92,7 @@ final readonly class LanguageChecker implements Checker
     private function implicitConstants(CheckContext $context, string $prefix): string
     {
         $layout = $context->manifest->type === ExtensionType::Template ? '(_.+)?_LAYOUT_.+' : '_LAYOUT_.+';
-        $manifest = simplexml_load_file($context->absolutePath($context->manifest->fileName));
-        $name = $manifest === false ? '' : strtoupper(trim((string) $manifest->name));
+        $name = strtoupper($context->manifest->title);
 
         return '/^(' . preg_quote(rtrim($prefix, '_'), '/') . '(_POSITION_.+|' . $layout . ')?'
             . ($name === '' ? '' : '|' . preg_quote($name, '/')) . ')$/';

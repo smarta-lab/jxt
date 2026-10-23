@@ -21,7 +21,11 @@ final readonly class Manifest
      *                              `com_example` or (for the plugin `plg_system_example`) `example`
      * @param string|null $version  Content of `<version>`, if present
      * @param string      $fileName File name of the manifest
-     * @param string|null $group    Plugin group (attribute `group`), null for other types
+     * @param string|null $group       Plugin group (attribute `group`), null for other types
+     * @param string      $title       Content of `<name>`, which Joomla translates
+     * @param bool        $inheritable Template with `<inheritable>1</inheritable>`, whose files Joomla looks for in
+     *                                 `media/templates/<client>/<element>/`
+     * @param string|null $parent      Parent of a child template (`<parent>`), null otherwise
      */
     public function __construct(
         public ExtensionType $type,
@@ -32,6 +36,9 @@ final readonly class Manifest
         public DeploymentPlan $plan,
         public InstallerMetadata $installer,
         public ?string $group = null,
+        public string $title = '',
+        public bool $inheritable = false,
+        public ?string $parent = null,
     ) {
     }
 

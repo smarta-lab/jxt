@@ -410,7 +410,13 @@ a check that rests on a guess (`language/unused`) only reports notices.
   `assets/version-coupled` only reports a notice.
 - **Asset URIs via the targets of the plan** instead of `<media destination>`:
   this covers modules (`mod_x/file.js`) and templates (`template.css`) alike,
-  including `.min` variants.
+  including `.min` variants. As in `HTMLHelper::includeRelativeFiles()`, a
+  relative URI of a template is looked up in the template first: classic
+  templates in `templates/<name>/`, inheritable and child templates in
+  `media/templates/<client>/<name>/`. A file the extension does not ship is
+  only reported if Joomla cannot find it elsewhere, i.e. not if a target
+  belongs to another extension or a child template may take it from its
+  parent.
 - **Files of the whitespace checks:** without Git, hidden files in the project
   directory are skipped; they are mostly tool files that Git would ignore
   (`.envrc`, `.phpunit.result.cache`).

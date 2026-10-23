@@ -409,7 +409,7 @@ fail the check.
 | `changelog/unreleased` | pre-check: number of entries under `[Unreleased]`; final check: `[Unreleased]` is not empty | notice | notice, error with `--release` |
 | `changelog/release-heading` | there is no heading `## [X.Y.Z] - YYYY-MM-DD` for the version | – | notice, error with `--release` |
 | `assets/json` | a `joomla.asset.json` is not valid JSON | error | error |
-| `assets/uri` | the URI of an asset matches no file of the extension (external URIs and other extensions' media are skipped); only a notice for `user.css` and `user.js` of templates, which site owners create themselves (as in Cassiopeia) | warning | warning |
+| `assets/uri` | the URI of an asset matches no file of the extension, resolved as Joomla does (a plain file name of a template in `templates/<name>/`, or in `media/templates/…` with `<inheritable>` or `<parent>`; external URIs, other extensions' media and files a child template takes from its parent are skipped); only a notice for `user.css` and `user.js` of templates, which site owners create themselves (as in Cassiopeia) | warning | warning |
 | `assets/version-changed` | the asset's file changed since the last release tag, its `version` did not | notice | notice, error with `--release` |
 | `assets/version-coupled` | a version equalled the extension version at the last release, but not the new one | – | notice |
 | `assets/baseline` | no Git or no release tag yet, so asset versions are not compared | notice | notice |

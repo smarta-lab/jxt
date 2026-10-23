@@ -79,6 +79,7 @@ final class AssetCheckerTest extends TestCase
             <extension type="template" client="site">
                 <name>example</name>
                 <version>1.0.0</version>
+                <inheritable>1</inheritable>
                 <files><filename>joomla.asset.json</filename></files>
                 <media destination="templates/site/example" folder="media"><folder>css</folder></media>
             </extension>
@@ -97,6 +98,51 @@ final class AssetCheckerTest extends TestCase
             ],
             array_slice($this->findings(new AssetChecker(), $this->context(manifest: 'templateDetails.xml')), 1),
         );
+    }
+
+    public function testUrisOfClassicTemplatesReferToTheTemplateDirectory(): void
+    {
+        $this->writeFile('templateDetails.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="template" client="site">
+                <name>example</name>
+                <version>1.0.0</version>
+                <files><filename>joomla.asset.json</filename><folder>css</folder></files>
+            </extension>
+            XML);
+        $this->writeFile('css/template.css', "a {}\n");
+        $this->writeFile('css/mod_menu/menu.css', "a {}\n");
+        $this->writeFile('joomla.asset.json', (string) json_encode(['assets' => [
+            ['name' => 'template.example', 'type' => 'style', 'uri' => 'template.css'],
+            ['name' => 'template.example.menu', 'type' => 'style', 'uri' => 'mod_menu/menu.css'],
+            ['name' => 'template.example.missing', 'type' => 'style', 'uri' => 'missing.css'],
+            ['name' => 'template.example.core', 'type' => 'script', 'uri' => 'system/core.js'],
+        ]]));
+
+        self::assertSame(
+            ['WARN assets/uri: joomla.asset.json: asset template.example.missing: URI missing.css does not match a file of the extension'],
+            array_slice($this->findings(new AssetChecker(), $this->context(manifest: 'templateDetails.xml')), 1),
+        );
+    }
+
+    public function testChildTemplatesMayUseFilesOfTheirParent(): void
+    {
+        $this->writeFile('templateDetails.xml', <<<'XML'
+            <?xml version="1.0" encoding="utf-8"?>
+            <extension type="template" client="site">
+                <name>child</name>
+                <version>1.0.0</version>
+                <parent>cassiopeia</parent>
+                <files><filename>joomla.asset.json</filename></files>
+                <media destination="templates/site/child" folder="media"><folder>css</folder></media>
+            </extension>
+            XML);
+        $this->writeFile('joomla.asset.json', (string) json_encode(['assets' => [
+            ['name' => 'template.child', 'type' => 'style', 'uri' => 'site.css'],
+            ['name' => 'template.child.parent', 'type' => 'style', 'uri' => 'template.css'],
+        ]]));
+
+        self::assertSame([], array_slice($this->findings(new AssetChecker(), $this->context(manifest: 'templateDetails.xml')), 1));
     }
 
     public function testMissingUserFilesOfModulesAreWarnings(): void

@@ -273,6 +273,26 @@ final class ManifestParserTest extends TestCase
         ], $targets);
     }
 
+    public function testReadsNameAndInheritanceOfTemplates(): void
+    {
+        $child = $this->parser->parse(
+            '<extension type="template" client="site"><name>Cards</name><version>1.0.0</version>'
+                . '<inheritable>0</inheritable><parent> cassiopeia </parent><files><filename>a.php</filename></files></extension>',
+            'templateDetails.xml',
+        );
+        $parent = $this->parser->parse(
+            '<extension type="template" client="site"><name>base</name><version>1.0.0</version>'
+                . '<inheritable>1</inheritable><files><filename>a.php</filename></files></extension>',
+            'templateDetails.xml',
+        );
+
+        self::assertSame('Cards', $child->title);
+        self::assertFalse($child->inheritable);
+        self::assertSame('cassiopeia', $child->parent);
+        self::assertTrue($parent->inheritable);
+        self::assertNull($parent->parent);
+    }
+
     public function testBuildsPlanForTemplate(): void
     {
         $xml = <<<'XML'
