@@ -65,6 +65,10 @@ Joomla installer, without opening the backend in a browser:
 
 3. The copy in `/tmp` is deleted.
 
+For a site in a container, the copy goes to the site's `tmp/` directory, and
+the Joomla CLI runs via `cli_command` (see
+[Test sites in containers](#test-sites-in-containers)).
+
 ```
 mod_example-1.1.0.zip → /var/www/html
 Install Extension
@@ -84,6 +88,10 @@ the old manifest and are missing from the new one; other leftovers remain (see
 For an update, the manifest needs `method="upgrade"`; otherwise Joomla refuses
 to install over an existing extension. If the installation fails and the
 attribute is missing, `jxt install` points this out.
+
+The Joomla CLI is a console application, not a web application. An install
+script that expects the latter, e.g. by declaring `$app` as `CMSApplication`,
+fails there; such an extension can only be installed in the backend.
 
 ### Installing a Git tag
 

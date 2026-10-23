@@ -66,6 +66,10 @@ Joomla-Installer, ohne dass das Backend im Browser aufgerufen werden muss:
 
 3. Die Kopie in `/tmp` wird gelöscht.
 
+Bei einer Seite in einem Container landet die Kopie im Ordner `tmp/` der Seite,
+und die Joomla-CLI läuft über `cli_command` (siehe
+[Testseiten in Containern](#testseiten-in-containern)).
+
 ```
 mod_example-1.1.0.zip → /var/www/html
 Install Extension
@@ -85,6 +89,11 @@ bleiben liegen (siehe [Altlasten](#altlasten)).
 Für ein Update muss das Manifest `method="upgrade"` haben, sonst lehnt Joomla
 die Installation über eine vorhandene Erweiterung ab. Schlägt die Installation
 fehl und fehlt das Attribut, weist `jxt install` darauf hin.
+
+Die Joomla-CLI ist eine Konsolen-Anwendung, keine Web-Anwendung. Ein
+Installationsskript, das Letztere erwartet, z. B. weil es `$app` als
+`CMSApplication` deklariert, scheitert dort; eine solche Erweiterung lässt sich
+nur im Backend installieren.
 
 ### Git-Tag installieren
 

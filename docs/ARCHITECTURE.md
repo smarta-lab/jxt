@@ -126,6 +126,33 @@ Because `jxt sync` deletes files on the server, the parser rejects absolute
 paths, paths containing `..`, and invalid element names, plugin groups or
 language tags.
 
+Several of these rules are not in Joomla's documentation of manifests (e.g.
+`<file>` as a file, `client` on `<language>`, the `cmd` filter for template
+names, that only the first `<files>` names a module or plugin); they follow
+the installer adapters of Joomla 6.1 (`libraries/src/Installer`) and may
+change without notice, so the tests pin them. Deliberate deviations from the
+installer:
+
+- **All sections:** for each area the installer only reads the first
+  `<files>`, `<languages>` and `<media>`; jxt takes all of them, which only
+  matters for unusual manifests.
+- **Missing `folder`:** the installer falls back to the extension directory;
+  jxt reports the listed files as missing, so the parser does not depend on
+  the file system and typos are not hidden.
+- **`<media>` without `destination`** (copied directly into `media/`) and
+  **`<language>` without `tag`** (copied to `<client>/language/<path>`) are
+  rejected: they would make shared directories exclusive or widen the targets
+  the bridge accepts, and `jxt sync` and `--clean` would delete files of other
+  extensions.
+- **`MD5SUMS`:** the installer copies this file from the extension directory
+  even if the manifest does not list it; jxt deploys it only if listed.
+- **Missing language packs:** like the installer, `jxt sync` skips language
+  files whose `language/<tag>/` does not exist on the site, and lists them.
+- **Projects in a Joomla directory tree** (language files outside the
+  directory of the manifest, ZIP built by JoRobo or similar) are not
+  supported; they have their own build tool, and `jxt install --zip` installs
+  its ZIP.
+
 ## State: the installed manifest
 
 `jxt sync` needs to know what it deployed last time. Instead of a separate state
@@ -249,7 +276,9 @@ is no web endpoint.
   directory below `/tmp` with modes 0755/0644, readable for the web server
   user but writable only by the developer, and removes it afterwards. With
   `cli_command`, the directory is in the site's `tmp/` directory instead (see
-  [Test sites in containers](#test-sites-in-containers)).
+  [Test sites in containers](#test-sites-in-containers)). The plan names its
+  files relative to the staging directory, so the plugin does not care where
+  that is.
 - **Version check with a plan format:** the plugin's manifest has its own
   version. jxt compares the bundled manifest with the installed one
   (`plugins/console/jxt/jxt.xml`, readable without sudo) and installs the
@@ -263,13 +292,16 @@ is no web endpoint.
   raises the format; the plugin keeps reading the previous one where that is
   easy. A test fails when `plugin/` changed since the last release tag without
   a higher version; during development, `jxt install` in `plugin/` installs
-  any state without a new version, as does `jxt bridge add`.
+  any state without a new version, as does `jxt bridge add`. A hash over
+  `plugin/` instead of the version was rejected: every development state
+  would differ and trigger a reinstallation.
 - **Activation:** the Joomla installer leaves new plugins disabled (except
   editors), and the Joomla CLI only loads enabled ones. The plugin's install
   script enables it in `postflight`. The installer has cached the list of
   plugins before that point, so with caching enabled the plugin would stay
   invisible until the cache expires; the script therefore clears the cache
-  group `com_plugins`.
+  group `com_plugins`. Enabling it with `extension:enable <id>` was rejected,
+  since it needs the ID and another sudoers rule.
 - **When `jxt sync` uses it:** whenever the bridge is installed on the site,
   not depending on `web_user`. Sites the developer can write to, e.g. a
   container whose files are shared with the host, keep working without sudo,
@@ -368,14 +400,17 @@ Podman, `ddev exec -p <project>` and a different PHP on the host alike.
   host, so the paths could not be translated via `cli_root`. Where the
   developer may not write to `tmp/` (official image, files of `www-data`),
   `chmod 1777` as root in the container is enough, without sudo on the host;
-  jxt names this in the error message.
+  jxt names this in the error message. The mode survives restarts, since the
+  image's entrypoint only changes owners when it installs Joomla.
 - **The site as an object:** `TestSite` holds the directory, the web server
   user, the command and `cli_root`, so the commands no longer pass
   `joomla_root` and `web_user` separately. It is the place for further
   properties of the site.
 - **Tests:** the commands are tested with recorded processes; there are no
-  tests with Docker, since CI runs with `--fail-on-skipped`. DDEV and the
-  official Joomla image were tested by hand.
+  tests with Docker, since CI runs with `--fail-on-skipped`. DDEV (with
+  `docker exec` and `ddev exec -p`) and the official Joomla image were tested
+  by hand, including the bridge, `--clean`, `--tag` and a large component; a
+  site in a named volume is rejected with a hint.
 
 ## Leftovers after an installation
 
