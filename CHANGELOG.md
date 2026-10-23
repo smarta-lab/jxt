@@ -6,6 +6,15 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Libraries (`type="library"`): `jxt build`, `jxt install`, `jxt sync` and
+  `jxt check` support them, including names with a vendor such as
+  `acme/example` (`libraries/acme/example/`) and the manifest in
+  `administrator/manifests/libraries/`. Names starting with a directory or
+  library of Joomla (`joomla`, `php-encryption`, `phpass`, `src`, `vendor`)
+  are rejected. The jxt bridge 0.2.0 accepts the targets of libraries.
+
 ## [0.5.0] - 2026-10-23
 
 ### Added

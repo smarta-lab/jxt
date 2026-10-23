@@ -23,6 +23,12 @@ use SmartA\Jxt\Deployment\PlanEntry;
  */
 final class ManifestParser
 {
+    /**
+     * Names of Joomla's own directories in `libraries/` and of its own libraries, which a library must not use as
+     * its first path segment, since `jxt sync` would treat Joomla's files as its own; the bridge reserves the same.
+     */
+    public const array RESERVED_LIBRARY_NAMES = ['joomla', 'php-encryption', 'phpass', 'src', 'vendor'];
+
     private const string ELEMENT_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
     private const string LANGUAGE_TAG_PATTERN = '/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/';
     private const string CMD_FILTER_PATTERN = '/[^A-Z0-9_.-]/i';
@@ -73,12 +79,13 @@ final class ManifestParser
         $installDirectories = $type->installDirectories($client, $element, $group);
         $installDirectory = $installDirectories[0];
         $manifestFile = basename(RelativePath::normalize($fileName));
+        $manifestTarget = $type->manifestTarget($client, $element, $manifestFile, $group);
         $fileSections = $this->fileSections($root, $type, $installDirectories);
         $languageSections = $this->languageSections($root, $type, $type->languageClient($client));
         $mediaSections = $this->children($root, 'media');
 
         $entries = [
-            new PlanEntry($manifestFile, $installDirectory . '/' . $manifestFile, EntryKind::File),
+            new PlanEntry($manifestFile, $manifestTarget, EntryKind::File),
             ...$this->fileEntries($fileSections),
             ...$this->scriptfileEntries($root, $installDirectory),
             ...$this->languageEntries($languageSections),
@@ -237,8 +244,8 @@ final class ManifestParser
     /**
      * Determines the application area from the attribute `client`; defaults to `site`.
      *
-     * The Joomla installer ignores the attribute for plugins, which always belong to the site, and for
-     * components, which it registers for the administrator.
+     * The Joomla installer ignores the attribute for plugins and libraries, which always belong to the site, and
+     * for components, which it registers for the administrator.
      */
     private function clientType(SimpleXMLElement $root, ExtensionType $type): ClientType
     {
@@ -248,7 +255,7 @@ final class ManifestParser
             return ClientType::Administrator;
         }
 
-        if ($client === '' || $type === ExtensionType::Plugin) {
+        if ($client === '' || $type === ExtensionType::Plugin || $type === ExtensionType::Library) {
             return ClientType::Site;
         }
 
@@ -264,6 +271,7 @@ final class ManifestParser
      * Templates: `<element>`, otherwise `<name>`, reduced to the characters of the filter `cmd` and in lower case.
      * Plugins: attribute `plugin` of an entry in the first `<files>` as it is, without a fallback.
      * Components: as templates, with the prefix `com_` if it is missing.
+     * Libraries: `<libraryname>` as it is, which may contain `/`.
      */
     private function element(SimpleXMLElement $root, ExtensionType $type): string
     {
@@ -271,6 +279,10 @@ final class ManifestParser
 
         if ($name === '') {
             throw new ManifestException('The extension name <name> is missing in the manifest.');
+        }
+
+        if ($type === ExtensionType::Library) {
+            return $this->libraryName(trim((string) $root->libraryname));
         }
 
         $elementTag = trim((string) $root->element);
@@ -309,6 +321,35 @@ final class ManifestParser
         $element = $this->validName($this->cmdElement($name), 'element name');
 
         return str_starts_with($element, 'com_') ? $element : 'com_' . $element;
+    }
+
+    /**
+     * Returns the library name if each of its segments is safe as a directory name and the first one is not
+     * reserved by Joomla.
+     *
+     * The Joomla installer only rejects some reserved names as a whole; a name such as `vendor/composer` would
+     * make Joomla's own files part of the library.
+     */
+    private function libraryName(string $name): string
+    {
+        if ($name === '') {
+            throw new ManifestException('The library name <libraryname> is missing in the manifest.');
+        }
+
+        foreach (explode('/', $name) as $segment) {
+            if (preg_match(self::ELEMENT_PATTERN, $segment) !== 1) {
+                throw new ManifestException(sprintf('Invalid library name "%s".', $name));
+            }
+        }
+
+        if (in_array(explode('/', $name)[0], self::RESERVED_LIBRARY_NAMES, true)) {
+            throw new ManifestException(sprintf(
+                'Library name "%s" would replace files of Joomla in libraries/ or administrator/manifests/libraries/.',
+                $name,
+            ));
+        }
+
+        return $name;
     }
 
     /**

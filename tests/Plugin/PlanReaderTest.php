@@ -73,6 +73,23 @@ final class PlanReaderTest extends TestCase
         self::assertSame(1, $plan->copyCount());
     }
 
+    public function testReadsLibraryWithVendorInTheElement(): void
+    {
+        $this->writePlan([
+            'format' => PlanReader::FORMAT,
+            'directory_mode' => 0755,
+            'file_mode' => 0644,
+            'deletions' => [],
+            'directories' => ['libraries/acme/example'],
+            'files' => [['target' => 'administrator/manifests/libraries/acme/example.xml', 'source' => null]],
+            'extension' => ['type' => 'library', 'element' => 'acme/example', 'folder' => '', 'client_id' => 0],
+        ]);
+
+        $plan = (new PlanReader())->read($this->temporaryDirectory);
+
+        self::assertEquals(new ExtensionIdentity('library', 'acme/example', '', 0), $plan->extension);
+    }
+
     public function testExtensionIsOptional(): void
     {
         $this->writePlan([
@@ -154,8 +171,16 @@ final class PlanReaderTest extends TestCase
             'files' => [['target' => 'modules/mod_x/x.php', 'source' => 'files/1']],
         ], 'files/1'];
         yield 'unknown extension type' => [
-            ['extension' => ['type' => 'library', 'element' => 'x', 'folder' => '', 'client_id' => 0]],
-            'library',
+            ['extension' => ['type' => 'file', 'element' => 'x', 'folder' => '', 'client_id' => 0]],
+            'file',
+        ];
+        yield 'slash in the element of a module' => [
+            ['extension' => ['type' => 'module', 'element' => 'acme/x', 'folder' => '', 'client_id' => 0]],
+            'acme/x',
+        ];
+        yield 'invalid library name' => [
+            ['extension' => ['type' => 'library', 'element' => 'acme/../x', 'folder' => '', 'client_id' => 0]],
+            'acme/../x',
         ];
         yield 'invalid element' => [
             ['extension' => ['type' => 'module', 'element' => '../x', 'folder' => '', 'client_id' => 0]],

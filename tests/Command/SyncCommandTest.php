@@ -137,6 +137,26 @@ final class SyncCommandTest extends TestCase
         self::assertStringContainsString('language/pt-BR/mod_x.ini', self::display($tester));
     }
 
+    public function testSyncsLibraryWithItsManifestOutsideTheLibraryDirectory(): void
+    {
+        $manifest = '<extension type="library"><name>Example</name><libraryname>acme/example</libraryname>'
+            . '<version>1.0.0</version><files folder="lib"><folder>src</folder></files></extension>';
+        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'manifest' => 'lib_example.xml']));
+        $this->writeFile('project/lib_example.xml', $manifest);
+        $this->writeFile('project/lib/src/Example.php', '<?php');
+        $this->writeFile('joomla/administrator/manifests/libraries/acme/example.xml', $manifest);
+        $this->writeFile('joomla/libraries/acme/example/src/Old.php', '<?php');
+        $this->writeFile('joomla/libraries/acme/other/Other.php', '<?php');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertFileExists($this->joomla() . '/libraries/acme/example/src/Example.php');
+        self::assertFileDoesNotExist($this->joomla() . '/libraries/acme/example/src/Old.php');
+        self::assertFileExists($this->joomla() . '/libraries/acme/other/Other.php');
+        self::assertStringContainsString('lib_acme_example → ' . $this->joomla(), self::display($tester));
+        self::assertStringContainsString('1 copied, 1 deleted, 1 unchanged', self::display($tester));
+    }
+
     public function testSyncsFromConfiguredManifestInSubdirectory(): void
     {
         unlink($this->temporaryDirectory . '/project/mod_x.xml');

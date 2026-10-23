@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Tests\Plugin;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SmartA\Plugin\Console\Jxt\Plan\PlanException;
+use SmartA\Jxt\Manifest\ManifestParser;
 use SmartA\Plugin\Console\Jxt\Plan\TargetPath;
 
 /**
@@ -19,6 +20,11 @@ use SmartA\Plugin\Console\Jxt\Plan\TargetPath;
  */
 final class TargetPathTest extends TestCase
 {
+    public function testReservesTheSameLibraryNamesAsJxt(): void
+    {
+        self::assertSame(ManifestParser::RESERVED_LIBRARY_NAMES, TargetPath::RESERVED_LIBRARY_NAMES);
+    }
+
     #[DataProvider('allowedTargets')]
     public function testAcceptsTargetsOfExtensions(string $target): void
     {
@@ -43,6 +49,10 @@ final class TargetPathTest extends TestCase
         yield 'language file' => ['language/de-DE/mod_x.ini'];
         yield 'administrator language file' => ['administrator/language/en-GB/plg_system_example.ini'];
         yield 'autoload cache' => ['administrator/cache/autoload_psr4.php'];
+        yield 'library' => ['libraries/acme/example/src/Example.php'];
+        yield 'library directory' => ['libraries/example'];
+        yield 'library manifest' => ['administrator/manifests/libraries/example.xml'];
+        yield 'library manifest with vendor' => ['administrator/manifests/libraries/acme/example.xml'];
     }
 
     /**
@@ -73,6 +83,13 @@ final class TargetPathTest extends TestCase
         yield 'all modules' => ['modules', 'outside the directories of extensions'];
         yield 'plugin group' => ['plugins/system', 'outside the directories of extensions'];
         yield 'all components' => ['components', 'outside the directories of extensions'];
+        yield 'all libraries' => ['libraries', 'outside the directories of extensions'];
+        yield 'Joomla vendor directory' => ['libraries/vendor/composer/autoload_real.php', 'outside the directories of extensions'];
+        yield 'Joomla sources' => ['libraries/src/Factory.php', 'outside the directories of extensions'];
+        yield 'Joomla library manifest' => ['administrator/manifests/libraries/joomla.xml', 'outside the directories of extensions'];
+        yield 'library manifests' => ['administrator/manifests/libraries', 'outside the directories of extensions'];
+        yield 'library manifest without .xml' => ['administrator/manifests/libraries/example.php', 'outside the directories of extensions'];
+        yield 'package manifest' => ['administrator/manifests/packages/pkg_x.xml', 'outside the directories of extensions'];
         yield 'all administrator components' => ['administrator/components', 'outside the directories of extensions'];
         yield 'all api components' => ['api/components', 'outside the directories of extensions'];
         yield 'api entry point' => ['api/index.php', 'outside the directories of extensions'];

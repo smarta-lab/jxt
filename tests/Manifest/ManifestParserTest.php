@@ -519,6 +519,77 @@ final class ManifestParserTest extends TestCase
         self::assertSame(['api'], $plan->sourceDirectories);
     }
 
+    public function testBuildsPlanForLibrary(): void
+    {
+        $xml = <<<'XML'
+            <extension type="library" client="administrator" method="upgrade">
+                <name>Example Library</name>
+                <libraryname>acme/example</libraryname>
+                <version>1.0.0</version>
+                <scriptfile>script.php</scriptfile>
+                <namespace path="src">Acme\Example</namespace>
+                <files folder="lib">
+                    <folder>src</folder>
+                    <filename>library.php</filename>
+                </files>
+                <languages folder="language">
+                    <language tag="en-GB">en-GB/lib_acme_example.ini</language>
+                </languages>
+                <media destination="lib_acme_example" folder="media">
+                    <folder>js</folder>
+                </media>
+            </extension>
+            XML;
+
+        $manifest = $this->parser->parse($xml, 'lib_example.xml');
+
+        self::assertSame(ExtensionType::Library, $manifest->type);
+        self::assertSame(ClientType::Site, $manifest->client);
+        self::assertSame('acme/example', $manifest->element);
+        self::assertSame('lib_acme_example', $manifest->name());
+        self::assertSame('administrator/manifests/libraries/acme/example.xml', $manifest->installedManifest());
+        self::assertEquals([
+            new PlanEntry('lib_example.xml', 'administrator/manifests/libraries/acme/example.xml', EntryKind::File),
+            new PlanEntry('lib/src', 'libraries/acme/example/src', EntryKind::Directory),
+            new PlanEntry('lib/library.php', 'libraries/acme/example/library.php', EntryKind::File),
+            new PlanEntry('script.php', 'libraries/acme/example/script.php', EntryKind::File),
+            new PlanEntry('language/en-GB/lib_acme_example.ini', 'language/en-GB/lib_acme_example.ini', EntryKind::File),
+            new PlanEntry('media/js', 'media/lib_acme_example/js', EntryKind::Directory),
+        ], $manifest->plan->entries);
+        self::assertSame(['libraries/acme/example', 'media/lib_acme_example'], $manifest->plan->exclusiveDirectories);
+        self::assertSame(['libraries/acme/example/script.php'], $manifest->installer->targets);
+    }
+
+    /**
+     * @param non-empty-string $expectedMessage
+     */
+    #[DataProvider('invalidLibraryNames')]
+    public function testRejectsInvalidLibraryName(string $libraryName, string $expectedMessage): void
+    {
+        $this->expectException(ManifestException::class);
+        $this->expectExceptionMessage($expectedMessage);
+
+        $this->parser->parse(
+            '<extension type="library"><name>x</name><libraryname>' . $libraryName . '</libraryname></extension>',
+            'x.xml',
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string, non-empty-string}>
+     */
+    public static function invalidLibraryNames(): iterable
+    {
+        yield 'missing' => ['', 'The library name <libraryname> is missing'];
+        yield 'parent segment' => ['acme/../x', 'Invalid library name "acme/../x"'];
+        yield 'empty segment' => ['acme//x', 'Invalid library name "acme//x"'];
+        yield 'leading slash' => ['/acme', 'Invalid library name "/acme"'];
+        yield 'trailing slash' => ['acme/', 'Invalid library name "acme/"'];
+        yield 'Joomla vendor directory' => ['vendor/composer', 'Library name "vendor/composer" would replace files of Joomla'];
+        yield 'Joomla sources' => ['src', 'Library name "src" would replace files of Joomla'];
+        yield 'Joomla library' => ['joomla', 'Library name "joomla" would replace files of Joomla'];
+    }
+
     public function testOtherTypesIgnoreAdministrationAndApiSections(): void
     {
         $xml = <<<'XML'

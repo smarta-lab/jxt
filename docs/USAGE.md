@@ -241,8 +241,11 @@ their language files go to `administrator/language/`. Components (element
 manifest and `<scriptfile>` to `administrator/components/<element>/`, and
 `<files>` in `<api>` to `api/components/<element>/`; `<languages>` goes to
 `language/<tag>/`, `<languages>` in `<administration>` to
-`administrator/language/<tag>/`. The attribute `client` of a `<language>` entry
-overrides the area for that file. Language files of a
+`administrator/language/<tag>/`. Libraries go to `libraries/<libraryname>/`
+(the name from `<libraryname>` may contain `/`, e.g. `acme/example`), their
+manifest to `administrator/manifests/libraries/<libraryname>.xml` and their
+language files to `language/<tag>/`. The attribute `client` of a `<language>`
+entry overrides the area for that file. Language files of a
 language that is not installed on the server are skipped and listed, as the
 Joomla installer does. Files are compared by size and content; unchanged files
 are not copied. Names starting with `.git` (e.g. `.gitkeep`) are skipped.
@@ -252,7 +255,8 @@ are not copied. Names starting with `.git` (e.g. `.gitkeep`) are skipped.
 The manifest installed on the server describes the last deployed state.
 
 - In the directories owned by the extension (`modules/<element>/`, the three
-  directories of a component, `media/<destination>/`), everything that is not
+  directories of a component, `libraries/<libraryname>/`,
+  `media/<destination>/`), everything that is not
   part of the new manifest is deleted, including whole directories that were
   removed from the manifest.
 - In shared directories such as `language/de-DE/`, only files that were listed

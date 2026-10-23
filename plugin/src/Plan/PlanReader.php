@@ -34,7 +34,7 @@ final class PlanReader
 
     private const string SOURCE_PATTERN = '#^files/[0-9]+$#';
     private const string NAME_PATTERN = '/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/';
-    private const array EXTENSION_TYPES = ['module', 'template', 'plugin', 'component'];
+    private const array EXTENSION_TYPES = ['module', 'template', 'plugin', 'component', 'library'];
 
     /**
      * Returns the validated plan of the staging directory.
@@ -143,7 +143,9 @@ final class PlanReader
             throw new PlanException(sprintf('Unsupported extension type "%s" in the plan.', $type));
         }
 
-        $this->checkName($element);
+        foreach ($type === 'library' ? explode('/', $element) : [$element] as $name) {
+            $this->checkName($name, $element);
+        }
 
         if ($folder !== '') {
             $this->checkName($folder);
@@ -157,12 +159,14 @@ final class PlanReader
     }
 
     /**
-     * Checks that an element or plugin group is safe as a directory name.
+     * Checks that an element, a segment of a library name or a plugin group is safe as a directory name.
+     *
+     * @param string|null $fullName Whole name for the error message, if the name is a segment of it
      */
-    private function checkName(string $name): void
+    private function checkName(string $name, ?string $fullName = null): void
     {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new PlanException(sprintf('Invalid name "%s" in the plan.', $name));
+            throw new PlanException(sprintf('Invalid name "%s" in the plan.', $fullName ?? $name));
         }
     }
 

@@ -248,7 +248,11 @@ beim Joomla-Installer unter `administrator/language/`. Komponenten (Element
 Manifest und `<scriptfile>` unter `administrator/components/<element>/` und
 `<files>` in `<api>` unter `api/components/<element>/`; `<languages>` landet
 unter `language/<tag>/`, `<languages>` in `<administration>` unter
-`administrator/language/<tag>/`. Das Attribut `client`
+`administrator/language/<tag>/`. Bibliotheken landen unter
+`libraries/<libraryname>/` (der Name aus `<libraryname>` darf `/` enthalten,
+z. B. `acme/example`), ihr Manifest unter
+`administrator/manifests/libraries/<libraryname>.xml` und ihre Sprachdateien
+unter `language/<tag>/`. Das Attribut `client`
 eines `<language>`-Eintrags legt den Bereich für diese Datei fest. Sprachdateien
 einer Sprache, die auf dem Server nicht installiert ist, werden wie beim
 Joomla-Installer übersprungen und aufgelistet. Dateien werden nach Größe und
@@ -261,7 +265,8 @@ Das auf dem Server installierte Manifest beschreibt den zuletzt übertragenen
 Stand.
 
 - In den Ordnern, die der Erweiterung gehören (`modules/<element>/`, die drei
-  Ordner einer Komponente, `media/<destination>/`), wird alles gelöscht, was
+  Ordner einer Komponente, `libraries/<libraryname>/`,
+  `media/<destination>/`), wird alles gelöscht, was
   nicht zum neuen Manifest gehört, auch ganze Ordner, die aus dem Manifest
   entfernt wurden.
 - In gemeinsam genutzten Ordnern wie `language/de-DE/` werden nur Dateien

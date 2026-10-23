@@ -20,13 +20,15 @@ enum ExtensionType: string
     case Template = 'template';
     case Plugin = 'plugin';
     case Component = 'component';
+    case Library = 'library';
 
     /**
      * Returns the install directory of the extension relative to the Joomla root directory.
      *
-     * It receives the manifest and the install script. Plugins are always installed in
+     * It receives the install script and, except for libraries, the manifest. Plugins are always installed in
      * `plugins/<group>/<element>`, regardless of the client; for components it is the administrator directory
-     * `administrator/components/<element>`, the base of the SQL files as well.
+     * `administrator/components/<element>`, the base of the SQL files as well; libraries go to
+     * `libraries/<element>`, where the element may contain `/`.
      *
      * @param string|null $group Plugin group (attribute `group` in the manifest), null for other types
      */
@@ -37,7 +39,24 @@ enum ExtensionType: string
             self::Template => $client->pathPrefix() . 'templates/' . $element,
             self::Plugin => 'plugins/' . ($group ?? throw new LogicException('A plugin needs a group.')) . '/' . $element,
             self::Component => 'administrator/components/' . $element,
+            self::Library => 'libraries/' . $element,
         };
+    }
+
+    /**
+     * Returns the path of the installed manifest relative to the Joomla root directory.
+     *
+     * The Joomla installer copies the manifest into the install directory, except for libraries: their manifest
+     * goes to `administrator/manifests/libraries/<element>.xml`, renamed after the element.
+     *
+     * @param string      $fileName File name of the manifest in the extension directory
+     * @param string|null $group    Plugin group (attribute `group` in the manifest), null for other types
+     */
+    public function manifestTarget(ClientType $client, string $element, string $fileName, ?string $group = null): string
+    {
+        return $this === self::Library
+            ? 'administrator/manifests/libraries/' . $element . '.xml'
+            : $this->installDirectory($client, $element, $group) . '/' . $fileName;
     }
 
     /**

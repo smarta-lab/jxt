@@ -18,6 +18,12 @@ namespace SmartA\Plugin\Console\Jxt\Plan;
 final class TargetPath
 {
     /**
+     * Names of Joomla's own directories in `libraries/` and of its own libraries, which a library must not use as
+     * its first path segment; jxt reserves the same.
+     */
+    public const array RESERVED_LIBRARY_NAMES = ['joomla', 'php-encryption', 'phpass', 'src', 'vendor'];
+
+    /**
      * Allowed prefixes with the minimum and maximum number of path segments.
      *
      * @var list<array{list<string>, int, int}>
@@ -60,6 +66,33 @@ final class TargetPath
             }
         }
 
+        if (self::isLibraryTarget($segments)) {
+            return $target;
+        }
+
         throw new PlanException(sprintf('Target "%s" in the plan is outside the directories of extensions.', $target));
+    }
+
+    /**
+     * Checks whether the target is inside `libraries/<name>/` or the manifest
+     * `administrator/manifests/libraries/<name>.xml` of a library whose name does not start with a reserved one.
+     *
+     * @param list<string> $segments
+     */
+    private static function isLibraryTarget(array $segments): bool
+    {
+        if ($segments[0] === 'libraries' && count($segments) >= 2) {
+            return !in_array($segments[1], self::RESERVED_LIBRARY_NAMES, true);
+        }
+
+        if (array_slice($segments, 0, 3) !== ['administrator', 'manifests', 'libraries'] || count($segments) < 4) {
+            return false;
+        }
+
+        $name = count($segments) === 4 ? substr($segments[3], 0, -strlen('.xml')) : $segments[3];
+
+        return str_ends_with((string) end($segments), '.xml')
+            && $name !== ''
+            && !in_array($name, self::RESERVED_LIBRARY_NAMES, true);
     }
 }

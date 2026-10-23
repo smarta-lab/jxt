@@ -70,8 +70,11 @@ written:
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
-  `client`), templates, plugins and components. Packages (`pkg_`) consist of
-  several manifests and are not supported yet.
+  `client`), templates, plugins, components and libraries. Packages (`pkg_`)
+  consist of several manifests and are not supported yet; the type `file` is
+  not supported, since it may install files anywhere, which contradicts the
+  exclusive directories that `jxt sync` deletes in and the targets the bridge
+  accepts.
 
 ## Core idea: the deployment plan
 
@@ -87,8 +90,8 @@ The plan also records:
 - **Exclusive directories:** the install directory (`modules/<element>/`,
   `templates/<name>/`, `plugins/<group>/<element>/`), for components the three
   directories `administrator/components/<element>/`, `components/<element>/`
-  and `api/components/<element>/`, and `media/<destination>/`. They belong to
-  the extension alone.
+  and `api/components/<element>/`, for libraries `libraries/<libraryname>/`,
+  and `media/<destination>/`. They belong to the extension alone.
 - **Source directories:** the `folder` attributes of the sections (and the first
   path segment of language files without `folder`). Files in them that the
   manifest does not list are reported.
@@ -109,6 +112,18 @@ every child of `<files>` and `<media>` except `<folder>` is a file (usually
 constants (`mod_x`, `tpl_x`, `plg_<group>_<element>` in lower case, `com_x`)
 also names the ZIP, the prefix of the language constants checked by `jxt check`
 and the extension in the output.
+
+Libraries take their element from `<libraryname>` unchanged, which may
+contain `/` (`acme/example` installs into `libraries/acme/example/`). Their
+manifest does not go into the install directory but to
+`administrator/manifests/libraries/<libraryname>.xml`, renamed after the
+element; this is also the installed manifest that `jxt sync` reads. Their
+language files belong to the site, and their name in Joomla is
+`lib_<libraryname>` with `_` instead of `/`. The installer only rejects the
+names `php-encryption`, `phpass`, `src` and `vendor` as a whole; jxt rejects
+them and `joomla` as the first segment, since a library such as
+`vendor/composer` or `joomla` would make Joomla's own files or manifest part
+of the library, and the bridge reserves the same names.
 
 Components have one target directory per area: `<files>` goes to the site
 directory, `<administration><files>` to the administrator directory and
@@ -269,9 +284,10 @@ is no web endpoint.
   in jxt, not against attacks: it does not derive the plan from manifests, it
   executes it and only checks that every target is a normalized relative path
   in a directory that belongs to a single extension (`modules/<element>/`,
-  `plugins/<group>/<element>/`, `components/<element>/`, `media/<x>/`,
-  `language/<tag>/<file>`, …) or
-  is `administrator/cache/autoload_psr4.php`.
+  `plugins/<group>/<element>/`, `components/<element>/`, `libraries/<name>/`,
+  `media/<x>/`, `language/<tag>/<file>`, …), is the manifest of a library
+  (`administrator/manifests/libraries/<name>.xml`) or is
+  `administrator/cache/autoload_psr4.php`.
 - **Staging:** jxt copies the new and changed files and `plan.json` into a
   directory below `/tmp` with modes 0755/0644, readable for the web server
   user but writable only by the developer, and removes it afterwards. With
@@ -437,7 +453,9 @@ the plain `jxt install` shows the list before. Modules are not affected:
 overrides and alternative layouts of a module live in the template
 (`templates/<template>/html/mod_x/`), not in `modules/mod_x/`. Uninstalling and
 reinstalling as a shortcut was rejected, since it also deletes the module
-instances and their settings.
+instances and their settings. Libraries have no leftovers: for an update, the
+Joomla installer uninstalls the installed library first (including its media
+and language files) and installs it anew, with a new extension ID.
 
 ## Building and checking a tag
 

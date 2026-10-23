@@ -15,7 +15,7 @@ namespace SmartA\Plugin\Console\Jxt\Plan;
 final readonly class ExtensionIdentity
 {
     /**
-     * @param string $type     `module`, `template` or `plugin`
+     * @param string $type     `module`, `template`, `plugin`, `component` or `library`
      * @param string $folder   Plugin group, empty for other types
      * @param int    $clientId 0 for site, 1 for administrator
      */
