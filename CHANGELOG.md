@@ -28,6 +28,11 @@ project follows [Semantic Versioning](https://semver.org/).
   `TPL_X_COM_CONTENT_ARTICLE_LAYOUT_…`) are no longer reported as unused.
 - The upper-cased `<name>` of the manifest (`LIGHTNING` for the template
   `lightning`), which Joomla translates, is no longer reported as unused.
+- `jxt check` resolves the asset URIs of templates as Joomla does: classic
+  templates (without `<inheritable>` or `<parent>`) keep their files in
+  `templates/<name>/`, which were skipped without a warning, and files a
+  child template takes from its parent or from the media of another
+  extension are no longer reported as missing.
 - `jxt sync` points to `jxt bridge add` only when a file operation fails,
   no longer when the extension is not installed or a file listed in the
   manifest is missing.

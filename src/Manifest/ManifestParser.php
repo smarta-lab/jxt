@@ -102,6 +102,9 @@ final class ManifestParser
             ),
             $this->installerMetadata($root, $installDirectory),
             $group,
+            trim((string) $root->name),
+            $type === ExtensionType::Template && trim((string) $root->inheritable) === '1',
+            $type === ExtensionType::Template && trim((string) $root->parent) !== '' ? trim((string) $root->parent) : null,
         );
     }
 

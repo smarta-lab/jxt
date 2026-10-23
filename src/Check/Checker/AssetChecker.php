@@ -17,6 +17,7 @@ use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Manifest\ExtensionType;
+use SmartA\Jxt\Manifest\Manifest;
 
 /**
  * Checks the `joomla.asset.json` files of the extension.
@@ -213,7 +214,8 @@ final readonly class AssetChecker implements Checker
     /**
      * Returns the source path of the asset's file, null if it has none to check, false if it cannot be found.
      *
-     * Assets without URI, with an external URI or with a URI outside the extension's media are skipped.
+     * Assets without URI or with an external URI are skipped, as are files the extension does not ship if Joomla
+     * may find them elsewhere: in the media of another extension or, for a child template, in its parent.
      *
      * @param array<mixed> $asset
      */
@@ -226,17 +228,14 @@ final readonly class AssetChecker implements Checker
             return null;
         }
 
+        $all = $this->candidates($uri, $typeFolder, $context->manifest->plan->exclusiveDirectories, $this->templateDirectory($context->manifest));
         $candidates = array_values(array_filter(
-            $this->candidates($uri, $typeFolder, $context->manifest->plan->exclusiveDirectories),
+            $all,
             static fn (string $target): bool => array_any(
                 $context->manifest->plan->exclusiveDirectories,
                 static fn (string $directory): bool => str_starts_with($target, $directory . '/'),
             ),
         ));
-
-        if ($candidates === []) {
-            return null;
-        }
 
         foreach ($context->files as $entry) {
             if (in_array($entry->target, $candidates, true)) {
@@ -244,7 +243,27 @@ final readonly class AssetChecker implements Checker
             }
         }
 
-        return false;
+        $mayBeForeign = count($candidates) < count($all)
+            || ($context->manifest->parent !== null && !str_starts_with($uri, 'media/'));
+
+        return $candidates === [] || $mayBeForeign ? null : false;
+    }
+
+    /**
+     * Returns the directory in which Joomla looks for relative URIs of a template, null for other types.
+     *
+     * Inheritable and child templates keep their files in `media/templates/<client>/<element>/`, classic
+     * templates in their template directory.
+     */
+    private function templateDirectory(Manifest $manifest): ?string
+    {
+        if ($manifest->type !== ExtensionType::Template) {
+            return null;
+        }
+
+        return $manifest->inheritable || $manifest->parent !== null
+            ? 'media/templates/' . $manifest->client->value . '/' . $manifest->element
+            : $manifest->type->installDirectory($manifest->client, $manifest->element, $manifest->group);
     }
 
     /**
@@ -261,21 +280,27 @@ final readonly class AssetChecker implements Checker
     /**
      * Returns the possible targets of a URI relative to the Joomla root, as resolved by Joomla.
      *
-     * `media/...` is a path from the root, `extension/file.js` is `media/extension/js/file.js`, and a
-     * plain file name refers to the extension's own media directories. Each target also counts in its
-     * minified or unminified variant.
+     * `media/...` is a path from the root. Joomla looks for any other URI in the template first
+     * (`<template directory>/js/extension/file.js`); `extension/file.js` is then `media/extension/js/file.js`.
+     * A plain file name refers to the template directory of a template, otherwise to the extension's own media
+     * directories. Each target also counts in its minified or unminified variant.
      *
-     * @param list<string> $directories Exclusive directories of the extension
+     * @param list<string> $directories       Exclusive directories of the extension
+     * @param string|null  $templateDirectory Directory of a template's files, null for other types
      *
      * @return list<string>
      */
-    private function candidates(string $uri, string $typeFolder, array $directories): array
+    private function candidates(string $uri, string $typeFolder, array $directories, ?string $templateDirectory): array
     {
+        $inTemplate = $templateDirectory === null ? [] : [$templateDirectory . '/' . $typeFolder . '/' . $uri];
+
         if (str_starts_with($uri, 'media/')) {
             $targets = [$uri];
         } elseif (str_contains($uri, '/')) {
             [$extension, $rest] = explode('/', $uri, 2);
-            $targets = ['media/' . $extension . '/' . $typeFolder . '/' . $rest, 'media/' . $extension . '/' . $rest];
+            $targets = [...$inTemplate, 'media/' . $extension . '/' . $typeFolder . '/' . $rest, 'media/' . $extension . '/' . $rest];
+        } elseif ($inTemplate !== []) {
+            $targets = $inTemplate;
         } else {
             $targets = array_map(
                 static fn (string $directory): string => $directory . '/' . $typeFolder . '/' . $uri,
