@@ -77,6 +77,40 @@ final class InstallCommandTest extends TestCase
         self::assertStringContainsString('Folder images/x created! <info>tag</info> [OK] Extension', self::display($tester));
     }
 
+    /**
+     * @param list<int> $expectedLengths
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalWidths')]
+    public function testWrapsHtmlOfInstallScriptsAtTheTerminalWidth(string $columns, array $expectedLengths): void
+    {
+        $paragraph = str_repeat('word ', 39) . 'end';
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '<p>' . $paragraph . '</p>')));
+        $previous = getenv('COLUMNS');
+        putenv('COLUMNS=' . $columns);
+
+        try {
+            self::assertSame(Command::SUCCESS, $tester->execute([]));
+        } finally {
+            putenv($previous === false ? 'COLUMNS' : 'COLUMNS=' . $previous);
+        }
+
+        $lines = array_values(array_filter(
+            explode("\n", $tester->getDisplay()),
+            static fn (string $line): bool => str_starts_with($line, 'word'),
+        ));
+        self::assertSame($expectedLengths, array_map(strlen(...), $lines));
+    }
+
+    /**
+     * @return iterable<string, array{string, list<int>}>
+     */
+    public static function terminalWidths(): iterable
+    {
+        yield 'narrow terminal' => ['40', [39, 39, 39, 39, 38]];
+        yield 'wide terminal, at most 120' => ['200', [119, 78]];
+        yield 'zero width as in SymfonyStyle' => ['0', [119, 78]];
+    }
+
     public function testRunsWithoutSudoWithoutWebUser(): void
     {
         $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));

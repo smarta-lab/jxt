@@ -96,8 +96,9 @@ Installationsskript, das Letztere erwartet, z. B. weil es `$app` als
 nur im Backend installieren.
 
 Installationsskripte geben oft HTML aus, das das Backend darstellt.
-`jxt install` wandelt es in reinen Text um, umbrochen bei 80 Zeichen; die
-übrigen Zeilen der Joomla-CLI bleiben unverändert.
+`jxt install` wandelt es in reinen Text um, umbrochen bei der Breite des
+Terminals wie die Meldungen von jxt (höchstens 120 Zeichen, 80, wenn die
+Breite unbekannt ist); die übrigen Zeilen der Joomla-CLI bleiben unverändert.
 
 ### Git-Tag installieren
 

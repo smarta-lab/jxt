@@ -19,8 +19,9 @@ project follows [Semantic Versioning](https://semver.org/).
 
 - `jxt install` shows HTML that install scripts output for the backend as
   plain text: block elements start a new line, headings are underlined, lists
-  get bullets or numbers, and lines are wrapped at 80 characters. Other lines
-  of the Joomla CLI stay unchanged. jxt now requires `ext-dom`.
+  get bullets or numbers, and lines are wrapped at the width of the terminal
+  like the blocks of jxt (at most 120 characters, 80 if the width is
+  unknown). Other lines of the Joomla CLI stay unchanged. jxt now requires `ext-dom`.
 - Contradicting keys of the test site (`web_user` next to `cli_command`,
   `cli_root` without `cli_command`) are only an error in the commands that
   use the Joomla CLI: `jxt install`, `jxt bridge` and `jxt sync` via the

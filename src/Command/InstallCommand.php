@@ -38,6 +38,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Terminal;
 
 /**
  * Command `jxt install`: builds the ZIP file and installs it on the test server with the Joomla installer.
@@ -91,6 +92,15 @@ final class InstallCommand extends Command
     }
 
     /**
+     * Returns the line length for HTML of install scripts, calculated like the one of SymfonyStyle, which does not
+     * expose it: the width of the terminal, at most 120.
+     */
+    private function outputWidth(): int
+    {
+        return min((new Terminal())->getWidth() ?: SymfonyStyle::MAX_LINE_LENGTH, SymfonyStyle::MAX_LINE_LENGTH);
+    }
+
+    /**
      * Builds (or takes) and installs the ZIP file and shows the output of the Joomla CLI.
      */
     #[\Override]
@@ -124,7 +134,7 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
-        $io->writeln((new InstallerOutput())->toText($result->output), OutputInterface::OUTPUT_RAW);
+        $io->writeln((new InstallerOutput($this->outputWidth()))->toText($result->output), OutputInterface::OUTPUT_RAW);
 
         if ($result->exitCode !== 0) {
             $this->explainFailure($io, $result, $manifest, $site);
