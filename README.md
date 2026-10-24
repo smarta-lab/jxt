@@ -33,6 +33,10 @@ plugins, components and libraries.
 - Linux or WSL; `jxt install` uses `sudo` to run the Joomla CLI as the web
   server user, or a command such as `docker exec` for test sites in containers
 
+`ext-posix` is required: jxt uses it to determine the current user and, when
+started via sudo, the developer's home directory. Native Windows is therefore
+not supported; on Windows, use jxt in WSL.
+
 ## Installation
 
 Add it to an extension project as a development dependency:
