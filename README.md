@@ -58,8 +58,9 @@ composer require --dev "smarta-lab/jxt:@dev"
 ## Quick start
 
 ```bash
-# once: tell the tools where the test server is
+# once: tell the tools where the test server is and who owns its files
 vendor/bin/jxt config set joomla_root /var/www/html --global
+vendor/bin/jxt config set web_user www-data --global
 
 # once: allow running the Joomla installer as www-data without password
 # (jxt install prints the exact line for your system if it is missing)

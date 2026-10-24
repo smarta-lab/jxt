@@ -43,7 +43,7 @@ final class InstallCommandTest extends TestCase
         $this->createTemporaryDirectory();
         $this->writeFile('project/mod_x.xml', self::MANIFEST);
         $this->writeFile('project/tmpl/default.php', '<?php');
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));
+        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']));
         $this->writeFile('joomla/configuration.php', '<?php');
         mkdir($this->temporaryDirectory . '/tmp');
     }
@@ -77,12 +77,9 @@ final class InstallCommandTest extends TestCase
         self::assertStringContainsString('Folder images/x created! <info>tag</info> [OK] Extension', self::display($tester));
     }
 
-    public function testRunsWithoutSudoIfWebUserIsNull(): void
+    public function testRunsWithoutSudoWithoutWebUser(): void
     {
-        $this->writeFile(
-            'project/.jxt.json',
-            (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => null]),
-        );
+        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));
         $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
 
         self::assertSame(Command::SUCCESS, $this->tester($runner)->execute([]));

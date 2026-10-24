@@ -45,7 +45,7 @@ final class ConfigurationLoaderTest extends TestCase
         $configuration = (new ConfigurationLoader($this->directory . '/missing.json'))->load($this->project());
 
         self::assertNull($configuration->joomlaRoot);
-        self::assertSame('www-data', $configuration->webUser);
+        self::assertNull($configuration->webUser);
         self::assertSame($this->project() . '/dist', $configuration->distDirectory);
         self::assertSame(0755, $configuration->directoryMode);
         self::assertSame(0644, $configuration->fileMode);

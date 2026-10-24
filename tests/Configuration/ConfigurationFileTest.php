@@ -64,13 +64,24 @@ final class ConfigurationFileTest extends TestCase
         self::assertSame(['check_exclude' => ['manifest', 'assets/uri']], $file->read());
     }
 
-    public function testWritesEmptyObject(): void
+    public function testDeletesTheFileWithoutValues(): void
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/config.json');
+        $file->write(['dist_dir' => 'build']);
 
         $file->write([]);
 
-        self::assertSame("{}\n", file_get_contents($file->path));
+        self::assertFileDoesNotExist($file->path);
+        self::assertSame([], $file->read());
+    }
+
+    public function testWritesNothingWithoutValuesAndFile(): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/jxt/config.json');
+
+        $file->write([]);
+
+        self::assertDirectoryDoesNotExist($this->temporaryDirectory . '/jxt');
     }
 
     public function testKeysProvideDefaults(): void

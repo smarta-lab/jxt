@@ -35,7 +35,6 @@ enum ConfigurationKey: string
     public function defaultValue(): ?string
     {
         return match ($this) {
-            self::WebUser => 'www-data',
             self::DistDirectory => 'dist',
             self::DirectoryMode => '0755',
             self::FileMode => '0644',

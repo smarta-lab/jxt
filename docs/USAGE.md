@@ -57,7 +57,7 @@ Joomla installer, without opening the backend in a browser:
 
 1. The ZIP file is copied to `/tmp` with mode 0644, so the web server user can
    read it without access to the project.
-2. The Joomla CLI installs it as the web server user:
+2. The Joomla CLI installs it as the web server user (`web_user`):
 
    ```bash
    sudo -n -u www-data php <joomla_root>/cli/joomla.php extension:install --path=…
@@ -173,8 +173,13 @@ does; check the list of a plain `jxt install` first.
 ### Setup: sudo without password for the Joomla installer
 
 So that the files belong to the web server user, the Joomla CLI runs as that
-user (`web_user`, default `www-data`). `sudo -n` never asks for a password; a
-sudoers rule is needed once:
+user (`web_user`), which you set once, usually globally:
+
+```bash
+vendor/bin/jxt config set web_user www-data --global
+```
+
+`sudo -n` never asks for a password; a sudoers rule is needed once:
 
 ```bash
 sudo visudo -f /etc/sudoers.d/jxt
@@ -193,8 +198,11 @@ script it allows running arbitrary code as `www-data`; that is intended, since
 this is exactly the code developed for the test server. The web server gets no
 access to your home directory.
 
-If PHP on the test server already runs as your own user,
-`jxt config set web_user null` disables sudo. For a site in a container, see
+If PHP on the test server already runs as your own user, leave `web_user`
+unset; jxt then runs the Joomla CLI as you, without sudo. If you cannot write
+to `joomla_root`, jxt refuses this and suggests the owner of the site as
+`web_user`. In `.jxt.json`, `"web_user": null` overrides a global `web_user`
+for a single project. For a site in a container, see
 [Test sites in containers](#test-sites-in-containers).
 
 ## jxt sync – copy files directly
@@ -332,8 +340,9 @@ JavaScript or layouts without building and installing a ZIP.
   Afterwards it checks that the Joomla CLI runs the plugin's commands.
 - **How `jxt sync` uses it:** if the bridge is installed on the site, `jxt sync`
   stages the changed files and the plan in a directory below `/tmp` (readable
-  for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`,
-  or in the site's `tmp/` directory via `cli_command` (see
+  for the web server user) and runs `jxt:apply` via `sudo -n -u <web_user>`
+  (as you without `web_user`), or in the site's `tmp/` directory via
+  `cli_command` (see
   [Test sites in containers](#test-sites-in-containers)); the output says
   `via jxt bridge`. Without the bridge, `jxt sync` copies the
   files itself as before.
@@ -391,8 +400,8 @@ vendor/bin/jxt config set cli_root /var/www/html
 - **`cli_command`** is the command that starts PHP in the container. jxt
   appends `<cli_root>/cli/joomla.php` and the arguments and runs it without a
   shell and without sudo, for `jxt install`, `jxt bridge` and the bridge in
-  `jxt sync`. `web_user` is not used then; setting it explicitly next to
-  `cli_command` is an error in the commands that use the Joomla CLI;
+  `jxt sync`. `web_user` is not used then; setting it next to `cli_command`
+  is an error in the commands that use the Joomla CLI;
   `jxt config set` only warns about it, so that you can change the keys in any
   order. In `jxt config set`, put `--` before the
   command, otherwise options such as `-u` are taken as options of jxt;
@@ -638,7 +647,8 @@ vendor/bin/jxt config unset <key> [--global]        # remove a value
 
 Without `--global`, `set` and `unset` change the project file `.jxt.json`; with
 `--global`, the global file `~/.config/jxt/config.json`. `set <key> null` stores
-an explicit `null`. For lists, `set` takes several values, also comma-separated,
+an explicit `null`, e.g. to override a global value in `.jxt.json`; `unset`
+deletes the file when its last key is removed. For lists, `set` takes several values, also comma-separated,
 and replaces the whole list; `cli_command` keeps its arguments as they are,
 without splitting at commas. Run `jxt config` without sudo, otherwise the file
 would be owned by root; it refuses to write under sudo.
@@ -646,7 +656,7 @@ would be owned by root; it refuses to write under sudo.
 ```
 Key           Value         Origin
 joomla_root   /var/www/html global
-web_user      www-data      default
+web_user      www-data      global
 cli_command   –             not set
 cli_root      –             not set
 manifest      –             not set
@@ -658,8 +668,7 @@ check_include –             not set
 ```
 
 The origin is one of: project file (`project`), global file (`global`), default
-value (`default`) or not set (`not set`). With `cli_command`, a note below the
-table says that `web_user` is not used. If keys contradict each other, e.g.
+value (`default`) or not set (`not set`). If keys contradict each other, e.g.
 `web_user` next to `cli_command`, `jxt config`, `jxt config set` and
 `jxt config unset` show a warning; `jxt install`, `jxt bridge` and `jxt sync`
 via the bridge fail until it is resolved.
@@ -679,7 +688,7 @@ called sudo (`SUDO_USER`), not from `/root`.
 | Key | Meaning | Default |
 |---|---|---|
 | `joomla_root` | Absolute path of the Joomla test server; must contain `configuration.php` | – (required for `jxt install` and `jxt sync`) |
-| `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo; `null` to run it without sudo | `www-data` |
+| `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo, e.g. `www-data`; not with `cli_command` | – (the Joomla CLI runs as you, without sudo) |
 | `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
 | `cli_root` | Path of `joomla_root` as `cli_command` sees it; only with `cli_command` | `joomla_root` |
 | `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
@@ -690,15 +699,16 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
 All values are strings, lists of strings (`cli_command`, `check_exclude`,
-`check_include`) or `null`. `null` resets a key to its default; only for
-`web_user` it means "without sudo". Modes are stored with four digits (`775`
-becomes `0775`). Unknown keys are rejected, so typos do not go unnoticed.
+`check_include`) or `null`. `null` resets a key to its default. Modes are
+stored with four digits (`775` becomes `0775`). Unknown keys are rejected, so
+typos do not go unnoticed.
 
 Example `~/.config/jxt/config.json`:
 
 ```json
 {
-    "joomla_root": "/var/www/html"
+    "joomla_root": "/var/www/html",
+    "web_user": "www-data"
 }
 ```
 

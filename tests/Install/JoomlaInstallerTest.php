@@ -65,9 +65,9 @@ final class JoomlaInstallerTest extends TestCase
         $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
         $installer = new JoomlaInstaller($runner, '/usr/bin/php8.5', $this->directory . '/tmp');
 
-        $installer->install($this->directory . '/dist/mod_x-1.0.0.zip', new TestSite('/var/www/html'));
+        $installer->install($this->directory . '/dist/mod_x-1.0.0.zip', new TestSite($this->directory));
 
-        self::assertSame(['/usr/bin/php8.5', '/var/www/html/cli/joomla.php', 'extension:install'], array_slice($runner->command, 0, 3));
+        self::assertSame(['/usr/bin/php8.5', $this->directory . '/cli/joomla.php', 'extension:install'], array_slice($runner->command, 0, 3));
     }
 
     public function testCopiesThePackageIntoTheSiteWithCliCommand(): void

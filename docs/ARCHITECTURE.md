@@ -64,9 +64,9 @@ written:
 - Package name `smarta-lab/jxt`, namespace `SmartA\Jxt`. Extension projects
   require it as a Composer dev dependency from Packagist.
 - Linux or WSL only: `ext-posix` gives the current user and, when jxt is
-  started via sudo, the developer's home directory. By default, the Joomla
-  CLI runs via `sudo -n -u <web_user>`; it runs without sudo if `web_user` is
-  `null` or `cli_command` is set (see
+  started via sudo, the developer's home directory. With `web_user`, the
+  Joomla CLI runs via `sudo -n -u <web_user>`; without it, or with
+  `cli_command`, it runs without sudo (see
   [Test sites in containers](#test-sites-in-containers)). Native Windows is
   not supported: besides `ext-posix`, `joomla_root` must be an absolute path
   starting with `/`, and the paths are built with `/`.
@@ -263,6 +263,16 @@ makes a missing rule fail instead of prompting, and the command then prints the
 matching rule. The PHP binary is `PHP_BINARY`, which must match the rule
 exactly, since sudo compares the command path.
 
+`web_user` has no default (until 0.5, it was `www-data`). With a default, an
+unset `web_user` differed from an explicit one: the default gave way to
+`cli_command`, while the same value set explicitly contradicted it, and
+`null` had to mean "without sudo" for this key only, instead of "default" as
+everywhere else. Without a default, the configuration says what happens, and
+the price is one more key in the one-time setup next to `joomla_root`. So that
+a forgotten `web_user` does not end in errors of the Joomla CLI or in files
+owned by the developer, jxt refuses to run the Joomla CLI without sudo if the
+developer cannot write to `joomla_root`, and suggests its owner as `web_user`.
+
 Without the jxt bridge (next section), `jxt sync` runs with the developer's own
 permissions and is meant for test sites the developer can write to. Modes are
 set for the extension's files and directories and for newly created
@@ -336,7 +346,7 @@ is no web endpoint.
 - **When `jxt sync` uses it:** whenever the bridge is installed on the site,
   not depending on `web_user`. Sites the developer can write to, e.g. a
   container whose files are shared with the host, keep working without sudo,
-  even if `web_user` keeps its default. The first installation is explicit
+  even if `web_user` is set. The first installation is explicit
   (`jxt bridge add`), since it adds an extension to the site and needs sudoers
   rules; updates are automatic, since the developer agreed by installing it.
 - **Removing:** the plugin reports its extension ID (`jxt:status`), and jxt
@@ -416,8 +426,7 @@ Podman, `ddev exec -p <project>` and a different PHP on the host alike.
   `sudo -n` must not be forgotten, or `jxt install` would wait for a password.
   A list could not carry these rules, nor be a default, since `PHP_BINARY`
   depends on the PHP running jxt. With `cli_command`, sudo is not used; an
-  explicit `web_user` next to it is rejected instead of being ignored silently,
-  while its default does not get in the way. Like a missing `joomla_root`,
+  `web_user` next to it is rejected instead of being ignored silently. Like a missing `joomla_root`,
   the contradiction is only an error when the test site is used
   (`Configuration::testSite()`), so `jxt build` and `jxt check` are not
   affected. `jxt config` only warns about it: rejecting it there would block

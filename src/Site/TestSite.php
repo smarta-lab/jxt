@@ -50,6 +50,28 @@ final readonly class TestSite
     }
 
     /**
+     * Checks that the Joomla CLI can write to the site if it runs as the current user, i.e. without `web_user` and
+     * `cli_command`.
+     *
+     * @throws SiteException if the current user cannot write to the site, e.g. because it belongs to the web server
+     */
+    public function assertWritableWithoutSudo(): void
+    {
+        if ($this->usesCliCommand() || $this->webUser !== null || is_writable($this->joomlaRoot)) {
+            return;
+        }
+
+        $owner = is_dir($this->joomlaRoot) ? posix_getpwuid((int) fileowner($this->joomlaRoot)) : false;
+
+        throw new SiteException(sprintf(
+            'You cannot write to %s, so the Joomla CLI cannot run as you. Set web_user to the user of the web '
+            . 'server so that jxt runs it via sudo, e.g. jxt config set --global web_user %s.',
+            $this->joomlaRoot,
+            is_array($owner) ? $owner['name'] : 'www-data',
+        ));
+    }
+
+    /**
      * Returns the path under which the Joomla CLI sees a path of this machine.
      *
      * @throws SiteException if the path is outside of the site, so that `cli_command` may not see it

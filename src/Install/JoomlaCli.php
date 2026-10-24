@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Install;
 
+use SmartA\Jxt\Site\SiteException;
 use SmartA\Jxt\Site\TestSite;
 
 /**
@@ -38,9 +39,11 @@ final readonly class JoomlaCli
      *                                paths as the Joomla CLI sees them
      *
      * @throws InstallException if the process cannot be started
+     * @throws SiteException    if the Joomla CLI would run as the current user, who cannot write to the site
      */
     public function run(TestSite $site, array $arguments): ProcessResult
     {
+        $site->assertWritableWithoutSudo();
         $script = $site->cliRoot . '/' . self::SCRIPT;
 
         return $this->processRunner->run(match (true) {

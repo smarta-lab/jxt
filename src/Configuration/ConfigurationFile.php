@@ -69,11 +69,11 @@ final readonly class ConfigurationFile
     }
 
     /**
-     * Writes the values in key order and creates missing directories.
+     * Writes the values in key order and creates missing directories; without values, the file is deleted.
      *
      * @param array<string, string|list<string>|null> $values Values by key name
      *
-     * @throws ConfigurationException if a key is not allowed in this file or the file cannot be written
+     * @throws ConfigurationException if a key is not allowed in this file or the file cannot be written or deleted
      */
     public function write(array $values): void
     {
@@ -84,6 +84,12 @@ final readonly class ConfigurationFile
                 $this->assertAllowed($key);
                 $ordered[$key->value] = $values[$key->value];
             }
+        }
+
+        if ($ordered === []) {
+            $this->delete();
+
+            return;
         }
 
         $json = json_encode((object) $ordered, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -97,6 +103,22 @@ final readonly class ConfigurationFile
         if (!$written) {
             throw new ConfigurationException(
                 sprintf('Cannot write configuration %s%s', $this->path, $error === null ? '.' : ': ' . $error),
+            );
+        }
+    }
+
+    /**
+     * Deletes the file if it exists, since an empty configuration equals a missing one.
+     *
+     * @throws ConfigurationException if the file cannot be deleted
+     */
+    private function delete(): void
+    {
+        [$deleted, $error] = PhpErrors::capture(fn (): bool => !file_exists($this->path) || unlink($this->path));
+
+        if (!$deleted) {
+            throw new ConfigurationException(
+                sprintf('Cannot delete configuration %s%s', $this->path, $error === null ? '.' : ': ' . $error),
             );
         }
     }

@@ -12,9 +12,8 @@ namespace SmartA\Jxt\Configuration;
 /**
  * Loads the global configuration and the optional project configuration `.jxt.json`.
  *
- * Values of the project configuration override the global values. `null` resets a value to its default;
- * only for `web_user`, an explicit `null` means running the Joomla CLI without sudo. With `cli_command`, the
- * Joomla CLI runs without sudo as well, and an explicit `web_user` is a contradiction. Such contradictions in the
+ * Values of the project configuration override the global values. `null` resets a value to its default. Without
+ * `web_user`, the Joomla CLI runs without sudo, as it does with `cli_command`, so both together are a contradiction. Such contradictions in the
  * keys of the test site do not prevent loading; they are reported by `Configuration::testSite()`, so that commands
  * without a test site still work.
  */
@@ -75,7 +74,7 @@ final readonly class ConfigurationLoader
         $distDirectory = (string) $value(ConfigurationKey::DistDirectory);
         $cliCommand = $this->listValue($values, ConfigurationKey::CliCommand);
         $cliRoot = $value(ConfigurationKey::CliRoot);
-        $webUser = $this->stringValue($values, ConfigurationKey::WebUser);
+        $webUser = $value(ConfigurationKey::WebUser);
         $siteConflict = match (true) {
             $cliCommand !== [] && $webUser !== null => sprintf(
                 'web_user (in %s) and cli_command (in %s) cannot be combined: with cli_command, the command itself '
@@ -95,9 +94,7 @@ final readonly class ConfigurationLoader
 
         return new Configuration(
             $joomlaRoot === null ? null : $this->withoutTrailingSlash($joomlaRoot),
-            array_key_exists(ConfigurationKey::WebUser->value, $values) || $cliCommand !== []
-                ? $webUser
-                : ConfigurationKey::WebUser->defaultValue(),
+            $webUser,
             $this->withoutTrailingSlash(
                 str_starts_with($distDirectory, '/') ? $distDirectory : $projectDirectory . '/' . $distDirectory,
             ),

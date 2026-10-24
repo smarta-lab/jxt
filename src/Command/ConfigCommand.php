@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
-use SmartA\Jxt\Configuration\ConfigurationEntry;
 use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
@@ -115,11 +114,6 @@ final class ConfigCommand extends Command
         $table->render();
         $io->newLine();
         $siteConflict = $this->siteConflict();
-
-        if ($siteConflict === null && $this->usesCliCommand($entries)) {
-            $io->writeln('web_user is not used, since cli_command is set.');
-        }
-
         $io->writeln(sprintf('global:  %s', $this->describeFile($this->configurationLoader->globalFile())));
         $io->writeln(sprintf('project: %s', $this->describeFile($this->configurationLoader->projectFile($this->projectDirectory))));
 
@@ -211,23 +205,7 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Checks whether `cli_command` is set, so that `web_user` is not used.
-     *
-     * @param list<ConfigurationEntry> $entries
-     */
-    private function usesCliCommand(array $entries): bool
-    {
-        foreach ($entries as $entry) {
-            if ($entry->key === ConfigurationKey::CliCommand) {
-                return $entry->value !== null && $entry->value !== [];
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Removes a key from the selected configuration file.
+     * Removes a key from the selected configuration file, and the file if no key is left.
      */
     private function unset(SymfonyStyle $io, InputInterface $input): void
     {
@@ -244,7 +222,11 @@ final class ConfigCommand extends Command
         unset($values[$key->value]);
         $file->write($values);
 
-        $io->success(sprintf('Removed %s from %s.', $key->value, $file->path));
+        $io->success(sprintf(
+            $values === [] ? 'Removed %s and the now empty file %s.' : 'Removed %s from %s.',
+            $key->value,
+            $file->path,
+        ));
         $this->warnAboutSiteConflict($io);
     }
 

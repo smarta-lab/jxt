@@ -27,6 +27,16 @@ project follows [Semantic Versioning](https://semver.org/).
   bridge. Before, every command failed, including `jxt build` and
   `jxt check`. `jxt config`, `jxt config set` and `jxt config unset` warn
   about them, so that a configuration can be changed in several calls.
+- `web_user` has no default any more (before: `www-data`): without it, the
+  Joomla CLI runs as you without sudo, and `null` resets it like every other
+  key. Before, an unset `web_user` gave way to `cli_command`, while the same
+  value set explicitly contradicted it. If you relied on the default, run
+  `jxt config set web_user www-data --global` once; if you cannot write to
+  `joomla_root` and `web_user` is missing, `jxt install`, `jxt bridge` and
+  `jxt sync` via the bridge stop with this hint instead of running the Joomla
+  CLI without sudo.
+- `jxt config unset` deletes the configuration file when its last key is
+  removed, instead of leaving `{}`.
 
 ### Fixed
 

@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Tests\Install;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Site\SiteException;
 use SmartA\Jxt\Site\TestSite;
 
 /**
@@ -35,9 +36,24 @@ final class JoomlaCliTest extends TestCase
     {
         $runner = new ScriptedProcessRunner(new ProcessResult(0, ''));
 
-        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run(new TestSite('/var/www/html'), ['jxt:status']);
+        (new JoomlaCli($runner, '/usr/bin/php8.5'))->run(new TestSite(sys_get_temp_dir()), ['jxt:status']);
 
-        self::assertSame([['/usr/bin/php8.5', '/var/www/html/cli/joomla.php', 'jxt:status']], $runner->commands);
+        self::assertSame([['/usr/bin/php8.5', sys_get_temp_dir() . '/cli/joomla.php', 'jxt:status']], $runner->commands);
+    }
+
+    public function testRejectsASiteWithoutWebUserThatTheUserCannotWrite(): void
+    {
+        $runner = new ScriptedProcessRunner(new ProcessResult(0, ''));
+
+        try {
+            (new JoomlaCli($runner, '/usr/bin/php8.5'))->run(new TestSite('/nonexistent/site'), ['jxt:status']);
+            self::fail('SiteException expected');
+        } catch (SiteException $exception) {
+            self::assertStringContainsString('You cannot write to /nonexistent/site', $exception->getMessage());
+            self::assertStringContainsString('jxt config set --global web_user www-data', $exception->getMessage());
+        }
+
+        self::assertSame([], $runner->commands);
     }
 
     public function testRunsViaCliCommandWithTheCliRoot(): void
