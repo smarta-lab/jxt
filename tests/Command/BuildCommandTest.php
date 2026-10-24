@@ -60,6 +60,22 @@ final class BuildCommandTest extends TestCase
         self::assertStringContainsString('2 files', self::display($tester));
     }
 
+    public function testIgnoresContradictingKeysOfTheTestSite(): void
+    {
+        $this->writeFile('mod_x.xml', <<<'XML'
+            <extension type="module"><name>mod_x</name><version>1.0.0</version>
+                <files><folder module="mod_x">tmpl</folder></files>
+            </extension>
+            XML);
+        $this->writeFile('tmpl/default.php', '<?php');
+        $this->writeFile('.jxt.json', '{"cli_command": ["ddev", "exec", "php"], "web_user": "www-data"}');
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertFileExists($this->project . '/dist/mod_x-1.0.0.zip');
+    }
+
     public function testWarnsAboutUnlistedMediaFolder(): void
     {
         $this->writeFile('mod_x.xml', <<<'XML'

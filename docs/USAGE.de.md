@@ -406,9 +406,11 @@ vendor/bin/jxt config set cli_root /var/www/html
   `<cli_root>/cli/joomla.php` und die Argumente an und führt ihn ohne Shell und
   ohne sudo aus, für `jxt install`, `jxt bridge` und die Bridge in `jxt sync`.
   `web_user` wird dann nicht benutzt; ihn neben `cli_command` ausdrücklich zu
-  setzen, ist ein Fehler. Bei `jxt config set` gehört `--` vor den Befehl,
-  sonst gelten Optionen wie `-u` als Optionen von jxt; `--global` steht vor dem
-  `--`.
+  setzen, ist in den Befehlen, die die Joomla-CLI nutzen, ein Fehler;
+  `jxt config set` warnt nur davor, so lassen sich die Schlüssel in beliebiger
+  Reihenfolge ändern. Bei `jxt config set` gehört `--`
+  vor den Befehl, sonst gelten Optionen wie `-u` als Optionen von jxt;
+  `--global` steht vor dem `--`.
 - **`joomla_root`** ist der Ordner der Seite auf dem eigenen Rechner,
   **`cli_root`** ihr Pfad im Container (Standard: `joomla_root`). Die Dateien
   der Seite müssen als Bind-Mount mit dem eigenen Rechner geteilt sein: jxt
@@ -680,7 +682,10 @@ check_include –             not set
 Die Herkunft (`Origin`) ist die Projektdatei (`project`), die globale Datei
 (`global`), der Standardwert (`default`) oder nicht gesetzt (`not set`). Mit
 `cli_command` weist ein Hinweis unter der Tabelle darauf hin, dass `web_user`
-nicht benutzt wird.
+nicht benutzt wird. Widersprechen sich Schlüssel, z. B. `web_user` neben
+`cli_command`, zeigen `jxt config`, `jxt config set` und `jxt config unset`
+eine Warnung; `jxt install`, `jxt bridge` und `jxt sync` über die Bridge
+scheitern, bis der Widerspruch behoben ist.
 
 ## Konfiguration
 

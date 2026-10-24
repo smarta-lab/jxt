@@ -21,6 +21,18 @@ project follows [Semantic Versioning](https://semver.org/).
   plain text: block elements start a new line, headings are underlined, lists
   get bullets or numbers, and lines are wrapped at 80 characters. Other lines
   of the Joomla CLI stay unchanged. jxt now requires `ext-dom`.
+- Contradicting keys of the test site (`web_user` next to `cli_command`,
+  `cli_root` without `cli_command`) are only an error in the commands that
+  use the Joomla CLI: `jxt install`, `jxt bridge` and `jxt sync` via the
+  bridge. Before, every command failed, including `jxt build` and
+  `jxt check`. `jxt config`, `jxt config set` and `jxt config unset` warn
+  about them, so that a configuration can be changed in several calls.
+
+### Fixed
+
+- If `web_user` in `.jxt.json` contradicts a global `cli_command`, the error
+  message suggests setting `web_user` to `null` in `.jxt.json` instead of in
+  the global configuration, where it would have no effect.
 
 ## [0.5.0] - 2026-10-23
 

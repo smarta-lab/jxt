@@ -31,6 +31,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'config', description: 'Shows and changes the global and the project configuration.')]
 final class ConfigCommand extends Command
 {
+    private const string SITE_CONFLICT_CONSEQUENCE = ' jxt install, jxt bridge and jxt sync via the bridge fail until '
+        . 'this is resolved.';
+
     /**
      * @param string $projectDirectory Project directory of the extension, usually the current directory
      * @param bool   $runsViaSudo      Whether the command runs via sudo; nothing is written then
@@ -111,13 +114,18 @@ final class ConfigCommand extends Command
 
         $table->render();
         $io->newLine();
+        $siteConflict = $this->siteConflict();
 
-        if ($this->usesCliCommand($entries)) {
+        if ($siteConflict === null && $this->usesCliCommand($entries)) {
             $io->writeln('web_user is not used, since cli_command is set.');
         }
 
         $io->writeln(sprintf('global:  %s', $this->describeFile($this->configurationLoader->globalFile())));
         $io->writeln(sprintf('project: %s', $this->describeFile($this->configurationLoader->projectFile($this->projectDirectory))));
+
+        if ($siteConflict !== null) {
+            $io->warning($siteConflict . self::SITE_CONFLICT_CONSEQUENCE);
+        }
     }
 
     /**
@@ -136,6 +144,7 @@ final class ConfigCommand extends Command
         $file->write([...$file->read(), $key->value => $value]);
 
         $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($key, $value), $file->path));
+        $this->warnAboutSiteConflict($io);
     }
 
     /**
@@ -236,6 +245,30 @@ final class ConfigCommand extends Command
         $file->write($values);
 
         $io->success(sprintf('Removed %s from %s.', $key->value, $file->path));
+        $this->warnAboutSiteConflict($io);
+    }
+
+    /**
+     * Warns if the keys of the test site contradict each other after a change.
+     *
+     * Only a warning, so that a configuration can be changed in several calls, e.g. setting cli_command before
+     * removing web_user.
+     */
+    private function warnAboutSiteConflict(SymfonyStyle $io): void
+    {
+        $siteConflict = $this->siteConflict();
+
+        if ($siteConflict !== null) {
+            $io->warning($siteConflict . self::SITE_CONFLICT_CONSEQUENCE);
+        }
+    }
+
+    /**
+     * Returns why the keys of the test site in the merged configuration contradict each other, or null.
+     */
+    private function siteConflict(): ?string
+    {
+        return $this->configurationLoader->load($this->projectDirectory)->siteConflict;
     }
 
     /**

@@ -14,7 +14,9 @@ namespace SmartA\Jxt\Configuration;
  *
  * Values of the project configuration override the global values. `null` resets a value to its default;
  * only for `web_user`, an explicit `null` means running the Joomla CLI without sudo. With `cli_command`, the
- * Joomla CLI runs without sudo as well, and an explicit `web_user` is a contradiction.
+ * Joomla CLI runs without sudo as well, and an explicit `web_user` is a contradiction. Such contradictions in the
+ * keys of the test site do not prevent loading; they are reported by `Configuration::testSite()`, so that commands
+ * without a test site still work.
  */
 final readonly class ConfigurationLoader
 {
@@ -54,7 +56,7 @@ final readonly class ConfigurationLoader
     /**
      * Loads the configuration for the given project directory.
      *
-     * @throws ConfigurationException for unreadable files, invalid values or contradicting keys
+     * @throws ConfigurationException for unreadable files or invalid values
      */
     public function load(string $projectDirectory): Configuration
     {
@@ -74,23 +76,22 @@ final readonly class ConfigurationLoader
         $cliCommand = $this->listValue($values, ConfigurationKey::CliCommand);
         $cliRoot = $value(ConfigurationKey::CliRoot);
         $webUser = $this->stringValue($values, ConfigurationKey::WebUser);
-
-        if ($cliCommand !== [] && $webUser !== null) {
-            throw new ConfigurationException(sprintf(
+        $siteConflict = match (true) {
+            $cliCommand !== [] && $webUser !== null => sprintf(
                 'web_user (in %s) and cli_command (in %s) cannot be combined: with cli_command, the command itself '
                 . 'determines the user. Remove web_user or set it to null in %s.',
                 $origin(ConfigurationKey::WebUser),
                 $origin(ConfigurationKey::CliCommand),
-                $origin(ConfigurationKey::CliCommand),
-            ));
-        }
-
-        if ($cliCommand === [] && $cliRoot !== null) {
-            throw new ConfigurationException(sprintf(
+                array_key_exists(ConfigurationKey::WebUser->value, $project)
+                    ? $projectFile->path
+                    : $origin(ConfigurationKey::CliCommand),
+            ),
+            $cliCommand === [] && $cliRoot !== null => sprintf(
                 'cli_root is only used together with cli_command (cli_root in %s).',
                 $origin(ConfigurationKey::CliRoot),
-            ));
-        }
+            ),
+            default => null,
+        };
 
         return new Configuration(
             $joomlaRoot === null ? null : $this->withoutTrailingSlash($joomlaRoot),
@@ -107,6 +108,7 @@ final readonly class ConfigurationLoader
             $this->listValue($values, ConfigurationKey::CheckInclude),
             $cliCommand,
             $cliRoot === null ? null : $this->withoutTrailingSlash($cliRoot),
+            $siteConflict,
         );
     }
 

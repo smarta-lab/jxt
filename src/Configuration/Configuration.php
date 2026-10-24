@@ -31,6 +31,7 @@ final readonly class Configuration
      *                                    empty to use the PHP running jxt
      * @param string|null  $cliRoot       Path of the Joomla root as `$cliCommand` sees it, without trailing `/`;
      *                                    null if it equals `$joomlaRoot`
+     * @param string|null  $siteConflict  Why the keys of the test site contradict each other; null if they do not
      */
     public function __construct(
         public ?string $joomlaRoot,
@@ -43,6 +44,7 @@ final readonly class Configuration
         public array $checkInclude = [],
         public array $cliCommand = [],
         public ?string $cliRoot = null,
+        public ?string $siteConflict = null,
     ) {
     }
 
@@ -73,12 +75,18 @@ final readonly class Configuration
     }
 
     /**
-     * Returns the test site after checking that `joomla_root` contains a Joomla installation.
+     * Returns the test site after checking that its keys are consistent and `joomla_root` contains a Joomla
+     * installation.
      *
-     * @throws ConfigurationException if `joomla_root` is missing or not a Joomla installation
+     * @throws ConfigurationException if the keys of the test site contradict each other, or `joomla_root` is missing
+     *                                or not a Joomla installation
      */
     public function testSite(): TestSite
     {
+        if ($this->siteConflict !== null) {
+            throw new ConfigurationException($this->siteConflict);
+        }
+
         return new TestSite($this->validJoomlaRoot(), $this->webUser, $this->cliCommand, $this->cliRoot);
     }
 }

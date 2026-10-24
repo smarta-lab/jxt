@@ -117,6 +117,21 @@ final class InstallCommandTest extends TestCase
         self::assertStringNotContainsString('method="upgrade"', self::display($tester));
     }
 
+    public function testFailsForContradictingKeysOfTheTestSite(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'cli_command' => ['docker', 'exec', 'web', 'php'],
+            'web_user' => 'www-data',
+        ]));
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('cannot be combined', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
     public function testFailsForDirectoryWithoutJoomla(): void
     {
         unlink($this->joomla() . '/configuration.php');

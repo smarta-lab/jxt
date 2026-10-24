@@ -417,7 +417,12 @@ Podman, `ddev exec -p <project>` and a different PHP on the host alike.
   A list could not carry these rules, nor be a default, since `PHP_BINARY`
   depends on the PHP running jxt. With `cli_command`, sudo is not used; an
   explicit `web_user` next to it is rejected instead of being ignored silently,
-  while its default does not get in the way.
+  while its default does not get in the way. Like a missing `joomla_root`,
+  the contradiction is only an error when the test site is used
+  (`Configuration::testSite()`), so `jxt build` and `jxt check` are not
+  affected. `jxt config` only warns about it: rejecting it there would block
+  changes that take several calls, e.g. setting `cli_command` before removing
+  `web_user`.
 - **Rejected:** `web_user` as a special case of a command prefix (it would
   change the meaning of an existing key and lose the sudoers hints); a prefix
   without `php` (no different PHP on the host); keys for Docker such as a

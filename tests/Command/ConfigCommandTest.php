@@ -157,6 +157,56 @@ final class ConfigCommandTest extends TestCase
         self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"dist_dir": "build"}');
     }
 
+    public function testSetWarnsAboutWebUserNextToCliCommandButSaves(): void
+    {
+        $this->writeFile('home/config.json', '{"cli_command": ["docker", "exec", "web", "php"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['apache']]));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"web_user": "apache"}');
+        self::assertStringContainsString('[WARNING]', $tester->getDisplay());
+        self::assertStringContainsString('cannot be combined', self::display($tester));
+        self::assertStringContainsString('jxt install, jxt bridge and jxt sync via the bridge fail until this is resolved.', self::display($tester));
+    }
+
+    public function testSetWarnsAboutCliCommandNextToWebUser(): void
+    {
+        $this->writeFile('home/config.json', '{"web_user": "apache"}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'cli_command', 'value' => ['ddev', 'exec', 'php']]));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"cli_command": ["ddev", "exec", "php"]}');
+        self::assertStringContainsString('cannot be combined', self::display($tester));
+    }
+
+    public function testUnsetWarnsAboutCliRootWithoutCliCommand(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"cli_command": ["ddev", "exec", "php"], "cli_root": "/var/www/html"}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'unset', 'key' => 'cli_command']));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"cli_root": "/var/www/html"}');
+        self::assertStringContainsString('cli_root is only used together with cli_command', self::display($tester));
+    }
+
+    public function testShowWarnsAboutContradictions(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"cli_command": ["ddev", "exec", "php"], "web_user": "apache"}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('cannot be combined', self::display($tester));
+    }
+
+    public function testSetWithoutContradictionDoesNotWarn(): void
+    {
+        $this->writeFile('home/config.json', '{"cli_command": ["ddev", "exec", "php"]}');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['null']]));
+        self::assertStringNotContainsString('[WARNING]', $tester->getDisplay());
+    }
+
     /**
      * @param array<string, string|bool|list<string>> $input
      * @param non-empty-string                        $expectedMessage

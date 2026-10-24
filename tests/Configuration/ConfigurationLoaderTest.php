@@ -154,29 +154,59 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame(['docker', 'exec', 'web', 'php'], $configuration->cliCommand);
     }
 
-    public function testRejectsExplicitWebUserWithCliCommand(): void
+    public function testReportsExplicitWebUserWithCliCommandAsSiteConflict(): void
     {
         $this->writeFile('config.json', '{"web_user": "apache"}');
         $this->writeFile('project/.jxt.json', '{"cli_command": ["docker", "exec", "web", "php"]}');
 
-        $this->expectException(ConfigurationException::class);
-        $this->expectExceptionMessage(sprintf(
+        $configuration = (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+
+        self::assertStringContainsString(sprintf(
             'web_user (in %s) and cli_command (in %s) cannot be combined',
             $this->directory . '/config.json',
             $this->project() . '/.jxt.json',
-        ));
-
-        (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+        ), (string) $configuration->siteConflict);
     }
 
-    public function testRejectsCliRootWithoutCliCommand(): void
+    public function testSuggestsNullForWebUserInTheFileThatTakesPrecedence(): void
+    {
+        $this->writeFile('config.json', '{"cli_command": ["docker", "exec", "web", "php"]}');
+        $this->writeFile('project/.jxt.json', '{"web_user": "apache"}');
+
+        $configuration = (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
+
+        self::assertStringContainsString(
+            sprintf('Remove web_user or set it to null in %s.', $this->project() . '/.jxt.json'),
+            (string) $configuration->siteConflict,
+        );
+    }
+
+    public function testReportsCliRootWithoutCliCommandAsSiteConflict(): void
     {
         $this->writeFile('project/.jxt.json', '{"cli_root": "/var/www/html"}');
+
+        $configuration = (new ConfigurationLoader(null))->load($this->project());
+
+        self::assertStringContainsString('cli_root is only used together with cli_command', (string) $configuration->siteConflict);
+    }
+
+    public function testConsistentSiteHasNoConflict(): void
+    {
+        $this->writeFile('config.json', '{"web_user": "apache"}');
+        $this->writeFile('project/.jxt.json', '{"cli_command": ["docker", "exec", "web", "php"], "web_user": null}');
+
+        self::assertNull((new ConfigurationLoader($this->directory . '/config.json'))->load($this->project())->siteConflict);
+    }
+
+    public function testTestSiteRejectsSiteConflict(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"cli_root": "/var/www/html"}');
+        $configuration = (new ConfigurationLoader(null))->load($this->project());
 
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('cli_root is only used together with cli_command');
 
-        (new ConfigurationLoader(null))->load($this->project());
+        $configuration->testSite();
     }
 
     public function testRejectsCheckListsInGlobalConfiguration(): void
