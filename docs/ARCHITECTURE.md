@@ -304,6 +304,15 @@ is no web endpoint.
   (`Plan\…`) are autoloaded in jxt's tests only, which check that jxt's
   `PlanStager` and the plugin's `PlanReader` agree on the format. The plugin
   avoids PHP features newer than Joomla's minimum version.
+- **Static analysis:** PHPStan analyses the Joomla-dependent files of the
+  plugin with Joomla's autoloader if `joomla_root` of the global jxt
+  configuration contains a Joomla site (`phpstan.joomla.php`); otherwise, e.g.
+  in CI, only `plugin/src/Plan`. PHPStan does not notice when the result of
+  this include changes and would keep its cached container, which then lacks
+  the Joomla bootstrap (errors such as "unknown class Joomla\DI\Container"
+  after setting `joomla_root`). Both cases therefore use a temporary directory
+  of their own (`phpstan-jxt` and `phpstan-jxt-joomla` in the system's
+  temporary directory).
 - **Trust:** whoever may run `extension:install` as `www-data` can already run
   any code as `www-data`. The plugin's checks therefore guard against mistakes
   in jxt, not against attacks: it does not derive the plan from manifests, it
