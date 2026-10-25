@@ -16,6 +16,8 @@ namespace SmartA\Jxt\Configuration;
  * `web_user`, the Joomla CLI runs without sudo, as it does with `cli_command`, so both together are a contradiction. Such contradictions in the
  * keys of the test site do not prevent loading; they are reported by `Configuration::testSite()`, so that commands
  * without a test site still work.
+ *
+ * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
 final readonly class ConfigurationLoader
 {
@@ -106,6 +108,7 @@ final readonly class ConfigurationLoader
             $cliCommand,
             $cliRoot === null ? null : $this->withoutTrailingSlash($cliRoot),
             $siteConflict,
+            $this->prepareSteps($values, $origin(ConfigurationKey::Prepare)),
         );
     }
 
@@ -136,9 +139,31 @@ final readonly class ConfigurationLoader
     }
 
     /**
+     * Returns the steps of `prepare`, or an empty list if it is not set.
+     *
+     * @param array<string, ConfigurationValue> $values Validated values by key name
+     * @param string                            $source File the steps come from
+     *
+     * @return list<PrepareStep>
+     *
+     * @throws ConfigurationException for an invalid step
+     */
+    private function prepareSteps(array $values, string $source): array
+    {
+        $steps = $values[ConfigurationKey::Prepare->value] ?? null;
+
+        return is_array($steps) ? array_map(
+            static fn (int $index, mixed $step): PrepareStep
+                => PrepareStep::fromValue($step, ConfigurationKey::Prepare->stepLabel($index, $source)),
+            array_keys($steps),
+            $steps,
+        ) : [];
+    }
+
+    /**
      * Returns the value of a single-value key, or null if it is not set.
      *
-     * @param array<string, string|list<string>|null> $values Validated values by key name
+     * @param array<string, ConfigurationValue> $values Validated values by key name
      */
     private function stringValue(array $values, ConfigurationKey $key): ?string
     {
@@ -150,7 +175,7 @@ final readonly class ConfigurationLoader
     /**
      * Returns the value of a list key, or an empty list if it is not set.
      *
-     * @param array<string, string|list<string>|null> $values Validated values by key name
+     * @param array<string, ConfigurationValue> $values Validated values by key name
      *
      * @return list<string>
      */
@@ -158,7 +183,7 @@ final readonly class ConfigurationLoader
     {
         $value = $values[$key->value] ?? null;
 
-        return is_array($value) ? $value : [];
+        return is_array($value) ? array_values(array_filter($value, is_string(...))) : [];
     }
 
     /**

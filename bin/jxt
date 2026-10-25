@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Command\BridgeCommand;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Command\CheckCommand;
@@ -35,13 +36,14 @@ try {
 $projectDirectory = (string) getcwd();
 $runsViaSudo = posix_geteuid() === 0 && is_string(getenv('SUDO_USER')) && getenv('SUDO_USER') !== '';
 $currentUser = posix_getpwuid(posix_geteuid())['name'] ?? (string) get_current_user();
+$preparation = new Preparation(runsViaSudo: $runsViaSudo);
 
 $application = new Application('jxt', InstalledVersions::getPrettyVersion('smarta-lab/jxt') ?? 'unknown');
 $application->addCommands([
-    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor(), new Bridge(), $currentUser),
-    new InstallCommand($projectDirectory, $configurationLoader, new JoomlaInstaller(), $currentUser),
-    new BuildCommand($projectDirectory, $configurationLoader),
-    new CheckCommand($projectDirectory, $configurationLoader),
+    new SyncCommand($projectDirectory, $configurationLoader, new SyncExecutor(), new Bridge(), $currentUser, preparation: $preparation),
+    new InstallCommand($projectDirectory, $configurationLoader, new JoomlaInstaller(), $currentUser, preparation: $preparation),
+    new BuildCommand($projectDirectory, $configurationLoader, preparation: $preparation),
+    new CheckCommand($projectDirectory, $configurationLoader, preparation: $preparation),
     new ConfigCommand($projectDirectory, $configurationLoader, $runsViaSudo),
     new BridgeCommand($projectDirectory, $configurationLoader, new Bridge(), $currentUser),
 ]);

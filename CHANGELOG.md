@@ -14,6 +14,14 @@ project follows [Semantic Versioning](https://semver.org/).
   `administrator/manifests/libraries/`. Names starting with a directory or
   library of Joomla (`joomla`, `php-encryption`, `phpass`, `src`, `vendor`)
   are rejected. The jxt bridge 0.2.0 accepts the targets of libraries.
+- Build steps: the project setting `prepare` lists commands that generate
+  files, e.g. CSS from SCSS or a manifest with the version filled in. jxt runs
+  them in the project directory before `jxt build`, `jxt install`,
+  `jxt check` and `jxt sync`, with `--tag` in the exported files of the tag,
+  and stops if one fails. Each step is an object with the command in `run`
+  and optionally a faster replacement for `jxt sync` in `sync`, e.g. to copy
+  instead of minifying, or `false` to skip it there.
+  `jxt config set prepare -- <command>` sets a single step.
 
 ### Changed
 

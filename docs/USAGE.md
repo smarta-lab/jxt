@@ -18,6 +18,7 @@
   - [DDEV](#ddev)
   - [Official Joomla image](#official-joomla-image)
 - [jxt build – build an installable ZIP](#jxt-build--build-an-installable-zip)
+- [Build steps](#build-steps)
 - [jxt check – check before a release](#jxt-check--check-before-a-release)
   - [Checking a Git tag](#checking-a-git-tag)
   - [Annotations in GitHub Actions](#annotations-in-github-actions)
@@ -52,8 +53,9 @@ vendor/bin/jxt install          # install
 vendor/bin/jxt install --clean  # install and delete the leftovers
 ```
 
-`jxt install` builds the ZIP file like `jxt build` and installs it with the
-Joomla installer, without opening the backend in a browser:
+`jxt install` builds the ZIP file like `jxt build`, after running the
+[build steps](#build-steps), and installs it with the Joomla installer,
+without opening the backend in a browser:
 
 1. The ZIP file is copied to `/tmp` with mode 0644, so the web server user can
    read it without access to the project.
@@ -232,6 +234,10 @@ mod_example → /var/www/html
 
 `+` new file, `~` changed file, `-` deleted file or directory (with a trailing
 `/`).
+
+Before comparing, `jxt sync` runs the [build steps](#build-steps), with their
+replacements for `jxt sync`; also with `--dry-run`, which only leaves the test
+site unchanged.
 
 ### What is copied
 
@@ -495,6 +501,87 @@ come from the `.jxt.json` of the tag, the output directory from the working
 copy. If the tag does not name the manifest version (with or without a `v`
 prefix), jxt warns but still builds the ZIP.
 
+If the project generates files first, list the commands under `prepare` (see
+[Build steps](#build-steps)); `jxt build` runs them before building.
+
+## Build steps
+
+Some projects generate files before they can be built: CSS from SCSS,
+minified scripts, or a manifest with the version filled in. List the commands
+in the project configuration under `prepare`; jxt runs them in the project
+directory before `jxt build`, `jxt install`, `jxt check` and `jxt sync`:
+
+```json
+{
+    "prepare": [
+        {"run": ["npm", "run", "css"]},
+        {
+            "run": ["npm", "run", "minify"],
+            "sync": ["npm", "run", "minify:copy"]
+        },
+        {"run": ["npm", "run", "images"], "sync": false}
+    ]
+}
+```
+
+- A step is an object with `run` and optionally `sync`, each a command
+  written as a list of arguments. The commands run without a shell, as with
+  `cli_command`; for pipes, `&&` or wildcards, write `["sh", "-c", "…"]`
+  explicitly. Longer sequences are easier to maintain as a
+  script in the project (an npm script, a PHP or shell script).
+- `jxt build`, `jxt install` and `jxt check` always run `run`, since they deal
+  with what is shipped. `jxt sync` runs `sync` instead if a step has one, or
+  skips the step with `"sync": false`, e.g. because a watch process
+  (`sass --watch`) keeps the files up to date. `"sync": null` is rejected as
+  ambiguous: leave `sync` out to run the same command.
+- The steps run in order, each with empty standard input; their output appears
+  as it comes, after a line with the command (`> npm run css`). With
+  `--quiet`, the output is collected and only shown in the error message. A
+  step that fails (exit code other than 0) or cannot be started stops jxt
+  before anything is built, checked or copied; `jxt check` then exits with
+  `2`.
+- `jxt install --zip` runs no steps, since it builds nothing.
+- Under sudo, jxt refuses to run the steps, since the generated files would be
+  owned by root.
+
+The prepare steps run with your permissions, so a `.jxt.json` from someone
+else runs commands on your machine, as Composer and npm scripts do. Look at
+`prepare` before running jxt in a cloned project.
+
+**Replacements for `jxt sync`:** a step that only optimizes (minifying,
+compressing images) can be replaced for `jxt sync` by a faster step that
+creates the same files without the optimization, so the test site has every
+file under the name the extension refers to. Copying is more reliable than
+deleting: e.g. `minify:copy` copies `style.css` unchanged to `style.min.css`.
+The replacement overwrites the generated files in the working copy; if they
+are committed, Git shows them as changed until the next `jxt build` or
+`jxt install` generates them again.
+
+**Generated manifest:** if the manifest itself is generated, e.g. with the
+version filled in, point `manifest` to the generated file. The steps run
+before jxt looks for the manifest:
+
+```json
+{
+    "manifest": "build/mod_example.xml",
+    "prepare": [{"run": ["php", "tools/build.php"]}]
+}
+```
+
+**Git tags:** with `--tag`, the steps of the tag's `.jxt.json` run in the
+temporary directory with the exported tag, so the working copy stays untouched
+and the result does not depend on uncommitted changes. Files that Git does not
+track, such as `node_modules/` or `vendor/`, are missing there; install them in
+a step, e.g. `{"run": ["sh", "-c", "test -d node_modules || npm ci"]}`. jxt
+exports only the project directory: if the `package.json` lies above it in the
+repository, the steps cannot reach it with `--tag`.
+
+**Checks:** `jxt check` checks the generated files like all others. With Git,
+the EditorConfig checks skip files that Git ignores, which is usually the case
+for generated files. `assets/version-changed` compares files with the last
+release via Git, so it does not see changes of generated files that are not
+committed.
+
 ## jxt check – check before a release
 
 ```bash
@@ -509,6 +596,8 @@ Mechanical checks of the extension, derived from the manifest and from files
 that already exist in the project (`.editorconfig`, `CHANGELOG.md`, Git tags).
 There is nothing to switch on: checks without a basis are skipped with a
 notice. Judging the content (changelog entries, README) stays a manual review.
+The [build steps](#build-steps) run first, so generated files are checked as
+they would be shipped.
 
 Whether the manifest version is already released decides the mode, shown in
 the first line of the output:
@@ -531,7 +620,8 @@ prepared, the run on a tag uses `jxt check --tag <tag> --strict --release`. In a
 pre-check, `--release` has no effect, which the output points out.
 
 Exit codes: `0` without errors, `1` with errors (with `--strict` also with
-warnings), `2` for an invalid call, configuration or manifest. Notices never
+warnings), `2` for an invalid call, configuration or manifest, or a failing
+build step. Notices never
 fail the check.
 
 | Check | Reported when | Pre | Final |
@@ -643,16 +733,21 @@ vendor/bin/jxt config                               # show values and origin
 vendor/bin/jxt config set <key> <value> [--global]  # set a value
 vendor/bin/jxt config set <key> <value>...          # set a list, also comma-separated
 vendor/bin/jxt config set cli_command -- <command>  # set a command, arguments as they are
+vendor/bin/jxt config set prepare -- <command>      # set a single build step
 vendor/bin/jxt config unset <key> [--global]        # remove a value
 ```
 
 Without `--global`, `set` and `unset` change the project file `.jxt.json`; with
 `--global`, the global file `~/.config/jxt/config.json`. `set <key> null` stores
 an explicit `null`, e.g. to override a global value in `.jxt.json`; `unset`
-deletes the file when its last key is removed. For lists, `set` takes several values, also comma-separated,
-and replaces the whole list; `cli_command` keeps its arguments as they are,
-without splitting at commas. Run `jxt config` without sudo, otherwise the file
-would be owned by root; it refuses to write under sudo.
+deletes the file when its last key is removed. For lists, `set` takes several
+values, also comma-separated, and replaces the whole list; `cli_command` keeps
+its arguments as they are, without splitting at commas. `set prepare` replaces
+the build steps by a single step with `run`, whose arguments are kept the same
+way; several steps and steps with `sync` are written into `.jxt.json`
+directly. Run
+`jxt config` without sudo, otherwise the file would be owned by root; it
+refuses to write under sudo.
 
 ```
 Key           Value         Origin
@@ -661,6 +756,7 @@ web_user      www-data      global
 cli_command   –             not set
 cli_root      –             not set
 manifest      –             not set
+prepare       –             not set
 dist_dir      dist          default
 dir_mode      0775          project
 file_mode     0644          default
@@ -693,6 +789,7 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
 | `cli_root` | Path of `joomla_root` as `cli_command` sees it; only with `cli_command` | `joomla_root` |
 | `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
+| `prepare` | Build steps run before `jxt build`, `jxt install`, `jxt check` and `jxt sync`; see [Build steps](#build-steps); only in `.jxt.json` | – |
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `dir_mode` | Mode for directories in `jxt sync` | `0755` |
 | `file_mode` | Mode for files in `jxt sync` | `0644` |
@@ -700,9 +797,9 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
 All values are strings, lists of strings (`cli_command`, `check_exclude`,
-`check_include`) or `null`. `null` resets a key to its default. Modes are
-stored with four digits (`775` becomes `0775`). Unknown keys are rejected, so
-typos do not go unnoticed.
+`check_include`), `null`, or for `prepare` a list of steps. `null` resets a key
+to its default. Modes are stored with four digits (`775` becomes `0775`).
+Unknown keys are rejected, so typos do not go unnoticed.
 
 Example `~/.config/jxt/config.json`:
 

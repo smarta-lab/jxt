@@ -12,12 +12,14 @@ namespace SmartA\Jxt\Tests\Command;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Bridge\PlanStager;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Command\SyncCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Sync\SyncExecutor;
+use SmartA\Jxt\Tests\Build\ScriptedStepRunner;
 use SmartA\Jxt\Tests\Install\ScriptedProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Application;
@@ -77,6 +79,57 @@ final class SyncCommandTest extends TestCase
         self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
         self::assertStringContainsString('Dry run', self::display($tester));
         self::assertStringContainsString('+ modules/mod_x/tmpl/default.php', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsWithTheirReplacementsForSync(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'prepare' => [
+                ['run' => ['npm', 'run', 'minify'], 'sync' => ['npm', 'run', 'minify:copy']],
+                ['run' => ['npm', 'run', 'images'], 'sync' => false],
+            ],
+        ]));
+        $stepRunner = new ScriptedStepRunner(function (array $command, string $directory): ProcessResult {
+            file_put_contents($directory . '/tmpl/generated.php', '<?php');
+
+            return new ProcessResult(0, '');
+        });
+        $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame([[['npm', 'run', 'minify:copy'], $this->temporaryDirectory . '/project', true]], $stepRunner->runs);
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/generated.php');
+        self::assertStringContainsString('> npm run minify:copy (sync, instead of npm run minify)', self::display($tester));
+        self::assertStringContainsString('Skipped for sync: npm run images', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsForADryRun(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'prepare' => [['run' => ['npm', 'run', 'css']]],
+        ]));
+        $stepRunner = new ScriptedStepRunner();
+        $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--dry-run' => true]));
+        self::assertSame([['npm', 'run', 'css']], $stepRunner->commands());
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/default.php');
+    }
+
+    public function testFailsWithoutSyncingIfAPrepareStepFails(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'prepare' => [['run' => ['npm', 'run', 'css']]],
+        ]));
+        $stepRunner = new ScriptedStepRunner(static fn (): ProcessResult => new ProcessResult(1, ''));
+        $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Prepare step failed (exit code 1): npm run css', self::display($tester));
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
     }
 
     public function testReportsUpToDateExtension(): void
@@ -295,7 +348,7 @@ final class SyncCommandTest extends TestCase
     /**
      * Creates the command without global configuration; the bridge runs its processes with the runner.
      */
-    private function command(ScriptedProcessRunner $runner): SyncCommand
+    private function command(ScriptedProcessRunner $runner, ?ScriptedStepRunner $stepRunner = null): SyncCommand
     {
         $temporaryDirectory = $this->temporaryDirectory . '/tmp';
 
@@ -314,6 +367,7 @@ final class SyncCommandTest extends TestCase
                 temporaryDirectory: $temporaryDirectory,
             ),
             'anna',
+            preparation: new Preparation($stepRunner ?? new ScriptedStepRunner()),
         );
     }
 

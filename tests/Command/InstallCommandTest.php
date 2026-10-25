@@ -12,11 +12,13 @@ namespace SmartA\Jxt\Tests\Command;
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Bridge\PlanStager;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Command\InstallCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\Build\ScriptedStepRunner;
 use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\Install\ScriptedProcessRunner;
@@ -233,6 +235,28 @@ final class InstallCommandTest extends TestCase
         self::assertSame(file_get_contents($this->temporaryDirectory . '/project/old/mod_x-0.9.0.zip'), $runner->packageContent);
         self::assertStringContainsString('mod_x-0.9.0.zip →', self::display($tester));
         self::assertStringContainsString('mod_x 0.9.0 installed', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsBeforeBuilding(): void
+    {
+        $this->addPrepareStep();
+        $stepRunner = new ScriptedStepRunner();
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.')), $stepRunner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame([['npm', 'run', 'build']], $stepRunner->commands());
+        self::assertStringContainsString('> npm run build', self::display($tester));
+    }
+
+    public function testInstallsAnExistingZipWithoutPrepareSteps(): void
+    {
+        $this->addPrepareStep();
+        $this->writeZip('project/old/mod_x-0.9.0.zip', str_replace('1.0.0', '0.9.0', self::MANIFEST));
+        $stepRunner = new ScriptedStepRunner();
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.')), $stepRunner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--zip' => 'old/mod_x-0.9.0.zip']));
+        self::assertSame([], $stepRunner->runs);
     }
 
     public function testInstallsAZipWithAnAbsolutePathWithoutProjectManifest(): void
@@ -495,14 +519,27 @@ final class InstallCommandTest extends TestCase
     /**
      * Creates the command without global configuration for the user `anna`.
      */
-    private function tester(RecordingProcessRunner $runner): CommandTester
+    private function tester(RecordingProcessRunner $runner, ?ScriptedStepRunner $stepRunner = null): CommandTester
     {
         return new CommandTester(new InstallCommand(
             $this->temporaryDirectory . '/project',
             new ConfigurationLoader(null),
             new JoomlaInstaller($runner, '/usr/bin/php8.5', $this->temporaryDirectory . '/tmp'),
             'anna',
+            preparation: new Preparation($stepRunner ?? new ScriptedStepRunner()),
         ));
+    }
+
+    /**
+     * Adds the prepare step `npm run build` to the project configuration.
+     */
+    private function addPrepareStep(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode([
+            'joomla_root' => $this->joomla(),
+            'web_user' => 'www-data',
+            'prepare' => [['run' => ['npm', 'run', 'build']]],
+        ]));
     }
 
     /**

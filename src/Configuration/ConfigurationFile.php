@@ -14,6 +14,8 @@ use SmartA\Jxt\PhpErrors;
 
 /**
  * A configuration file in JSON format (global or `.jxt.json` in the project).
+ *
+ * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
 final readonly class ConfigurationFile
 {
@@ -27,7 +29,7 @@ final readonly class ConfigurationFile
     /**
      * Reads and validates the file; a missing file results in an empty configuration.
      *
-     * @return array<string, string|list<string>|null> Values by key name
+     * @return array<string, ConfigurationValue> Values by key name
      *
      * @throws ConfigurationException for an unreadable file, invalid JSON, unknown keys or values
      */
@@ -71,7 +73,7 @@ final readonly class ConfigurationFile
     /**
      * Writes the values in key order and creates missing directories; without values, the file is deleted.
      *
-     * @param array<string, string|list<string>|null> $values Values by key name
+     * @param array<string, ConfigurationValue> $values Values by key name
      *
      * @throws ConfigurationException if a key is not allowed in this file or the file cannot be written or deleted
      */

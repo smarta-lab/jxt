@@ -13,7 +13,7 @@ use RuntimeException;
 use SmartA\Jxt\JxtException;
 
 /**
- * Thrown when the ZIP file cannot be created.
+ * Thrown when the ZIP file cannot be created or a prepare step fails.
  */
 final class BuildException extends RuntimeException implements JxtException
 {

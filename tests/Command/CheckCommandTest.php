@@ -10,9 +10,12 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Tests\Command;
 
 use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Check\CheckContextFactory;
 use SmartA\Jxt\Command\CheckCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\Build\ScriptedStepRunner;
 use SmartA\Jxt\Tests\Check\CheckProjectTrait;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -144,6 +147,47 @@ final class CheckCommandTest extends TestCase
 
         self::assertSame(Command::INVALID, $tester->execute([]));
         self::assertStringContainsString('No Joomla manifest found', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsBeforeTheChecks(): void
+    {
+        $this->writeFile('.jxt.json', '{"manifest": "build/mod_example.xml", "prepare": [{"run": ["php", "build.php"]}]}');
+        rename($this->temporaryDirectory . '/mod_example.xml', $this->temporaryDirectory . '/manifest.xml.in');
+        $stepRunner = new ScriptedStepRunner(function (array $command, string $directory): ProcessResult {
+            $this->writeFile('build/mod_example.xml', (string) file_get_contents($directory . '/manifest.xml.in'));
+
+            return new ProcessResult(0, '');
+        });
+        $tester = $this->tester(stepRunner: $stepRunner);
+
+        $tester->execute([]);
+
+        self::assertSame([[['php', 'build.php'], $this->temporaryDirectory, true]], $stepRunner->runs);
+        self::assertStringContainsString('> php build.php', self::display($tester));
+        self::assertStringContainsString('Checking mod_example 1.1.0', self::display($tester));
+    }
+
+    public function testFailingPrepareStepIsAnInvalidCall(): void
+    {
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["php", "build.php"]}]}');
+        $tester = $this->tester(stepRunner: new ScriptedStepRunner(static fn (): ProcessResult => new ProcessResult(1, '')));
+
+        self::assertSame(Command::INVALID, $tester->execute([]));
+        self::assertStringContainsString('Prepare step failed (exit code 1): php build.php', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsOfATagInTheExport(): void
+    {
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["php", "tagged.php"]}]}');
+        $this->initGit();
+        $this->git('tag', 'v1.1.0');
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["php", "changed.php"]}]}');
+        $stepRunner = new ScriptedStepRunner();
+
+        $this->tester(stepRunner: $stepRunner)->execute(['--tag' => 'v1.1.0']);
+
+        self::assertSame([['php', 'tagged.php']], $stepRunner->commands());
+        self::assertNotSame($this->temporaryDirectory, $stepRunner->runs[0][1]);
     }
 
     public function testChecksTheFilesOfATagInsteadOfTheWorkingCopy(): void
@@ -292,14 +336,16 @@ final class CheckCommandTest extends TestCase
     /**
      * Creates the command for the project without global configuration.
      *
-     * @param string|null $projectDirectory Project directory if it is not the temporary directory
+     * @param string|null             $projectDirectory Project directory if it is not the temporary directory
+     * @param ScriptedStepRunner|null $stepRunner       Runner for the prepare steps; null for one that succeeds
      */
-    private function tester(?string $projectDirectory = null): CommandTester
+    private function tester(?string $projectDirectory = null, ?ScriptedStepRunner $stepRunner = null): CommandTester
     {
         return new CommandTester(new CheckCommand(
             $projectDirectory ?? $this->temporaryDirectory,
             new ConfigurationLoader(null),
             new CheckContextFactory($this->processRunner()),
+            preparation: new Preparation($stepRunner ?? new ScriptedStepRunner()),
         ));
     }
 }

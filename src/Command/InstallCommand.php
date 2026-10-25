@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Build\ProjectBuild;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\Configuration;
@@ -43,8 +44,9 @@ use Symfony\Component\Console\Terminal;
 /**
  * Command `jxt install`: builds the ZIP file and installs it on the test server with the Joomla installer.
  *
- * With `--tag`, the ZIP file is built from the committed files of a Git tag; with `--zip`, an existing ZIP
- * file (e.g. of an older version) is installed instead of building a new one.
+ * Before building, the prepare steps run. With `--tag`, the ZIP file is built from the committed files of a Git
+ * tag; with `--zip`, an existing ZIP file (e.g. of an older version) is installed instead of building a new one,
+ * without prepare steps.
  *
  * Afterwards it reports leftovers: entries in the exclusive directories of the extension that the installed ZIP
  * file does not contain, since the Joomla installer does not remove files from listed folders. The ZIP file is
@@ -73,8 +75,9 @@ final class InstallCommand extends Command
         private readonly LeftoverFinder $leftoverFinder = new LeftoverFinder(),
         private readonly SyncExecutor $executor = new SyncExecutor(),
         private readonly Bridge $bridge = new Bridge(),
+        Preparation $preparation = new Preparation(),
     ) {
-        $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader);
+        $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader, preparation: $preparation);
         parent::__construct();
     }
 
@@ -169,8 +172,8 @@ final class InstallCommand extends Command
     private function newPackage(SymfonyStyle $io, Configuration $configuration, ?string $tag): array
     {
         $build = $tag === null
-            ? $this->projectBuilder->build($this->projectDirectory, $configuration->distDirectory)
-            : $this->projectBuilder->buildTag($this->projectDirectory, $tag, $configuration->distDirectory);
+            ? $this->projectBuilder->build($this->projectDirectory, $configuration->distDirectory, $io)
+            : $this->projectBuilder->buildTag($this->projectDirectory, $tag, $configuration->distDirectory, $io);
         $this->showBuildWarnings($io, $build);
 
         return [$build->manifest, $build->package->path];

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Build\BuildException;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Build\TagExporter;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckContextFactory;
@@ -43,9 +44,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Command `jxt check`: mechanical checks of the extension before a release.
  *
  * Exit code 0 without errors, 1 with errors (or warnings with `--strict`), 2 for an invalid call,
- * configuration or manifest. With `--tag`, the committed files of a Git tag are checked as the final check of
- * that release, with the configuration from the tag. `--format=github` prints the findings as GitHub Actions
- * annotations instead of sections.
+ * configuration or manifest, or a failing prepare step. The prepare steps run before the checks, since the checks
+ * concern the files that would be shipped. With `--tag`, the committed files of a Git tag are checked as the final
+ * check of that release, with the configuration from the tag and its prepare steps run in the exported files.
+ * `--format=github` prints the findings as GitHub Actions annotations instead of sections.
  */
 #[AsCommand(name: 'check', description: 'Checks the extension before a release.')]
 final class CheckCommand extends Command
@@ -62,6 +64,7 @@ final class CheckCommand extends Command
         private readonly ManifestLocator $manifestLocator = new ManifestLocator(),
         private readonly ManifestParser $manifestParser = new ManifestParser(),
         private readonly TagExporter $tagExporter = new TagExporter(),
+        private readonly Preparation $preparation = new Preparation(),
     ) {
         parent::__construct();
     }
@@ -114,8 +117,8 @@ final class CheckCommand extends Command
 
         try {
             [$context, $selection, $report] = is_string($tag)
-                ? $this->checkTag($input, $tag)
-                : $this->check($input, $this->projectDirectory);
+                ? $this->checkTag($input, $output, $tag)
+                : $this->check($input, $output, $this->projectDirectory);
         } catch (JxtException $exception) {
             match ($format) {
                 CheckFormat::Text => $io->error($exception->getMessage()),
@@ -145,7 +148,7 @@ final class CheckCommand extends Command
      *
      * @throws JxtException if there is no Git repository or tag, or the configuration or manifest is invalid
      */
-    private function checkTag(InputInterface $input, string $tag): array
+    private function checkTag(InputInterface $input, OutputInterface $output, string $tag): array
     {
         $git = $this->contextFactory->repository($this->projectDirectory) ?? throw new BuildException(
             sprintf('--tag needs Git, but %s is not in a Git repository.', $this->projectDirectory),
@@ -154,21 +157,28 @@ final class CheckCommand extends Command
         return $this->tagExporter->export(
             $git,
             $tag,
-            fn (string $directory): array => $this->check($input, $directory, $git, $tag),
+            fn (string $directory): array => $this->check($input, $output, $directory, $git, $tag),
         );
     }
 
     /**
-     * Runs the enabled checkers on the project in the directory.
+     * Runs the prepare steps and the enabled checkers on the project in the directory.
      *
-     * @param GitRepository|null $git Repository of the project directory when the directory holds a tag
+     * @param OutputInterface    $output Output for the prepare steps
+     * @param GitRepository|null $git    Repository of the project directory when the directory holds a tag
      *
      * @return array{CheckContext, CheckSelection, CheckReport}
      *
-     * @throws JxtException if the configuration, the selection of checks or the manifest is invalid
+     * @throws JxtException if the configuration, the selection of checks or the manifest is invalid, or a prepare
+     *                      step fails
      */
-    private function check(InputInterface $input, string $directory, ?GitRepository $git = null, ?string $tag = null): array
-    {
+    private function check(
+        InputInterface $input,
+        OutputInterface $output,
+        string $directory,
+        ?GitRepository $git = null,
+        ?string $tag = null,
+    ): array {
         $configuration = $this->configurationLoader->load($directory);
         $selection = CheckSelection::create(
             $configuration->checkExclude,
@@ -176,6 +186,7 @@ final class CheckCommand extends Command
             $this->names($input, 'exclude'),
             $this->names($input, 'include'),
         );
+        $this->preparation->run($configuration->prepare, $directory, $output);
         $manifestFile = $this->manifestLocator->locate($directory, $configuration->manifestFile);
         $manifest = $this->manifestParser->parseFile($manifestFile);
         $release = (bool) $input->getOption('release');

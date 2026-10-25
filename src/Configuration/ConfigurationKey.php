@@ -11,6 +11,8 @@ namespace SmartA\Jxt\Configuration;
 
 /**
  * Allowed keys in the configuration files with default values and validation rules.
+ *
+ * @phpstan-type ConfigurationValue string|list<string>|non-empty-list<mixed>|null
  */
 enum ConfigurationKey: string
 {
@@ -19,6 +21,7 @@ enum ConfigurationKey: string
     case CliCommand = 'cli_command';
     case CliRoot = 'cli_root';
     case Manifest = 'manifest';
+    case Prepare = 'prepare';
     case DistDirectory = 'dist_dir';
     case DirectoryMode = 'dir_mode';
     case FileMode = 'file_mode';
@@ -28,6 +31,8 @@ enum ConfigurationKey: string
     private const string MODE_PATTERN = '/^0?[0-7]{3}$/';
 
     private const string CHECK_NAME_PATTERN = '#^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$#';
+
+    private const string STEP_EXAMPLE = '{"run": ["npm", "run", "build"]}';
 
     /**
      * Returns the default value, or null if the key is unset when not specified.
@@ -47,7 +52,7 @@ enum ConfigurationKey: string
      */
     public function isProjectOnly(): bool
     {
-        return in_array($this, [self::Manifest, self::CheckExclude, self::CheckInclude], true);
+        return in_array($this, [self::Manifest, self::Prepare, self::CheckExclude, self::CheckInclude], true);
     }
 
     /**
@@ -71,11 +76,12 @@ enum ConfigurationKey: string
      *
      * Single values must be non-empty strings; modes are returned with four digits, e.g. `775` as
      * `0775`. Commands must be non-empty lists of non-empty arguments. Other lists must contain check
-     * names (`group` or `group/check`) and are returned without duplicates.
+     * names (`group` or `group/check`) and are returned without duplicates. The steps of `prepare` are
+     * returned as written, each an object with `run` and optionally `sync`.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
      *
-     * @return string|list<string>|null
+     * @return ConfigurationValue
      *
      * @throws ConfigurationException for an invalid value
      */
@@ -86,6 +92,7 @@ enum ConfigurationKey: string
         }
 
         return match (true) {
+            $this === self::Prepare => $this->validateSteps($value, $source),
             $this->isCommand() => $this->validateCommand($value, $source),
             $this->isList() => $this->validateList($value, $source),
             default => $this->validateString($value, $source),
@@ -108,6 +115,30 @@ enum ConfigurationKey: string
     }
 
     /**
+     * Returns the label of a step of `prepare` for error messages.
+     *
+     * @param int    $index  Position of the step, starting at 0
+     * @param string $source Origin of the value, e.g. the file path
+     */
+    public function stepLabel(int $index, string $source): string
+    {
+        return sprintf('Step %d of "%s" in %s', $index + 1, $this->value, $source);
+    }
+
+    /**
+     * Checks whether the value is a command: a non-empty list of non-empty strings.
+     *
+     * @phpstan-assert-if-true non-empty-list<string> $value
+     */
+    public static function isArgumentList(mixed $value): bool
+    {
+        return is_array($value)
+            && $value !== []
+            && array_is_list($value)
+            && array_filter($value, static fn (mixed $argument): bool => is_string($argument) && $argument !== '') === $value;
+    }
+
+    /**
      * Validates a command as list of arguments.
      *
      * @return non-empty-list<string>
@@ -116,17 +147,37 @@ enum ConfigurationKey: string
      */
     private function validateCommand(mixed $value, string $source): array
     {
-        if (
-            !is_array($value)
-            || $value === []
-            || !array_is_list($value)
-            || array_filter($value, static fn (mixed $argument): bool => is_string($argument) && $argument !== '') !== $value
-        ) {
+        if (!self::isArgumentList($value)) {
             throw new ConfigurationException(sprintf(
                 'Value of "%s" in %s must be a non-empty list of arguments, e.g. ["docker", "exec", "web", "php"].',
                 $this->value,
                 $source,
             ));
+        }
+
+        return $value;
+    }
+
+    /**
+     * Validates the steps of `prepare` and returns them as written.
+     *
+     * @return non-empty-list<mixed>
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validateSteps(mixed $value, string $source): array
+    {
+        if (!is_array($value) || $value === [] || !array_is_list($value)) {
+            throw new ConfigurationException(sprintf(
+                'Value of "%s" in %s must be a non-empty list of steps, e.g. [%s].',
+                $this->value,
+                $source,
+                self::STEP_EXAMPLE,
+            ));
+        }
+
+        foreach ($value as $index => $step) {
+            PrepareStep::fromValue($step, $this->stepLabel($index, $source));
         }
 
         return $value;

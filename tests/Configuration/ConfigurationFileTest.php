@@ -64,6 +64,17 @@ final class ConfigurationFileTest extends TestCase
         self::assertSame(['check_exclude' => ['manifest', 'assets/uri']], $file->read());
     }
 
+    public function testWritesPrepareStepsInTheirForm(): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/.jxt.json');
+        $steps = [['run' => ['npm', 'run', 'css']], ['run' => ['npm', 'run', 'images'], 'sync' => false]];
+
+        $file->write(['prepare' => $steps]);
+
+        self::assertSame($steps, $file->read()['prepare']);
+        self::assertStringContainsString('"sync": false', (string) file_get_contents($file->path));
+    }
+
     public function testDeletesTheFileWithoutValues(): void
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/config.json');

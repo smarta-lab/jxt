@@ -12,6 +12,7 @@
 - [Test sites in containers](#test-sites-in-containers)
 - [Leftovers after an installation](#leftovers-after-an-installation)
 - [Building and checking a tag](#building-and-checking-a-tag)
+- [Build steps](#build-steps)
 - [Checks: design decisions](#checks-design-decisions)
   - [EditorConfig parser](#editorconfig-parser)
 - [Code structure](#code-structure)
@@ -525,6 +526,62 @@ work as for the working copy.
   Git but left out by `export-ignore` are skipped, since they are missing from
   the export.
 
+## Build steps
+
+Some projects generate files before they can be built (CSS from SCSS,
+minified files, a manifest with the version filled in). The project setting
+`prepare` lists commands that jxt runs in the project directory before
+`jxt build`, `jxt install`, `jxt check` and `jxt sync`.
+
+- **Before the manifest:** the steps run after loading the configuration (and,
+  for `install` and `sync`, after checking the test site, so a configuration
+  error does not wait for slow steps) but before jxt looks for the manifest,
+  since the manifest may itself be generated.
+- **Two cases, not one entry per command:** `build`, `install` and `check`
+  deal with what is shipped and always run `run`; the ZIP of `install` must
+  equal the one of `build`. Only `jxt sync` iterates quickly, so a step may
+  name a replacement for it (`sync`) or be skipped there (`"sync": false`).
+  Rejected: keys named after commands (`build` + `sync` reads as "only for
+  `jxt build`" and suggests `install` and `check` keys), modes such as
+  `release`/`dev`, and `command` instead of `run` (longer; `run` is familiar
+  from GitHub Actions).
+- **Steps for `jxt check`:** without them, a generated manifest is not found
+  and generated files are reported as missing. A CI that checks such a
+  project needs its tools anyway.
+- **Replacements instead of relying on Joomla:** marking optimizing steps and
+  skipping them for `sync` was rejected. It would rely on Joomla falling back
+  to the unminified file (`HTMLHelper` prefers `.min` files without debug mode
+  and the plain file with it), which only works in debug mode, for relative
+  asset URIs and for files named `.min.*`. A replacement step creates every
+  file under its shipped name. Symlinks from the site to the sources were
+  rejected as well: the web server user would need access to the developer's
+  home, Apache's `SymLinksIfOwnerMatch` refuses links owned by another user,
+  a link leaves the directories the bridge accepts, and a container does not
+  see the target.
+- **No shell:** commands are lists of arguments, as for `cli_command`; shell
+  features need an explicit `["sh", "-c", …]`.
+- **Only objects:** every step is an object with `run` and optionally `sync`,
+  even where `run` alone would do. A short form (a plain command meaning
+  `run`) would be a second way to write the same thing, and a list of steps
+  would be hard to tell from a single command. `"sync": null` is rejected as
+  ambiguous (it often means "nothing"). Both can be relaxed later without
+  breaking anything; allowing them could not be withdrawn.
+- **Tags:** with `--tag`, the steps of the tag's configuration run in the
+  exported files, so the result does not depend on the working copy. Files
+  that Git does not track (`node_modules/`) are missing there; a step can
+  install them.
+- **Output:** the steps write directly to the terminal, so tools show colors
+  and progress; with `--quiet`, their output is collected for the error
+  message. The steps get empty standard input, so nothing waits for input.
+- **sudo:** the steps would create files owned by root, so jxt refuses to run
+  them under sudo instead of switching to `SUDO_USER`, which would need
+  another sudo rule.
+- **Not added:** an option to skip the steps (`sync` per step covers watch
+  processes and speed) or to run `run` for `sync` (`jxt install` tests the
+  optimized result); placeholders replaced by jxt itself, since the source of
+  the version differs between projects; environment variables for the steps.
+  All of them could be added later without breaking anything.
+
 ## Checks: design decisions
 
 `jxt check` only runs checks that hold for any extension or derive their
@@ -648,7 +705,9 @@ Namespaces below `SmartA\Jxt`:
 - **`Build`:** `ProjectBuilder` builds the ZIP of the project from the working
   copy or a Git tag (`ProjectBuild`) for `jxt build` and `jxt install`;
   `PackageBuilder` creates the ZIP, `TagExporter` exports a tag into a
-  temporary directory.
+  temporary directory. `Preparation` runs the prepare steps through a
+  `StepRunner` (`SystemStepRunner`: `proc_open` in the project directory,
+  output passed through or collected), also for `jxt check` and `jxt sync`.
 - **`Git`:** `GitRepository` reads tags, files and file states and archives
   tags, used by `jxt check` and `--tag`.
 - **`Install`:** `JoomlaCli` runs commands of the Joomla CLI, as web server
@@ -679,7 +738,8 @@ Namespaces below `SmartA\Jxt`:
   does.
 - **`Configuration`:** `ConfigurationLoader` merges the global and project files
   (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
-  including list keys; `HomeDirectoryResolver` handles sudo.
+  including list keys; `PrepareStep` validates and describes a step of
+  `prepare`; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
   `jxt bridge`, `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
 - **`plugin/`** (namespace `SmartA\Plugin\Console\Jxt`): the bridge plugin;

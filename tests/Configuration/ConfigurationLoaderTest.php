@@ -16,6 +16,7 @@ use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationKey;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Configuration\ConfigurationSource;
+use SmartA\Jxt\Configuration\PrepareStep;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 
 /**
@@ -54,6 +55,7 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame([], $configuration->checkInclude);
         self::assertSame([], $configuration->cliCommand);
         self::assertNull($configuration->cliRoot);
+        self::assertSame([], $configuration->prepare);
     }
 
     public function testWorksWithoutGlobalConfigurationFile(): void
@@ -99,6 +101,7 @@ final class ConfigurationLoaderTest extends TestCase
             new ConfigurationEntry(ConfigurationKey::CliCommand, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::CliRoot, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::Manifest, null, ConfigurationSource::None),
+            new ConfigurationEntry(ConfigurationKey::Prepare, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::DistDirectory, 'dist', ConfigurationSource::Default),
             new ConfigurationEntry(ConfigurationKey::DirectoryMode, '0770', ConfigurationSource::Project),
             new ConfigurationEntry(ConfigurationKey::FileMode, '0644', ConfigurationSource::Default),
@@ -121,8 +124,42 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame(['manifest/version-semver'], $configuration->checkInclude);
         self::assertEquals(
             new ConfigurationEntry(ConfigurationKey::CheckInclude, ['manifest/version-semver'], ConfigurationSource::Project),
-            $loader->describe($this->project())[9],
+            $loader->describe($this->project())[10],
         );
+    }
+
+    public function testReadsPrepareStepsAsWritten(): void
+    {
+        $steps = [
+            ['run' => ['npm', 'run', 'css']],
+            ['run' => ['npm', 'run', 'minify'], 'sync' => ['npm', 'run', 'minify:copy']],
+            ['run' => ['npm', 'run', 'images'], 'sync' => false],
+            ['run' => ['php', 'build/version.php']],
+        ];
+        $this->writeFile('project/.jxt.json', (string) json_encode(['prepare' => $steps]));
+
+        $loader = new ConfigurationLoader(null);
+
+        self::assertEquals([
+            new PrepareStep(['npm', 'run', 'css']),
+            new PrepareStep(['npm', 'run', 'minify'], ['npm', 'run', 'minify:copy']),
+            new PrepareStep(['npm', 'run', 'images'], false),
+            new PrepareStep(['php', 'build/version.php']),
+        ], $loader->load($this->project())->prepare);
+        self::assertEquals(
+            new ConfigurationEntry(ConfigurationKey::Prepare, $steps, ConfigurationSource::Project),
+            $loader->describe($this->project())[5],
+        );
+    }
+
+    public function testRejectsPrepareInGlobalConfiguration(): void
+    {
+        $this->writeFile('config.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessageMatches('/prepare can only be set in the project configuration/');
+
+        (new ConfigurationLoader($this->directory . '/config.json'))->load($this->project());
     }
 
     public function testCliCommandReplacesWebUser(): void
@@ -284,6 +321,25 @@ final class ConfigurationLoaderTest extends TestCase
         yield 'string for a command' => ['{"cli_command": "docker exec web php"}', 'must be a non-empty list of arguments'];
         yield 'empty command' => ['{"cli_command": []}', 'must be a non-empty list of arguments'];
         yield 'empty argument in a command' => ['{"cli_command": ["php", ""]}', 'must be a non-empty list of arguments'];
+        yield 'string for prepare' => ['{"prepare": "npm run build"}', 'Value of "prepare" in'];
+        yield 'empty prepare' => ['{"prepare": []}', 'must be a non-empty list of steps'];
+        yield 'single command for prepare' => ['{"prepare": ["npm", "run", "build"]}', 'Step 1 of "prepare" in'];
+        yield 'command as step' => [
+            '{"prepare": [["npm", "run", "build"]]}',
+            'must be an object with "run" and optionally "sync", e.g. {"run": ["npm", "run", "build"]}',
+        ];
+        yield 'string as step' => ['{"prepare": [{"run": ["npm"]}, "npm"]}', 'Step 2 of "prepare"'];
+        yield 'empty step' => ['{"prepare": [{}]}', 'Step 1 of "prepare"'];
+        yield 'empty argument in run' => ['{"prepare": [{"run": ["npm", ""]}]}', 'Step 1 of "prepare"'];
+        yield 'step without run' => ['{"prepare": [{"sync": false}]}', 'Step 1 of "prepare" in'];
+        yield 'invalid run' => ['{"prepare": [{"run": "npm run build"}]}', 'Step 1 of "prepare"'];
+        yield 'unknown key in a step' => ['{"prepare": [{"run": ["npm"], "dir": "x"}]}', 'unknown key "dir"'];
+        yield 'sync null' => [
+            '{"prepare": [{"run": ["npm"], "sync": null}]}',
+            'sync: null is ambiguous. Omit sync to run the same command, or use false to skip the step for jxt sync.',
+        ];
+        yield 'sync true' => ['{"prepare": [{"run": ["npm"], "sync": true}]}', 'Step 1 of "prepare"'];
+        yield 'empty sync' => ['{"prepare": [{"run": ["npm"], "sync": []}]}', 'Step 1 of "prepare"'];
         yield 'relative CLI root' => ['{"cli_command": ["php"], "cli_root": "html"}', 'Invalid value "html" for "cli_root"'];
     }
 

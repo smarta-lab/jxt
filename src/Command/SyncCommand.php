@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
@@ -33,6 +34,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Command `jxt sync`: transfers the extension to the local Joomla test server.
  *
+ * The prepare steps run first, with their replacements for `jxt sync`, also for `--dry-run`, which only promises
+ * not to change the site.
+ *
  * If the jxt bridge is installed on the site, the plan is applied by the bridge as web server user via the Joomla
  * CLI, after updating an older bridge; otherwise the files are copied with the developer's own permissions.
  */
@@ -53,6 +57,7 @@ final class SyncCommand extends Command
         private readonly ManifestParser $manifestParser = new ManifestParser(),
         private readonly SyncPlanner $planner = new SyncPlanner(),
         private readonly UnlistedSourceFinder $unlistedSourceFinder = new UnlistedSourceFinder(),
+        private readonly Preparation $preparation = new Preparation(),
     ) {
         parent::__construct();
     }
@@ -75,6 +80,7 @@ final class SyncCommand extends Command
         try {
             $configuration = $this->configurationLoader->load($this->projectDirectory);
             $joomlaRoot = $configuration->validJoomlaRoot();
+            $this->preparation->run($configuration->prepare, $this->projectDirectory, $io, true);
             $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
             $manifest = $this->manifestParser->parseFile($manifestFile);
             $extensionDirectory = dirname($manifestFile);

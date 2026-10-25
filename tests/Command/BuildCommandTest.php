@@ -10,8 +10,11 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Tests\Command;
 
 use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Tests\Build\ScriptedStepRunner;
 use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
 use Symfony\Component\Console\Command\Command;
@@ -58,6 +61,46 @@ final class BuildCommandTest extends TestCase
         self::assertFileExists($this->project . '/build/mod_x-1.0.0.zip');
         self::assertStringContainsString('mod_x-1.0.0.zip', self::display($tester));
         self::assertStringContainsString('2 files', self::display($tester));
+    }
+
+    public function testRunsThePrepareStepsBeforeBuilding(): void
+    {
+        $this->writeFile('mod_x.xml', '<extension type="module"><name>mod_x</name><version>1.0.0</version>'
+            . '<files><folder module="mod_x">tmpl</folder></files></extension>');
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+        $runner = new ScriptedStepRunner(function (array $command, string $directory): ProcessResult {
+            $this->writeFile('tmpl/default.php', '<?php');
+
+            return new ProcessResult(0, '');
+        });
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null), preparation: new Preparation($runner)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame([[['npm', 'run', 'build'], $this->project, true]], $runner->runs);
+        self::assertStringContainsString('> npm run build', self::display($tester));
+        self::assertStringContainsString('2 files', self::display($tester));
+    }
+
+    public function testFailsIfAPrepareStepFails(): void
+    {
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+        $runner = new ScriptedStepRunner(static fn (): ProcessResult => new ProcessResult(2, ''));
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null), preparation: new Preparation($runner)));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Prepare step failed (exit code 2): npm run build', self::display($tester));
+        self::assertDirectoryDoesNotExist($this->project . '/dist');
+    }
+
+    public function testRefusesPrepareStepsViaSudo(): void
+    {
+        $this->writeFile('.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+        $runner = new ScriptedStepRunner();
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null), preparation: new Preparation($runner, true)));
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('Please run jxt without sudo', self::display($tester));
+        self::assertSame([], $runner->runs);
     }
 
     public function testIgnoresContradictingKeysOfTheTestSite(): void

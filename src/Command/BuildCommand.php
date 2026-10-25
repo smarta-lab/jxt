@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Command;
 
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\JxtException;
@@ -20,7 +21,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Command `jxt build`: creates an installable ZIP file from the project directory or from a Git tag.
+ * Command `jxt build`: creates an installable ZIP file from the project directory or from a Git tag, after running
+ * the prepare steps.
  */
 #[AsCommand(name: 'build', description: 'Builds an installable ZIP file of the extension.')]
 final class BuildCommand extends Command
@@ -34,8 +36,9 @@ final class BuildCommand extends Command
         private readonly string $projectDirectory,
         private readonly ConfigurationLoader $configurationLoader,
         ?ProjectBuilder $projectBuilder = null,
+        Preparation $preparation = new Preparation(),
     ) {
-        $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader);
+        $this->projectBuilder = $projectBuilder ?? new ProjectBuilder($configurationLoader, preparation: $preparation);
         parent::__construct();
     }
 
@@ -62,8 +65,8 @@ final class BuildCommand extends Command
         try {
             $distDirectory = $this->configurationLoader->load($this->projectDirectory)->distDirectory;
             $build = is_string($tag)
-                ? $this->projectBuilder->buildTag($this->projectDirectory, $tag, $distDirectory)
-                : $this->projectBuilder->build($this->projectDirectory, $distDirectory);
+                ? $this->projectBuilder->buildTag($this->projectDirectory, $tag, $distDirectory, $io)
+                : $this->projectBuilder->build($this->projectDirectory, $distDirectory, $io);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 

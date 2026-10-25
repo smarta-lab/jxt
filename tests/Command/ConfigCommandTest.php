@@ -150,6 +150,35 @@ final class ConfigCommandTest extends TestCase
         self::assertStringNotContainsString('[WARNING]', $tester->getDisplay());
     }
 
+    public function testSetPrepareStoresOneStep(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([
+            'action' => 'set',
+            'key' => 'prepare',
+            'value' => ['npm', 'run', 'build', '--', '--mode=a,b'],
+        ]));
+        self::assertJsonStringEqualsJsonFile($this->project() . '/.jxt.json', '{"prepare": [{"run": ["npm", "run", "build", "--", "--mode=a,b"]}]}');
+        self::assertStringContainsString('prepare = npm run build -- --mode=a,b', self::display($tester));
+    }
+
+    public function testShowsPrepareStepsAsCommandLines(): void
+    {
+        $this->writeFile('project/.jxt.json', (string) json_encode(['prepare' => [
+            ['run' => ['npm', 'run', 'css']],
+            ['run' => ['npm', 'run', 'minify'], 'sync' => ['npm', 'run', 'minify:copy']],
+            ['run' => ['sh', '-c', 'echo images'], 'sync' => false],
+        ]]));
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString(
+            "npm run css; npm run minify (sync: npm run minify:copy); sh -c 'echo images' (sync: skipped)",
+            $tester->getDisplay(),
+        );
+    }
+
     public function testUnsetRemovesKey(): void
     {
         $this->writeFile('project/.jxt.json', '{"web_user": "apache", "dist_dir": "build"}');
@@ -252,6 +281,10 @@ final class ConfigCommandTest extends TestCase
         ];
         yield 'empty list' => [['action' => 'set', 'key' => 'check_exclude', 'value' => [',']], 'specify a value'];
         yield 'invalid check name' => [['action' => 'set', 'key' => 'check_exclude', 'value' => ['Manifest']], 'Manifest'];
+        yield 'global prepare' => [
+            ['action' => 'set', 'key' => 'prepare', 'value' => ['npm', 'run', 'build'], '--global' => true],
+            'project configuration',
+        ];
         yield 'global check list' => [
             ['action' => 'set', 'key' => 'check_exclude', 'value' => ['manifest'], '--global' => true],
             'project configuration',

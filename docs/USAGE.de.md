@@ -18,6 +18,7 @@
   - [DDEV](#ddev)
   - [Offizielles Joomla-Image](#offizielles-joomla-image)
 - [jxt build – installierbare ZIP-Datei erstellen](#jxt-build--installierbare-zip-datei-erstellen)
+- [Build-Schritte](#build-schritte)
 - [jxt check – vor einem Release prüfen](#jxt-check--vor-einem-release-prüfen)
   - [Git-Tag prüfen](#git-tag-prüfen)
   - [Annotationen in GitHub Actions](#annotationen-in-github-actions)
@@ -53,7 +54,8 @@ vendor/bin/jxt install          # installieren
 vendor/bin/jxt install --clean  # installieren und Altlasten löschen
 ```
 
-`jxt install` erstellt die ZIP-Datei wie `jxt build` und installiert sie mit dem
+`jxt install` erstellt die ZIP-Datei wie `jxt build`, nach den
+[Build-Schritten](#build-schritte), und installiert sie mit dem
 Joomla-Installer, ohne dass das Backend im Browser aufgerufen werden muss:
 
 1. Die ZIP-Datei wird mit den Rechten 0644 nach `/tmp` kopiert, damit der
@@ -239,6 +241,10 @@ mod_example → /var/www/html
 
 `+` neue Datei, `~` geänderte Datei, `-` gelöschte Datei oder gelöschter Ordner
 (mit `/` am Ende).
+
+Vor dem Vergleich führt `jxt sync` die [Build-Schritte](#build-schritte) aus,
+mit ihrem Ersatz für `jxt sync`; auch mit `--dry-run`, das nur die Testseite
+unverändert lässt.
 
 ### Was kopiert wird
 
@@ -512,6 +518,90 @@ Tags, der Zielordner aus der Arbeitskopie. Nennt der Tag nicht die
 Manifest-Version (mit oder ohne Präfix `v`), warnt jxt, erstellt das ZIP aber
 trotzdem.
 
+Erzeugt das Projekt zuerst Dateien, stehen die Befehle unter `prepare` (siehe
+[Build-Schritte](#build-schritte)); `jxt build` führt sie vor dem Bauen aus.
+
+## Build-Schritte
+
+Manche Projekte erzeugen Dateien, bevor sie sich bauen lassen: CSS aus SCSS,
+minifizierte Skripte oder ein Manifest mit eingesetzter Version. Die Befehle
+stehen in der Projektkonfiguration unter `prepare`; jxt führt sie im
+Projektordner vor `jxt build`, `jxt install`, `jxt check` und `jxt sync` aus:
+
+```json
+{
+    "prepare": [
+        {"run": ["npm", "run", "css"]},
+        {
+            "run": ["npm", "run", "minify"],
+            "sync": ["npm", "run", "minify:copy"]
+        },
+        {"run": ["npm", "run", "images"], "sync": false}
+    ]
+}
+```
+
+- Ein Schritt ist ein Objekt mit `run` und optional `sync`, jeweils ein Befehl,
+  geschrieben als Liste von Argumenten. Die Befehle laufen ohne Shell, wie bei
+  `cli_command`; für Pipes, `&&` oder Platzhalter ausdrücklich
+  `["sh", "-c", "…"]` schreiben. Längere Abläufe sind als Skript im Projekt
+  besser aufgehoben (npm-Skript, PHP- oder Shell-Skript).
+- `jxt build`, `jxt install` und `jxt check` führen immer `run` aus, denn
+  dort geht es um das, was ausgeliefert wird. `jxt sync` führt stattdessen
+  `sync` aus, wenn ein Schritt das hat, oder lässt den Schritt mit
+  `"sync": false` aus, z. B. weil ein Watch-Prozess (`sass --watch`) die
+  Dateien aktuell hält. `"sync": null` wird als mehrdeutig abgewiesen: Ohne
+  `sync` läuft derselbe Befehl.
+- Die Schritte laufen nacheinander, jeweils mit leerer Standardeingabe; ihre
+  Ausgabe erscheint sofort, nach einer Zeile mit dem Befehl (`> npm run css`).
+  Mit `--quiet` wird sie gesammelt und nur in der Fehlermeldung gezeigt. Ein
+  Schritt, der scheitert (Exit-Code ungleich 0) oder sich nicht starten lässt,
+  hält jxt an, bevor etwas gebaut, geprüft oder kopiert wird; `jxt check`
+  endet dann mit `2`.
+- `jxt install --zip` führt keine Schritte aus, da es nichts baut.
+- Unter sudo verweigert jxt die Schritte, da die erzeugten Dateien sonst root
+  gehörten.
+
+Die Build-Schritte laufen mit den eigenen Rechten, eine fremde `.jxt.json`
+führt also Befehle auf dem eigenen Rechner aus, wie Composer- und
+npm-Skripte. Vor dem Aufruf von jxt in einem geklonten Projekt `prepare`
+ansehen.
+
+**Ersatz für `jxt sync`:** Einen Schritt, der nur optimiert (Minifizieren,
+Bilder komprimieren), kann für `jxt sync` ein schnellerer Schritt ersetzen,
+der dieselben Dateien ohne die Optimierung erzeugt, sodass auf der Testseite
+jede Datei unter dem Namen liegt, auf den die Erweiterung verweist. Kopieren
+ist zuverlässiger als Löschen: `minify:copy` kopiert z. B. `style.css`
+unverändert nach `style.min.css`. Der Ersatz überschreibt die erzeugten
+Dateien in der Arbeitskopie; sind sie committet, zeigt Git sie als geändert,
+bis das nächste `jxt build` oder `jxt install` sie neu erzeugt.
+
+**Erzeugtes Manifest:** Wird das Manifest selbst erzeugt, z. B. mit
+eingesetzter Version, zeigt `manifest` auf die erzeugte Datei. Die Schritte
+laufen, bevor jxt das Manifest sucht:
+
+```json
+{
+    "manifest": "build/mod_example.xml",
+    "prepare": [{"run": ["php", "tools/build.php"]}]
+}
+```
+
+**Git-Tags:** Mit `--tag` laufen die Schritte aus der `.jxt.json` des Tags im
+temporären Ordner mit dem exportierten Tag; die Arbeitskopie bleibt unberührt,
+und das Ergebnis hängt nicht von nicht committeten Änderungen ab. Dateien, die
+Git nicht verfolgt, etwa `node_modules/` oder `vendor/`, fehlen dort; ein
+Schritt installiert sie, z. B.
+`{"run": ["sh", "-c", "test -d node_modules || npm ci"]}`. jxt exportiert nur
+den Projektordner: Liegt die `package.json` im Repository darüber, erreichen
+die Schritte sie mit `--tag` nicht.
+
+**Prüfungen:** `jxt check` prüft die erzeugten Dateien wie alle anderen. Mit
+Git lassen die EditorConfig-Prüfungen Dateien aus, die Git ignoriert, wie
+meist bei erzeugten Dateien. `assets/version-changed` vergleicht Dateien über
+Git mit dem letzten Release und sieht daher keine Änderungen an erzeugten
+Dateien, die nicht committet sind.
+
 ## jxt check – vor einem Release prüfen
 
 ```bash
@@ -526,7 +616,9 @@ Mechanische Prüfungen der Erweiterung, abgeleitet aus dem Manifest und aus
 Dateien, die es im Projekt schon gibt (`.editorconfig`, `CHANGELOG.md`,
 Git-Tags). Es muss nichts eingeschaltet werden: Prüfungen ohne Grundlage
 entfallen mit einem Hinweis. Die inhaltliche Bewertung (Einträge im Changelog,
-README) bleibt Handarbeit.
+README) bleibt Handarbeit. Zuerst laufen die
+[Build-Schritte](#build-schritte), sodass erzeugte Dateien so geprüft werden,
+wie sie ausgeliefert würden.
 
 Ob die Manifest-Version schon veröffentlicht ist, bestimmt den Modus, den die
 erste Zeile der Ausgabe nennt:
@@ -550,8 +642,9 @@ Vorbereitung des Releases zu scheitern, der Lauf auf einem Tag
 keine Wirkung, darauf weist die Ausgabe hin.
 
 Exit-Codes: `0` ohne Fehler, `1` mit Fehlern (mit `--strict` auch mit
-Warnungen), `2` bei falschem Aufruf, falscher Konfiguration oder fehlerhaftem
-Manifest. Hinweise lassen die Prüfung nie scheitern.
+Warnungen), `2` bei falschem Aufruf, falscher Konfiguration, fehlerhaftem
+Manifest oder gescheitertem Build-Schritt. Hinweise lassen die Prüfung nie
+scheitern.
 
 | Prüfung | Meldung bei | Vor | End |
 |---|---|---|---|
@@ -666,17 +759,21 @@ vendor/bin/jxt config                               # Werte und Herkunft zeigen
 vendor/bin/jxt config set <key> <value> [--global]  # Wert setzen
 vendor/bin/jxt config set <key> <value>...          # Liste setzen, auch mit Komma
 vendor/bin/jxt config set cli_command -- <command>  # Befehl setzen, Argumente unverändert
+vendor/bin/jxt config set prepare -- <command>      # einen Build-Schritt setzen
 vendor/bin/jxt config unset <key> [--global]        # Wert entfernen
 ```
 
 Ohne `--global` ändern `set` und `unset` die Projektdatei `.jxt.json`, mit
 `--global` die globale Datei `~/.config/jxt/config.json`. `set <key> null`
-speichert ein ausdrückliches `null`, z. B. um in `.jxt.json` einen globalen
-Wert zu überschreiben; entfernt `unset` den letzten Schlüssel einer Datei, wird
-die Datei gelöscht. Bei Listen nimmt `set` mehrere Werte, auch
-mit Komma getrennt, und ersetzt die ganze Liste; `cli_command` behält seine
-Argumente unverändert, ohne Trennung an Kommas. `jxt config` ohne sudo
-aufrufen, sonst gehörte die Datei root; unter sudo verweigert es das Schreiben.
+speichert ein ausdrückliches `null`, z. B. um in `.jxt.json` einen globalen Wert
+zu überschreiben; entfernt `unset` den letzten Schlüssel einer Datei, wird die
+Datei gelöscht. Bei Listen nimmt `set` mehrere Werte, auch mit Komma getrennt,
+und ersetzt die ganze Liste; `cli_command` behält seine Argumente unverändert,
+ohne Trennung an Kommas. `set prepare` ersetzt die Build-Schritte durch einen
+einzelnen Schritt mit `run`, dessen Argumente ebenso unverändert bleiben;
+mehrere Schritte und Schritte mit `sync` stehen direkt in der `.jxt.json`.
+`jxt config` ohne sudo aufrufen, sonst gehörte die Datei root; unter sudo
+verweigert es das Schreiben.
 
 ```
 Key           Value         Origin
@@ -685,6 +782,7 @@ web_user      www-data      global
 cli_command   –             not set
 cli_root      –             not set
 manifest      –             not set
+prepare       –             not set
 dist_dir      dist          default
 dir_mode      0775          project
 file_mode     0644          default
@@ -719,6 +817,7 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `cli_command` | Befehl, der PHP für die Joomla-CLI startet, z. B. in einem Container, statt sudo; siehe [Testseiten in Containern](#testseiten-in-containern) | – |
 | `cli_root` | Pfad von `joomla_root`, wie `cli_command` ihn sieht; nur mit `cli_command` | `joomla_root` |
 | `manifest` | Manifest-Datei relativ zum Projektordner; nur in `.jxt.json` | – (wird im Projektordner gesucht) |
+| `prepare` | Build-Schritte vor `jxt build`, `jxt install`, `jxt check` und `jxt sync`; siehe [Build-Schritte](#build-schritte); nur in `.jxt.json` | – |
 | `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
 | `dir_mode` | Rechte für Ordner bei `jxt sync` | `0755` |
 | `file_mode` | Rechte für Dateien bei `jxt sync` | `0644` |
@@ -726,9 +825,10 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `check_include` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
 
 Alle Werte sind Texte, Listen von Texten (`cli_command`, `check_exclude`,
-`check_include`) oder `null`. `null` setzt einen Schlüssel auf seinen
-Standardwert zurück. Rechte werden vierstellig gespeichert (`775` wird zu `0775`). Unbekannte Schlüssel werden
-abgewiesen, damit Tippfehler auffallen.
+`check_include`), `null` oder bei `prepare` eine Liste von Schritten. `null`
+setzt einen Schlüssel auf seinen Standardwert zurück. Rechte werden vierstellig
+gespeichert (`775` wird zu `0775`). Unbekannte Schlüssel werden abgewiesen,
+damit Tippfehler auffallen.
 
 Beispiel `~/.config/jxt/config.json`:
 

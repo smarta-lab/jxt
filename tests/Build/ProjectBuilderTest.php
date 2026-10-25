@@ -11,6 +11,7 @@ namespace SmartA\Jxt\Tests\Build;
 
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Build\BuildException;
+use SmartA\Jxt\Build\Preparation;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Git\GitException;
@@ -18,6 +19,7 @@ use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\Tests\GitTrait;
 use SmartA\Jxt\Tests\Install\RecordingProcessRunner;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
+use Symfony\Component\Console\Output\BufferedOutput;
 use ZipArchive;
 
 /**
@@ -50,7 +52,7 @@ final class ProjectBuilderTest extends TestCase
 
     public function testBuildsFromTheWorkingCopy(): void
     {
-        $build = $this->builder()->build($this->project, $this->dist);
+        $build = $this->builder()->build($this->project, $this->dist, new BufferedOutput());
 
         self::assertSame('1.0.0', $build->manifest->version);
         self::assertSame($this->dist . '/mod_x-1.0.0.zip', $build->package->path);
@@ -67,7 +69,7 @@ final class ProjectBuilderTest extends TestCase
         $this->writeFile('project/tmpl/default.php', 'changed');
         $this->writeFile('project/tmpl/new.php', 'untracked');
 
-        $build = $this->builder()->buildTag($this->project, 'v1.0.0', $this->dist);
+        $build = $this->builder()->buildTag($this->project, 'v1.0.0', $this->dist, new BufferedOutput());
 
         self::assertSame('v1.0.0', $build->tag);
         self::assertSame('1.0.0', $build->manifest->version);
@@ -86,9 +88,66 @@ final class ProjectBuilderTest extends TestCase
         $this->git('tag', '1.0.0');
         $this->writeFile('project/.jxt.json', '{"manifest": "moved/mod_x.xml"}');
 
-        $build = $this->builder()->buildTag($this->project, '1.0.0', $this->dist);
+        $build = $this->builder()->buildTag($this->project, '1.0.0', $this->dist, new BufferedOutput());
 
         self::assertSame(['mod_x.xml', 'tmpl/default.php'], $this->zipEntries($build->package->path));
+    }
+
+    public function testRunsThePrepareStepsBeforeLocatingTheManifest(): void
+    {
+        unlink($this->project . '/mod_x.xml');
+        $this->writeFile('project/.jxt.json', '{"manifest": "build/mod_x.xml", "prepare": [{"run": ["php", "build.php"]}]}');
+        $runner = new ScriptedStepRunner(function (array $command, string $directory): ProcessResult {
+            file_put_contents($directory . '/build/mod_x.xml', self::manifest('1.2.0'));
+            mkdir($directory . '/build/tmpl');
+            file_put_contents($directory . '/build/tmpl/default.php', 'generated');
+
+            return new ProcessResult(0, '');
+        });
+        mkdir($this->project . '/build');
+        $output = new BufferedOutput();
+
+        $build = $this->builder($runner)->build($this->project, $this->dist, $output);
+
+        self::assertSame([[['php', 'build.php'], $this->project, true]], $runner->runs);
+        self::assertSame('1.2.0', $build->manifest->version);
+        self::assertSame("> php build.php\n", $output->fetch());
+    }
+
+    public function testRunsThePrepareStepsOfTheTagInTheExport(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"prepare": [{"run": ["php", "tagged.php"]}]}');
+        $this->writeFile('project/.gitignore', "/tmpl/generated.php\n");
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $this->writeFile('project/.jxt.json', '{"prepare": [{"run": ["php", "changed.php"]}]}');
+        $runner = new ScriptedStepRunner(static function (array $command, string $directory): ProcessResult {
+            file_put_contents($directory . '/tmpl/generated.php', 'generated');
+
+            return new ProcessResult(0, '');
+        });
+
+        $build = $this->builder($runner)->buildTag($this->project, 'v1.0.0', $this->dist, new BufferedOutput());
+
+        self::assertSame([['php', 'tagged.php']], $runner->commands());
+        self::assertNotSame($this->project, $runner->runs[0][1]);
+        self::assertSame(['mod_x.xml', 'tmpl/default.php', 'tmpl/generated.php'], $this->zipEntries($build->package->path));
+        self::assertFileDoesNotExist($this->project . '/tmpl/generated.php');
+    }
+
+    public function testFailsWithoutBuildingIfAPrepareStepFails(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+        $runner = new ScriptedStepRunner(static fn (): ProcessResult => new ProcessResult(1, ''));
+
+        try {
+            $this->builder($runner)->build($this->project, $this->dist, new BufferedOutput());
+            self::fail('Expected a BuildException.');
+        } catch (BuildException $exception) {
+            self::assertSame('Prepare step failed (exit code 1): npm run build', $exception->getMessage());
+        }
+
+        self::assertDirectoryDoesNotExist($this->dist);
     }
 
     public function testReportsATagThatDoesNotNameTheVersion(): void
@@ -96,7 +155,7 @@ final class ProjectBuilderTest extends TestCase
         $this->initGit();
         $this->git('tag', 'release');
 
-        self::assertFalse($this->builder()->buildTag($this->project, 'release', $this->dist)->tagMatchesVersion());
+        self::assertFalse($this->builder()->buildTag($this->project, 'release', $this->dist, new BufferedOutput())->tagMatchesVersion());
     }
 
     public function testFailsForAnUnknownTag(): void
@@ -106,7 +165,7 @@ final class ProjectBuilderTest extends TestCase
         $this->expectException(GitException::class);
         $this->expectExceptionMessage('Tag v1.0.0 not found');
 
-        $this->builder()->buildTag($this->project, 'v1.0.0', $this->dist);
+        $this->builder()->buildTag($this->project, 'v1.0.0', $this->dist, new BufferedOutput());
     }
 
     public function testFailsForATagWithoutGitRepository(): void
@@ -116,7 +175,8 @@ final class ProjectBuilderTest extends TestCase
         $this->expectException(BuildException::class);
         $this->expectExceptionMessage('not in a Git repository');
 
-        (new ProjectBuilder(new ConfigurationLoader(null), processRunner: $noGit))->buildTag($this->project, 'v1.0.0', $this->dist);
+        (new ProjectBuilder(new ConfigurationLoader(null), processRunner: $noGit))
+            ->buildTag($this->project, 'v1.0.0', $this->dist, new BufferedOutput());
     }
 
     /**
@@ -134,9 +194,12 @@ final class ProjectBuilderTest extends TestCase
     /**
      * Creates the builder without global configuration.
      */
-    private function builder(): ProjectBuilder
+    private function builder(?ScriptedStepRunner $stepRunner = null): ProjectBuilder
     {
-        return new ProjectBuilder(new ConfigurationLoader(null));
+        return new ProjectBuilder(
+            new ConfigurationLoader(null),
+            preparation: new Preparation($stepRunner ?? new ScriptedStepRunner()),
+        );
     }
 
     /**

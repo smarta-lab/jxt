@@ -13,6 +13,7 @@ use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Configuration\PrepareStep;
 use SmartA\Jxt\Install\CommandLine;
 use SmartA\Jxt\JxtException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -26,6 +27,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * Command `jxt config`: shows the configuration and changes the global or the project configuration.
+ *
+ * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
 #[AsCommand(name: 'config', description: 'Shows and changes the global and the project configuration.')]
 final class ConfigCommand extends Command
@@ -55,7 +58,8 @@ final class ConfigCommand extends Command
                 'value',
                 InputArgument::OPTIONAL | InputArgument::IS_ARRAY,
                 'New value; "null" overrides a global value with null in the project; lists take several values, also '
-                . 'comma-separated; cli_command takes its arguments as they are, after "--" if one starts with "-"',
+                . 'comma-separated; cli_command and prepare (one step) take their arguments as they are, after "--" if '
+                . 'one starts with "-"',
             )
             ->addOption('global', null, InputOption::VALUE_NONE, 'Change the global instead of the project configuration');
     }
@@ -131,6 +135,7 @@ final class ConfigCommand extends Command
         $key = $this->key($input, $file);
         $arguments = $this->valueArguments($input);
         $value = $key->validate(match (true) {
+            $key === ConfigurationKey::Prepare => $arguments === ['null'] ? null : [['run' => $arguments]],
             $key->isCommand() => $arguments === ['null'] ? null : $arguments,
             $key->isList() => $this->listValue($arguments),
             default => $this->singleValue($key, $arguments),
@@ -191,16 +196,39 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Formats a value for the output; commands as command line, other lists comma-separated.
+     * Formats a value for the output; commands as command line, steps of `prepare` as command lines separated by
+     * `; `, other lists comma-separated.
      *
-     * @param string|list<string>|null $value
+     * @param ConfigurationValue $value
      */
     private function format(ConfigurationKey $key, string|array|null $value): string
     {
-        return match (true) {
-            !is_array($value) => $value ?? 'null',
-            $key->isCommand() => CommandLine::format($value),
-            default => implode(', ', $value),
+        if (!is_array($value)) {
+            return $value ?? 'null';
+        }
+
+        if ($key === ConfigurationKey::Prepare) {
+            return implode('; ', array_map($this->formatStep(...), array_keys($value), $value));
+        }
+
+        $strings = array_values(array_filter($value, is_string(...)));
+
+        return $key->isCommand() ? CommandLine::format($strings) : implode(', ', $strings);
+    }
+
+    /**
+     * Formats a step of `prepare` as command line, with its replacement for `jxt sync` if it has one.
+     *
+     * @param int $index Position of the step, starting at 0
+     */
+    private function formatStep(int $index, mixed $value): string
+    {
+        $step = PrepareStep::fromValue($value, ConfigurationKey::Prepare->stepLabel($index, ConfigurationLoader::PROJECT_FILE));
+
+        return CommandLine::format($step->run) . match ($step->sync) {
+            null => '',
+            false => ' (sync: skipped)',
+            default => sprintf(' (sync: %s)', CommandLine::format($step->sync)),
         };
     }
 

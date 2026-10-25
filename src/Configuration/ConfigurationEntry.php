@@ -11,11 +11,13 @@ namespace SmartA\Jxt\Configuration;
 
 /**
  * A configuration value with its origin.
+ *
+ * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
 final readonly class ConfigurationEntry
 {
     /**
-     * @param string|list<string>|null $value
+     * @param ConfigurationValue $value
      */
     public function __construct(
         public ConfigurationKey $key,
