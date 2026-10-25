@@ -50,10 +50,20 @@ final class JoomlaCliTest extends TestCase
             self::fail('SiteException expected');
         } catch (SiteException $exception) {
             self::assertStringContainsString('You cannot write to /nonexistent/site', $exception->getMessage());
-            self::assertStringContainsString('jxt config set --global web_user www-data', $exception->getMessage());
+            self::assertStringContainsString('jxt config set web_user www-data.', $exception->getMessage());
         }
 
         self::assertSame([], $runner->commands);
+    }
+
+    public function testNamesTheSiteInTheHintOnWebUser(): void
+    {
+        $this->expectException(SiteException::class);
+        $this->expectExceptionMessage('jxt config set web_user www-data --site=ddev.');
+
+        $cli = new JoomlaCli(new ScriptedProcessRunner(new ProcessResult(0, '')), '/usr/bin/php8.5');
+
+        $cli->run(new TestSite('/nonexistent/site', id: 'ddev'), ['jxt:status']);
     }
 
     public function testRunsViaCliCommandWithTheCliRoot(): void

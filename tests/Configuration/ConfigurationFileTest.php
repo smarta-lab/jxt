@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Tests\Configuration;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
 use SmartA\Jxt\Tests\TemporaryDirectoryTrait;
@@ -42,13 +44,13 @@ final class ConfigurationFileTest extends TestCase
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/sub/dir/config.json');
 
-        $file->write(['file_mode' => '0664', 'web_user' => null, 'joomla_root' => '/var/www/html']);
+        $file->write(['check_include' => ['manifest'], 'manifest' => null, 'dist_dir' => 'build']);
 
         self::assertSame(
-            "{\n    \"joomla_root\": \"/var/www/html\",\n    \"web_user\": null,\n    \"file_mode\": \"0664\"\n}\n",
+            "{\n    \"manifest\": null,\n    \"dist_dir\": \"build\",\n    \"check_include\": [\n        \"manifest\"\n    ]\n}\n",
             file_get_contents($file->path),
         );
-        self::assertSame(['joomla_root' => '/var/www/html', 'web_user' => null, 'file_mode' => '0664'], $file->read());
+        self::assertSame(['manifest' => null, 'dist_dir' => 'build', 'check_include' => ['manifest']], $file->read());
     }
 
     public function testWritesLists(): void
@@ -99,7 +101,44 @@ final class ConfigurationFileTest extends TestCase
     {
         self::assertNull(ConfigurationKey::JoomlaRoot->defaultValue());
         self::assertSame('dist', ConfigurationKey::DistDirectory->defaultValue());
-        self::assertSame('0755', ConfigurationKey::DirectoryMode->defaultValue());
-        self::assertSame('0644', ConfigurationKey::FileMode->defaultValue());
+    }
+
+    public function testWritesSitesAsWritten(): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/config.json', true);
+        $sites = [['id' => 'local', 'joomla_root' => '/var/www/html', 'web_user' => 'www-data'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']];
+
+        $file->write(['sites' => $sites, 'default_site' => 'local', 'dist_dir' => '/srv/dist']);
+
+        self::assertSame(['dist_dir' => '/srv/dist', 'default_site' => 'local', 'sites' => $sites], $file->read());
+    }
+
+    /**
+     * @param array<string, string|non-empty-list<mixed>> $values
+     */
+    #[DataProvider('keysOutsideOfTheirScope')]
+    public function testRejectsKeysOutsideOfTheirScope(bool $isGlobal, array $values, string $expectedMessage): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/config.json', $isGlobal);
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessage($expectedMessage);
+
+        $file->write($values);
+    }
+
+    /**
+     * @return iterable<string, array{bool, array<string, string|non-empty-list<mixed>>, string}>
+     */
+    public static function keysOutsideOfTheirScope(): iterable
+    {
+        yield 'site key in the project' => [false, ['web_user' => 'www-data'], 'web_user can no longer be set at the top level'];
+        yield 'site key at the top level of the global file' => [
+            true,
+            ['joomla_root' => '/var/www'],
+            'joomla_root can no longer be set at the top level',
+        ];
+        yield 'sites in the project' => [false, ['sites' => [['id' => 'a']]], 'sites can only be set in the global configuration'];
+        yield 'prepare in the global file' => [true, ['prepare' => [['run' => ['npm']]]], 'prepare can only be set in the project configuration'];
     }
 }

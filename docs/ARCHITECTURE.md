@@ -10,6 +10,7 @@
 - [The jxt bridge: sync as web server user](#the-jxt-bridge-sync-as-web-server-user)
   - [Plan format](#plan-format)
 - [Test sites in containers](#test-sites-in-containers)
+- [Named test sites](#named-test-sites)
 - [Leftovers after an installation](#leftovers-after-an-installation)
 - [Building and checking a tag](#building-and-checking-a-tag)
 - [Build steps](#build-steps)
@@ -278,7 +279,12 @@ Without the jxt bridge (next section), `jxt sync` runs with the developer's own
 permissions and is meant for test sites the developer can write to. Modes are
 set for the extension's files and directories and for newly created
 directories; existing shared directories such as `language/de-DE/` are left
-unchanged.
+unchanged. The modes are fixed to those of the Joomla installer, 0755 for
+directories (`Folder::create()`) and 0644 for files (the usual umask of the web
+server user), so that `jxt sync` leaves the same state as `jxt install`. The
+keys `dir_mode` and `file_mode` (until 0.5) were removed: `jxt install` never
+used them, and the one case for other modes, a shared group, is rejected above.
+If a site ever needs other modes, they would belong to the site.
 
 If jxt is still started via sudo, `HOME` points to `/root`, so the home
 directory for the global configuration is determined via `SUDO_USER`, and
@@ -306,8 +312,9 @@ is no web endpoint.
   `PlanStager` and the plugin's `PlanReader` agree on the format. The plugin
   avoids PHP features newer than Joomla's minimum version.
 - **Static analysis:** PHPStan analyses the Joomla-dependent files of the
-  plugin with Joomla's autoloader if `joomla_root` of the global jxt
-  configuration contains a Joomla site (`phpstan.joomla.php`); otherwise, e.g.
+  plugin with Joomla's autoloader if `joomla_root` of the test site in the
+  global jxt configuration (`JXT_SITE` or `default_site`) contains a Joomla
+  site (`phpstan.joomla.php`); otherwise, e.g.
   in CI, only `plugin/src/Plan`. PHPStan does not notice when the result of
   this include changes and would keep its cached container, which then lacks
   the Joomla bootstrap (errors such as "unknown class Joomla\DI\Container"
@@ -391,8 +398,9 @@ validates it in the plugin. Format 1:
 }
 ```
 
-- `directory_mode`/`file_mode`: the configured modes (decimal in JSON, 493 =
-  0755).
+- `directory_mode`/`file_mode`: the modes, decimal in JSON (493 = 0755); since
+  jxt fixed them to 0755/0644, always these values. They stay in the format so
+  that installed bridges keep working.
 - `deletions`: entries to delete, directory contents before the directory;
   `directory: true` removes an empty directory.
 - `directories`: the extension's directories, parents first; missing ones are
@@ -466,6 +474,87 @@ Podman, `ddev exec -p <project>` and a different PHP on the host alike.
   `docker exec` and `ddev exec -p`) and the official Joomla image were tested
   by hand, including the bridge, `--clean`, `--tag` and a large component; a
   site in a named volume is rejected with a hint.
+
+## Named test sites
+
+The keys that describe the test site (`joomla_root`, `web_user`,
+`cli_command`, `cli_root`) live only in sites of the list `sites` of the
+global configuration; at the top level of either file and in `.jxt.json`
+they are an error, whose message shows the site that takes their values.
+
+- **Why:** they describe the machine, not the project, and `cli_command`
+  runs a command. In `.jxt.json`, a cloned repository could run commands
+  through `jxt install` or `jxt sync`, and point `joomla_root` at any
+  directory in which `jxt sync` deletes. Now `prepare` is the only key of the
+  repository that runs commands, and it is a property of the project by
+  design.
+- **List with ids:** each site is an object with an `id`, unique among the
+  sites and otherwise just a name, without reserved values. A site inherits
+  nothing, otherwise a `web_user` would leak into a site with `cli_command`,
+  the contradiction jxt rejects. Missing or contradicting keys of a site are
+  only errors when the site is used, as before, so that `jxt config` can
+  change a site in several calls.
+- **`default_site`:** an optional global key with the id of the site used
+  without `--site` and `JXT_SITE`, as tools with several targets usually have
+  one (the default profile and `AWS_PROFILE` of the AWS CLI, `docker context
+  use` and `DOCKER_CONTEXT`). Being one key, it needs no rule such as "at most
+  one default". Without it, every call needs `--site` or `JXT_SITE`, for
+  developers who only use named sites.
+- **Selection:** `--site` before `JXT_SITE` before `default_site`; an
+  empty `JXT_SITE` counts as unset. An unknown id is an error, never a silent
+  fallback, which could install into another site. `bin/jxt` reads the
+  variable and hands it to `ConfigurationLoader`, which reads no environment
+  itself and stays testable. The output names a site that does not come from
+  the default, since an environment variable is invisible. `JXT_SITE` usually
+  comes from the `.envrc` of the project or of a Git worktree, which direnv
+  only loads after `direnv allow`; this also covers a worktree that tests a
+  bugfix on a site of its own.
+- **`jxt site`:** adds, removes, renames and lists the sites. `jxt config`
+  only changes the keys of an existing site, so that a typo in `--site` is an
+  error instead of a new site, and keeps a site without keys; following the
+  selection rather than always `default_site` means that `jxt config set`
+  changes the site that the next `jxt sync` uses. The id is not a key of
+  `jxt config`, since everything refers to a site by it: `jxt site rename`
+  changes `default_site` with it and points out that references elsewhere
+  (`JXT_SITE` in an `.envrc`, `--site` in scripts) stay unchanged. Searching
+  and changing them was rejected (incomplete, and it would edit files jxt does
+  not own), as was keeping the old id as alias, which would hide forgotten
+  references instead of reporting them. `default_site` is set with
+  `jxt config` like other keys, or with `jxt site add --default`; setting it
+  automatically for the first site was rejected, since it would give a
+  default to developers who do not want one.
+- **Later tools:** projects refer to a site only by its id, so the definition
+  of the sites could move to a tool of its own without changing projects.
+
+Rejected:
+
+- **`jxt allow`**, an approval of a cloned `.jxt.json` like `direnv allow`:
+  with jxt as a Composer dev dependency, the repository's code already runs
+  before jxt reads its configuration, through the `scripts` of
+  `composer install`, a different jxt via `repositories`, and the
+  `autoload.files` of its `composer.json`, which `bin/jxt` loads with
+  `vendor/autoload.php`. It would only look safe, and add friction on every
+  change of `prepare` plus an option for CI that everyone would set. It may
+  make sense once jxt can be installed globally.
+- **Sites by project path** in the global file: a worktree would need a copy,
+  a moved directory would silently fall back to the default site, and a
+  project could not use several sites.
+- **`.jxt.local.json`**, a file per working copy that is never versioned:
+  `JXT_SITE` in the `.envrc` does the same without a third file.
+- **`site` in `.jxt.json`:** harmless, since it only selects one of the
+  developer's own sites, but ids are personal names that do not belong into a
+  repository. Allowing it later breaks nothing.
+- **The default site at the top level of the global file:** two places for
+  the same keys.
+- **The site without id as default site** (the first implementation), with
+  `default` reserved for selecting it: a rule "at most one site without id"
+  and a reserved word, while the file did not say which site is the default.
+  `"id": "default"` as a second spelling of the same was rejected as well.
+- **`"default": true` on a site:** again a rule "at most one", and the first
+  boolean of the configuration; `default_site` refers to the id instead.
+- **No default at all,** only `--site` and `JXT_SITE`: unusual for such tools,
+  and developers without direnv would export `JXT_SITE` in their shell
+  profile, a default that `jxt config` neither shows nor explains.
 
 ## Leftovers after an installation
 
@@ -737,11 +826,16 @@ Namespaces below `SmartA\Jxt`:
   turns section names into regular expressions as the reference implementation
   does.
 - **`Configuration`:** `ConfigurationLoader` merges the global and project files
-  (`ConfigurationFile`); `ConfigurationKey` holds defaults and validation rules,
-  including list keys; `PrepareStep` validates and describes a step of
-  `prepare`; `HomeDirectoryResolver` handles sudo.
+  (`ConfigurationFile`) and selects the test site (`SiteSelection`);
+  `ConfigurationKey` holds defaults, validation rules and the scope of each key
+  (`KeyScope`), including list keys; `PrepareStep` validates and describes a
+  step of `prepare`, `SiteEntry` a site of `sites`; `SiteList` changes the
+  sites and `SiteFile` writes them with `default_site`, for `jxt config` and
+  `jxt site`; `HomeDirectoryResolver` handles sudo.
 - **`Command`:** Symfony Console commands `jxt install`, `jxt sync`,
-  `jxt bridge`, `jxt build`, `jxt check`, `jxt config`; entry point `bin/jxt`.
+  `jxt bridge`, `jxt build`, `jxt check`, `jxt config`, `jxt site`; `SiteOption` is the
+  option `--site` of the commands that use the test site; entry point
+  `bin/jxt`.
 - **`plugin/`** (namespace `SmartA\Plugin\Console\Jxt`): the bridge plugin;
   `Plan\PlanReader` validates the plan (`TargetPath`), `Plan\PlanApplier`
   applies it, `Console\ApplyCommand` and `Console\StatusCommand` are the

@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace SmartA\Jxt\Sync;
 
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Deployment\EntryKind;
 
 /**
@@ -21,6 +20,16 @@ use SmartA\Jxt\Deployment\EntryKind;
  */
 final readonly class SyncExecutor
 {
+    /**
+     * Mode of the extension's directories and of created directories, as the Joomla installer creates them.
+     */
+    public const int DIRECTORY_MODE = 0755;
+
+    /**
+     * Mode of the extension's files, as the Joomla installer creates them with the usual umask.
+     */
+    public const int FILE_MODE = 0644;
+
     public function __construct(private Filesystem $filesystem = new Filesystem())
     {
     }
@@ -30,7 +39,7 @@ final readonly class SyncExecutor
      *
      * @throws \SmartA\Jxt\Deployment\DeploymentException if a file operation fails
      */
-    public function execute(SyncPlan $plan, string $extensionDirectory, string $joomlaRoot, Configuration $configuration): void
+    public function execute(SyncPlan $plan, string $extensionDirectory, string $joomlaRoot): void
     {
         foreach ($plan->deletions as $deletion) {
             $path = $joomlaRoot . '/' . $deletion->target;
@@ -42,26 +51,26 @@ final readonly class SyncExecutor
         }
 
         foreach ($plan->directories as $directory) {
-            $this->ensureDirectory($joomlaRoot, $directory, $configuration);
-            $this->filesystem->changeMode($joomlaRoot . '/' . $directory, $configuration->directoryMode);
+            $this->ensureDirectory($joomlaRoot, $directory);
+            $this->filesystem->changeMode($joomlaRoot . '/' . $directory, self::DIRECTORY_MODE);
         }
 
         foreach ($plan->files as $file) {
             $target = $joomlaRoot . '/' . $file->entry->target;
-            $this->ensureDirectory($joomlaRoot, dirname($file->entry->target), $configuration);
+            $this->ensureDirectory($joomlaRoot, dirname($file->entry->target));
 
             if ($file->status !== FileStatus::Unchanged) {
                 $this->filesystem->copyFile($extensionDirectory . '/' . $file->entry->source, $target);
             }
 
-            $this->filesystem->changeMode($target, $configuration->fileMode);
+            $this->filesystem->changeMode($target, self::FILE_MODE);
         }
     }
 
     /**
      * Creates missing directories along the path and sets the mode only for those.
      */
-    private function ensureDirectory(string $joomlaRoot, string $directory, Configuration $configuration): void
+    private function ensureDirectory(string $joomlaRoot, string $directory): void
     {
         $path = $joomlaRoot;
 
@@ -70,7 +79,7 @@ final readonly class SyncExecutor
 
             if (!is_dir($path)) {
                 $this->filesystem->createDirectory($path);
-                $this->filesystem->changeMode($path, $configuration->directoryMode);
+                $this->filesystem->changeMode($path, self::DIRECTORY_MODE);
             }
         }
     }

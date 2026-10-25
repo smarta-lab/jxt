@@ -23,8 +23,10 @@
   - [Checking a Git tag](#checking-a-git-tag)
   - [Annotations in GitHub Actions](#annotations-in-github-actions)
   - [Excluding checks](#excluding-checks)
+- [jxt site – manage the test sites](#jxt-site--manage-the-test-sites)
 - [jxt config – show and change the configuration](#jxt-config--show-and-change-the-configuration)
 - [Configuration](#configuration)
+  - [Test sites](#test-sites)
 - [Calling jxt without vendor/bin](#calling-jxt-without-vendorbin)
 
 All commands are run in the project directory of an extension. Usually this is
@@ -176,10 +178,13 @@ does; check the list of a plain `jxt install` first.
 ### Setup: sudo without password for the Joomla installer
 
 So that the files belong to the web server user, the Joomla CLI runs as that
-user (`web_user`), which you set once, usually globally:
+user (`web_user`), which you set once for the [test site](#test-sites), after
+adding it:
 
 ```bash
-vendor/bin/jxt config set web_user www-data --global
+vendor/bin/jxt site add local --default
+vendor/bin/jxt config set joomla_root /var/www/html
+vendor/bin/jxt config set web_user www-data
 ```
 
 `sudo -n` never asks for a password; a sudoers rule is needed once:
@@ -204,8 +209,8 @@ access to your home directory.
 If PHP on the test server already runs as your own user, leave `web_user`
 unset; jxt then runs the Joomla CLI as you, without sudo. If you cannot write
 to `joomla_root`, jxt refuses this and suggests the owner of the site as
-`web_user`. In `.jxt.json`, `"web_user": null` overrides a global `web_user`
-for a single project. For a site in a container, see
+`web_user`. For a project that uses another site, see
+[Test sites](#test-sites), for a site in a container
 [Test sites in containers](#test-sites-in-containers).
 
 ## jxt sync – copy files directly
@@ -294,10 +299,9 @@ manifest is missing, it stops with an error. Install the extension once with
 ### Permissions
 
 Without the jxt bridge, `jxt sync` runs with the permissions of your user. The
-modes
-`dir_mode`/`file_mode` (default 0755/0644) are applied to the extension's files
-and directories and to newly created directories; existing shared directories
-such as `language/de-DE/` are left unchanged. Only the owner of a file may run
+extension's files get mode 0644, its directories and newly created directories
+0755, as the Joomla installer creates them; existing shared directories such
+as `language/de-DE/` are left unchanged. Only the owner of a file may run
 `chmod` on it; group permissions are not enough.
 
 If a file operation fails, `jxt sync` points to `jxt bridge add`. With the
@@ -396,12 +400,14 @@ For a site in a container (DDEV, Docker Compose, …), the PHP of the host
 usually cannot run the site's Joomla CLI: it may lack the PHP version or
 extensions, and it cannot resolve a database host such as `db` that only exists
 between the containers. `cli_command` runs the Joomla CLI in the container
-instead:
+instead. Such a site is usually one of several [test sites](#test-sites), here
+with the id `example`:
 
 ```bash
-vendor/bin/jxt config set joomla_root /home/user/sites/example
-vendor/bin/jxt config set cli_command -- docker exec -u www-data example-joomla-1 php
-vendor/bin/jxt config set cli_root /var/www/html
+vendor/bin/jxt site add example
+vendor/bin/jxt config set joomla_root /home/user/sites/example --site=example
+vendor/bin/jxt config set cli_command --site=example -- docker exec -u www-data example-joomla-1 php
+vendor/bin/jxt config set cli_root /var/www/html --site=example
 ```
 
 - **`cli_command`** is the command that starts PHP in the container. jxt
@@ -412,7 +418,7 @@ vendor/bin/jxt config set cli_root /var/www/html
   `jxt config set` only warns about it, so that you can change the keys in any
   order. In `jxt config set`, put `--` before the
   command, otherwise options such as `-u` are taken as options of jxt;
-  `--global` goes before the `--`.
+  `--site` goes before the `--`.
 - **`joomla_root`** is the directory of the site on your machine, **`cli_root`**
   its path in the container (default: `joomla_root`). The site's files must be
   shared with your machine as bind mount: jxt reads the installed manifests
@@ -434,10 +440,11 @@ starts PHP in the container, e.g. `podman exec`.
 
 DDEV runs PHP as your own user, and the files of the site belong to you. The
 web container is called `ddev-<project>-web`, and `docker exec` uses your user
-by default:
+by default. The site in `sites`:
 
 ```json
 {
+    "id": "example",
     "joomla_root": "/home/user/sites/example",
     "cli_command": ["docker", "exec", "ddev-example-web", "php"],
     "cli_root": "/var/www/html"
@@ -456,10 +463,12 @@ needed. `ddev stop` removes the containers; `docker exec` then reports
 With the official `joomla` image and Docker Compose, the site is mounted with
 e.g. `./site:/var/www/html`, Apache runs as `www-data`, and the files belong to
 `www-data` (UID 33). The container is called `<project>-<service>-<number>`,
-and `docker exec` runs as root by default, so `-u www-data` is required:
+and `docker exec` runs as root by default, so `-u www-data` is required. The
+site in `sites`:
 
 ```json
 {
+    "id": "example",
     "joomla_root": "/home/user/sites/example/site",
     "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
     "cli_root": "/var/www/html"
@@ -546,7 +555,14 @@ directory before `jxt build`, `jxt install`, `jxt check` and `jxt sync`:
 
 The prepare steps run with your permissions, so a `.jxt.json` from someone
 else runs commands on your machine, as Composer and npm scripts do. Look at
-`prepare` before running jxt in a cloned project.
+`prepare` before running jxt in a cloned project; it is the only key of
+`.jxt.json` that runs commands, since the test sites, including `cli_command`,
+are only defined in your global configuration. That does not make a cloned
+project safe: `composer install` runs the scripts of its `composer.json`, and
+`vendor/bin/jxt` loads the project's Composer autoloader, including the
+`autoload.files` of its `composer.json`. In GitHub Actions, workflows on
+`pull_request` get no secrets for pull requests from forks; only
+`pull_request_target` would run their steps with secrets.
 
 **Replacements for `jxt sync`:** a step that only optimizes (minifying,
 compressing images) can be replaced for `jxt sync` by a faster step that
@@ -726,10 +742,35 @@ excluded group, and for the same name an include wins over an exclude:
 complete selection; checks added in later jxt versions then do not run in the
 project. Unknown names are rejected.
 
+## jxt site – manage the test sites
+
+```bash
+vendor/bin/jxt site                         # list the sites, default_site and the selected site
+vendor/bin/jxt site add <id> [--default]    # add a site, with --default as default_site
+vendor/bin/jxt site remove <id>             # remove a site
+vendor/bin/jxt site rename <id> <new id>    # rename a site
+```
+
+Sites are only added, removed and renamed with `jxt site`, so that a typo in
+`--site` does not add a site; their keys are set with
+[jxt config](#jxt-config--show-and-change-the-configuration). `add` creates a
+site with only its id. `remove` also removes `default_site` if it refers to the
+site, `rename` changes it with the site. References outside of the global
+configuration, e.g. `JXT_SITE` in an `.envrc` or `--site` in a script, stay
+unchanged; jxt points this out, and a forgotten reference fails on the next
+call, since an unknown site is an error. Like `jxt config`, `jxt site` refuses
+to write under sudo.
+
+```
+Id      joomla_root
+local   /var/www/html            default_site
+example /home/user/sites/example selected via JXT_SITE
+```
+
 ## jxt config – show and change the configuration
 
 ```bash
-vendor/bin/jxt config                               # show values and origin
+vendor/bin/jxt config                               # show values, origin and the test site
 vendor/bin/jxt config set <key> <value> [--global]  # set a value
 vendor/bin/jxt config set <key> <value>...          # set a list, also comma-separated
 vendor/bin/jxt config set cli_command -- <command>  # set a command, arguments as they are
@@ -738,7 +779,14 @@ vendor/bin/jxt config unset <key> [--global]        # remove a value
 ```
 
 Without `--global`, `set` and `unset` change the project file `.jxt.json`; with
-`--global`, the global file `~/.config/jxt/config.json`. `set <key> null` stores
+`--global`, the global file `~/.config/jxt/config.json`. The keys of a test
+site (`joomla_root`, `web_user`, `cli_command`, `cli_root`) always change the
+selected [test site](#test-sites) in the global file: the one of `--site`,
+otherwise of `JXT_SITE`, otherwise of `default_site`. The site must exist,
+see [jxt site](#jxt-site--manage-the-test-sites); its id is changed with
+`jxt site rename`. `default_site` is set like other global keys, e.g.
+`jxt config set default_site example`, and must name an existing site.
+`set <key> null` stores
 an explicit `null`, e.g. to override a global value in `.jxt.json`; `unset`
 deletes the file when its last key is removed. For lists, `set` takes several
 values, also comma-separated, and replaces the whole list; `cli_command` keeps
@@ -750,25 +798,31 @@ directly. Run
 refuses to write under sudo.
 
 ```
-Key           Value         Origin
-joomla_root   /var/www/html global
-web_user      www-data      global
-cli_command   –             not set
-cli_root      –             not set
-manifest      –             not set
-prepare       –             not set
-dist_dir      dist          default
-dir_mode      0775          project
-file_mode     0644          default
-check_exclude assets/uri    project
-check_include –             not set
+Key           Value      Origin
+manifest      –          not set
+prepare       –          not set
+dist_dir      dist       default
+check_exclude assets/uri project
+check_include –          not set
+default_site  local      global
+
+Test site: site "example" via JXT_SITE
+joomla_root /home/user/sites/example
+web_user    –
+cli_command docker exec ddev-example-web php
+cli_root    /var/www/html
+
+sites:   local, example
+global:  /home/user/.config/jxt/config.json
+project: /home/user/projects/mod_example/.jxt.json
 ```
 
 The origin is one of: project file (`project`), global file (`global`), default
-value (`default`) or not set (`not set`). If keys contradict each other, e.g.
-`web_user` next to `cli_command`, `jxt config`, `jxt config set` and
-`jxt config unset` show a warning; `jxt install`, `jxt bridge` and `jxt sync`
-via the bridge fail until it is resolved.
+value (`default`) or not set (`not set`). If the keys of the test site
+contradict each other, e.g. `web_user` next to `cli_command`, `jxt config`,
+`jxt config set` and `jxt config unset` show a warning; `jxt install`,
+`jxt bridge` and `jxt sync` via the bridge fail until it is resolved.
+`jxt config` also warns if the selected site does not exist.
 
 ## Configuration
 
@@ -776,39 +830,87 @@ Two JSON files are merged; values in the project file override the global ones.
 
 | File | Purpose |
 |---|---|
-| `~/.config/jxt/config.json` | Global settings, e.g. the test server |
-| `.jxt.json` in the project directory | Project-specific overrides (optional) |
+| `~/.config/jxt/config.json` | Global settings and the test sites |
+| `.jxt.json` in the project directory | Project settings (optional) |
 
 Under sudo, the global file is read from the home directory of the user who
 called sudo (`SUDO_USER`), not from `/root`.
 
 | Key | Meaning | Default |
 |---|---|---|
-| `joomla_root` | Absolute path of the Joomla test server; must contain `configuration.php` | – (required for `jxt install` and `jxt sync`) |
-| `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo, e.g. `www-data`; not with `cli_command` | – (the Joomla CLI runs as you, without sudo) |
-| `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
-| `cli_root` | Path of `joomla_root` as `cli_command` sees it; only with `cli_command` | `joomla_root` |
+| `sites` | The test sites, see [Test sites](#test-sites); only in the global file | – (required for `jxt install`, `jxt sync` and `jxt bridge`) |
+| `default_site` | Id of the site used without `--site` and `JXT_SITE`; only in the global file | – (a site must be selected) |
 | `manifest` | Manifest file relative to the project directory; only in `.jxt.json` | – (searched in the project directory) |
 | `prepare` | Build steps run before `jxt build`, `jxt install`, `jxt check` and `jxt sync`; see [Build steps](#build-steps); only in `.jxt.json` | – |
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
-| `dir_mode` | Mode for directories in `jxt sync` | `0755` |
-| `file_mode` | Mode for files in `jxt sync` | `0644` |
 | `check_exclude` | List of checks, groups or `all` that `jxt check` skips; only in `.jxt.json` | – |
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
-All values are strings, lists of strings (`cli_command`, `check_exclude`,
-`check_include`), `null`, or for `prepare` a list of steps. `null` resets a key
-to its default. Modes are stored with four digits (`775` becomes `0775`).
-Unknown keys are rejected, so typos do not go unnoticed.
+All values are strings, lists of strings (`check_exclude`, `check_include`),
+`null`, or for `prepare` and `sites` lists of objects. `null` resets a key to
+its default. Unknown keys are rejected, so typos do not go unnoticed.
+
+### Test sites
+
+The test sites are only defined in the global file, since they describe your
+machine, not the project, and `cli_command` runs commands. Each site is an
+object in the list `sites`:
+
+| Key | Meaning | Default |
+|---|---|---|
+| `id` | Id of the site (letters, digits, `_`, `.`, `-`), unique among the sites | – (required) |
+| `joomla_root` | Absolute path of the Joomla site; must contain `configuration.php` | – (required) |
+| `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo, e.g. `www-data`; not with `cli_command` | – (the Joomla CLI runs as you, without sudo) |
+| `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
+| `cli_root` | Path of `joomla_root` as `cli_command` sees it; only with `cli_command` | `joomla_root` |
 
 Example `~/.config/jxt/config.json`:
 
 ```json
 {
-    "joomla_root": "/var/www/html",
-    "web_user": "www-data"
+    "default_site": "local",
+    "sites": [
+        { "id": "local", "joomla_root": "/var/www/html", "web_user": "www-data" },
+        {
+            "id": "leaflet",
+            "joomla_root": "/home/user/ddev/leaflet",
+            "cli_command": ["ddev", "exec", "-p", "leaflet", "php"],
+            "cli_root": "/var/www/html"
+        }
+    ]
 }
 ```
+
+A site is complete in itself and takes nothing from another site.
+`jxt install`, `jxt sync` and `jxt bridge` use the site given with
+`--site=<id>`, otherwise the one named in the environment variable
+`JXT_SITE`, otherwise `default_site`; an empty `JXT_SITE` counts as unset.
+`default_site` is optional: without it, every call needs `--site` or
+`JXT_SITE`. A site that does not exist is an error, jxt never falls back to
+another site. If the site comes from `--site` or `JXT_SITE`, the output names
+it, e.g. `mod_example → /home/user/ddev/leaflet (site "leaflet" via
+JXT_SITE)`. `jxt build` and `jxt check` do not use a site.
+
+The site `local` of the example is set up with:
+
+```bash
+vendor/bin/jxt site add local --default
+vendor/bin/jxt config set joomla_root /var/www/html
+vendor/bin/jxt config set web_user www-data
+```
+
+For a project that always uses another site, set `JXT_SITE` in its `.envrc`
+(see [Calling jxt without vendor/bin](#calling-jxt-without-vendorbin)); a Git
+worktree, e.g. for a bugfix of an older version on a site of its own, gets an
+`.envrc` of its own:
+
+```bash
+PATH_add vendor/bin
+export JXT_SITE=leaflet
+```
+
+The site cannot be selected in `.jxt.json`: the ids are your own names and do
+not belong into a repository.
 
 ## Calling jxt without vendor/bin
 
@@ -833,6 +935,7 @@ direnv allow
 ```
 
 direnv only loads an `.envrc` after `direnv allow`, and again after every
-change to it, so a cloned repository cannot run code unasked. `.envrc` is a
+change to it, so a cloned repository cannot run code or select a
+[test site](#test-sites) unasked. `.envrc` is a
 personal setting; keep it out of the repository, e.g. in the global Git ignore
 file `~/.config/git/ignore`.

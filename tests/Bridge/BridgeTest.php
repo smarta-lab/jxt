@@ -13,7 +13,6 @@ use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Bridge\BridgeException;
 use SmartA\Jxt\Bridge\PlanStager;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
@@ -132,7 +131,6 @@ final class BridgeTest extends TestCase
             (new ManifestParser())->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml'),
             $this->temporaryDirectory,
             new TestSite($this->joomla(), 'www-data'),
-            new Configuration($this->joomla(), 'www-data', '/dist', 0755, 0644),
         );
 
         self::assertSame('jxt:apply', $runner->cliArguments()[0][0]);
@@ -154,7 +152,6 @@ final class BridgeTest extends TestCase
             (new ManifestParser())->parse('<extension type="module"><name>mod_x</name><element>mod_x</element></extension>', 'mod_x.xml'),
             $this->temporaryDirectory,
             new TestSite($this->joomla(), null, ['docker', 'exec', 'web', 'php'], '/var/www/html'),
-            new Configuration($this->joomla(), null, '/dist', 0755, 0644, cliCommand: ['docker', 'exec', 'web', 'php']),
         );
 
         self::assertSame(['docker', 'exec', 'web', 'php', '/var/www/html/cli/joomla.php', 'jxt:apply'], array_slice($runner->commands[0], 0, 6));

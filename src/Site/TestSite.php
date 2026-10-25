@@ -31,12 +31,14 @@ final readonly class TestSite
      * @param string|null  $webUser    User that runs the Joomla CLI via sudo; null to run it without sudo
      * @param list<string> $cliCommand Command that starts PHP for the Joomla CLI; empty for the PHP running jxt
      * @param string|null  $cliRoot    Path of the site as `$cliCommand` sees it; null if it equals `$joomlaRoot`
+     * @param string|null  $id         Id of the site in the configuration; null for the default site
      */
     public function __construct(
         public string $joomlaRoot,
         public ?string $webUser = null,
         public array $cliCommand = [],
         ?string $cliRoot = null,
+        public ?string $id = null,
     ) {
         $this->cliRoot = $cliRoot ?? $joomlaRoot;
     }
@@ -65,9 +67,10 @@ final readonly class TestSite
 
         throw new SiteException(sprintf(
             'You cannot write to %s, so the Joomla CLI cannot run as you. Set web_user to the user of the web '
-            . 'server so that jxt runs it via sudo, e.g. jxt config set --global web_user %s.',
+            . 'server so that jxt runs it via sudo, e.g. jxt config set web_user %s%s.',
             $this->joomlaRoot,
             is_array($owner) ? $owner['name'] : 'www-data',
+            $this->id === null ? '' : ' --site=' . $this->id,
         ));
     }
 

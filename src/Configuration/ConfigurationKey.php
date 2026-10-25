@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Configuration;
 
 /**
- * Allowed keys in the configuration files with default values and validation rules.
+ * Allowed keys in the configuration files with their scope, default values and validation rules.
  *
  * @phpstan-type ConfigurationValue string|list<string>|non-empty-list<mixed>|null
  */
@@ -23,12 +23,18 @@ enum ConfigurationKey: string
     case Manifest = 'manifest';
     case Prepare = 'prepare';
     case DistDirectory = 'dist_dir';
-    case DirectoryMode = 'dir_mode';
-    case FileMode = 'file_mode';
     case CheckExclude = 'check_exclude';
     case CheckInclude = 'check_include';
+    case DefaultSite = 'default_site';
+    case Sites = 'sites';
 
-    private const string MODE_PATTERN = '/^0?[0-7]{3}$/';
+    /**
+     * Keys that jxt no longer reads, with the reason for the error message.
+     */
+    private const array REMOVED = [
+        'dir_mode' => 'jxt sync uses the modes of the Joomla installer, 0755 for directories and 0644 for files',
+        'file_mode' => 'jxt sync uses the modes of the Joomla installer, 0755 for directories and 0644 for files',
+    ];
 
     private const string CHECK_NAME_PATTERN = '#^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$#';
 
@@ -41,18 +47,21 @@ enum ConfigurationKey: string
     {
         return match ($this) {
             self::DistDirectory => 'dist',
-            self::DirectoryMode => '0755',
-            self::FileMode => '0644',
             default => null,
         };
     }
 
     /**
-     * Checks whether the key may only be set in the project configuration `.jxt.json`.
+     * Returns where the key may be set.
      */
-    public function isProjectOnly(): bool
+    public function scope(): KeyScope
     {
-        return in_array($this, [self::Manifest, self::Prepare, self::CheckExclude, self::CheckInclude], true);
+        return match ($this) {
+            self::JoomlaRoot, self::WebUser, self::CliCommand, self::CliRoot => KeyScope::Site,
+            self::Manifest, self::Prepare, self::CheckExclude, self::CheckInclude => KeyScope::Project,
+            self::DefaultSite, self::Sites => KeyScope::Global,
+            self::DistDirectory => KeyScope::Anywhere,
+        };
     }
 
     /**
@@ -74,10 +83,9 @@ enum ConfigurationKey: string
     /**
      * Validates a value and returns it normalized; null is always allowed.
      *
-     * Single values must be non-empty strings; modes are returned with four digits, e.g. `775` as
-     * `0775`. Commands must be non-empty lists of non-empty arguments. Other lists must contain check
-     * names (`group` or `group/check`) and are returned without duplicates. The steps of `prepare` are
-     * returned as written, each an object with `run` and optionally `sync`.
+     * Single values must be non-empty strings, `default_site` the id of a site. Commands must be non-empty lists of
+     * non-empty arguments. Other lists must contain check names (`group` or `group/check`) and are returned without
+     * duplicates. The steps of `prepare` and the sites of `sites` are returned as written.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
      *
@@ -93,6 +101,7 @@ enum ConfigurationKey: string
 
         return match (true) {
             $this === self::Prepare => $this->validateSteps($value, $source),
+            $this === self::Sites => $this->validateSites($value, $source),
             $this->isCommand() => $this->validateCommand($value, $source),
             $this->isList() => $this->validateList($value, $source),
             default => $this->validateString($value, $source),
@@ -106,6 +115,15 @@ enum ConfigurationKey: string
      */
     public static function fromName(string $name, string $source): self
     {
+        if (array_key_exists($name, self::REMOVED)) {
+            throw new ConfigurationException(sprintf(
+                '%s in %s is no longer supported: %s. Please remove it.',
+                $name,
+                $source,
+                self::REMOVED[$name],
+            ));
+        }
+
         return self::tryFrom($name) ?? throw new ConfigurationException(sprintf(
             'Unknown key "%s" in %s. Allowed: %s.',
             $name,
@@ -184,6 +202,38 @@ enum ConfigurationKey: string
     }
 
     /**
+     * Validates the sites of `sites` and returns them as written.
+     *
+     * @return non-empty-list<mixed>
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validateSites(mixed $value, string $source): array
+    {
+        if (!is_array($value) || $value === [] || !array_is_list($value)) {
+            throw new ConfigurationException(sprintf(
+                'Value of "%s" in %s must be a non-empty list of sites, e.g. [{"joomla_root": "/var/www/html"}].',
+                $this->value,
+                $source,
+            ));
+        }
+
+        $ids = [];
+
+        foreach ($value as $index => $site) {
+            $id = SiteEntry::fromValue($site, $index, $source)->id;
+
+            if (in_array($id, $ids, true)) {
+                throw new ConfigurationException(sprintf('The id "%s" is used by more than one site in %s.', $id, $source));
+            }
+
+            $ids[] = $id;
+        }
+
+        return $value;
+    }
+
+    /**
      * Validates a list of check names.
      *
      * @return list<string>
@@ -225,7 +275,7 @@ enum ConfigurationKey: string
         $isValid = match ($this) {
             self::JoomlaRoot, self::CliRoot => str_starts_with($value, '/'),
             self::Manifest => !str_starts_with($value, '/'),
-            self::DirectoryMode, self::FileMode => preg_match(self::MODE_PATTERN, $value) === 1,
+            self::DefaultSite => SiteEntry::isValidId($value),
             default => true,
         };
 
@@ -233,9 +283,6 @@ enum ConfigurationKey: string
             throw new ConfigurationException(sprintf('Invalid value "%s" for "%s" in %s.', $value, $this->value, $source));
         }
 
-        return match ($this) {
-            self::DirectoryMode, self::FileMode => '0' . substr($value, -3),
-            default => $value,
-        };
+        return $value;
     }
 }

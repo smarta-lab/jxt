@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Install\ProcessResult;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\Manifest;
@@ -49,10 +48,9 @@ final readonly class BridgeRun
         SyncPlan $plan,
         Manifest $manifest,
         string $extensionDirectory,
-        Configuration $configuration,
+        TestSite $site,
         string $installedVersion,
     ): bool {
-        $site = $configuration->testSite();
         $bundledVersion = $this->bridge->bundledVersion();
 
         if (version_compare($installedVersion, $bundledVersion, '>')) {
@@ -69,7 +67,7 @@ final readonly class BridgeRun
             }
         }
 
-        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $site, $configuration);
+        $result = $this->bridge->apply($plan, $manifest, $extensionDirectory, $site);
 
         if ($result->exitCode !== 0) {
             $io->writeln(trim($result->output));

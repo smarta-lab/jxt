@@ -10,12 +10,12 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Configuration;
 
 /**
- * Loads the global configuration and the optional project configuration `.jxt.json`.
+ * Loads the global configuration and the optional project configuration `.jxt.json`, and selects the test site.
  *
- * Values of the project configuration override the global values. `null` resets a value to its default. Without
- * `web_user`, the Joomla CLI runs without sudo, as it does with `cli_command`, so both together are a contradiction. Such contradictions in the
- * keys of the test site do not prevent loading; they are reported by `Configuration::testSite()`, so that commands
- * without a test site still work.
+ * Values of the project configuration override the global values. `null` resets a value to its default. The test
+ * sites are only defined in `sites` of the global configuration; `--site` selects one before `JXT_SITE` before
+ * `default_site`. A missing site and contradictions in the keys of a site do not prevent loading; they are reported
+ * by `Configuration::testSite()`, so that commands without a test site still work.
  *
  * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
@@ -25,17 +25,20 @@ final readonly class ConfigurationLoader
 
     /**
      * @param string|null $globalConfigFile Path of the global configuration; null if none is used
+     * @param string|null $environmentSite  Value of the environment variable `JXT_SITE`; null if it is not set
      */
-    public function __construct(private ?string $globalConfigFile)
+    public function __construct(private ?string $globalConfigFile, private ?string $environmentSite = null)
     {
     }
 
     /**
      * Creates a loader for `~/.config/jxt/config.json` of the calling user.
+     *
+     * @param string|null $environmentSite Value of the environment variable `JXT_SITE`; null if it is not set
      */
-    public static function forUser(HomeDirectoryResolver $homeDirectoryResolver): self
+    public static function forUser(HomeDirectoryResolver $homeDirectoryResolver, ?string $environmentSite = null): self
     {
-        return new self($homeDirectoryResolver->resolve() . '/.config/jxt/config.json');
+        return new self($homeDirectoryResolver->resolve() . '/.config/jxt/config.json', $environmentSite);
     }
 
     /**
@@ -57,63 +60,72 @@ final readonly class ConfigurationLoader
     /**
      * Loads the configuration for the given project directory.
      *
-     * @throws ConfigurationException for unreadable files or invalid values
+     * @param string|null $siteOption Value of `--site`; null if it is not given
+     *
+     * @throws ConfigurationException for unreadable files, invalid values or an empty `--site`
      */
-    public function load(string $projectDirectory): Configuration
+    public function load(string $projectDirectory, ?string $siteOption = null): Configuration
     {
-        $globalFile = $this->globalFile();
-        $projectFile = $this->projectFile($projectDirectory);
-        $global = $globalFile?->read() ?? [];
-        $project = $projectFile->read();
+        $global = $this->globalFile()?->read() ?? [];
+        $project = $this->projectFile($projectDirectory)->read();
         $values = [...$global, ...$project];
         $value = fn (ConfigurationKey $key): ?string => $this->stringValue($values, $key) ?? $key->defaultValue();
-        $origin = static fn (ConfigurationKey $key): string => array_key_exists($key->value, $project)
-            ? $projectFile->path
-            : (string) $globalFile?->path;
 
-        $joomlaRoot = $value(ConfigurationKey::JoomlaRoot);
         $manifest = $value(ConfigurationKey::Manifest);
         $distDirectory = (string) $value(ConfigurationKey::DistDirectory);
-        $cliCommand = $this->listValue($values, ConfigurationKey::CliCommand);
-        $cliRoot = $value(ConfigurationKey::CliRoot);
-        $webUser = $value(ConfigurationKey::WebUser);
-        $siteConflict = match (true) {
-            $cliCommand !== [] && $webUser !== null => sprintf(
-                'web_user (in %s) and cli_command (in %s) cannot be combined: with cli_command, the command itself '
-                . 'determines the user. Remove web_user or set it to null in %s.',
-                $origin(ConfigurationKey::WebUser),
-                $origin(ConfigurationKey::CliCommand),
-                array_key_exists(ConfigurationKey::WebUser->value, $project)
-                    ? $projectFile->path
-                    : $origin(ConfigurationKey::CliCommand),
-            ),
-            $cliCommand === [] && $cliRoot !== null => sprintf(
-                'cli_root is only used together with cli_command (cli_root in %s).',
-                $origin(ConfigurationKey::CliRoot),
-            ),
-            default => null,
-        };
+        $sites = $this->siteEntries($global);
+        $selection = SiteSelection::choose(
+            $siteOption,
+            $this->environmentSite,
+            $this->stringValue($global, ConfigurationKey::DefaultSite),
+        );
 
         return new Configuration(
-            $joomlaRoot === null ? null : $this->withoutTrailingSlash($joomlaRoot),
-            $webUser,
             $this->withoutTrailingSlash(
                 str_starts_with($distDirectory, '/') ? $distDirectory : $projectDirectory . '/' . $distDirectory,
             ),
-            (int) octdec((string) $value(ConfigurationKey::DirectoryMode)),
-            (int) octdec((string) $value(ConfigurationKey::FileMode)),
             $manifest === null ? null : $projectDirectory . '/' . $manifest,
             $this->listValue($values, ConfigurationKey::CheckExclude),
             $this->listValue($values, ConfigurationKey::CheckInclude),
-            $cliCommand,
-            $cliRoot === null ? null : $this->withoutTrailingSlash($cliRoot),
-            $siteConflict,
-            $this->prepareSteps($values, $origin(ConfigurationKey::Prepare)),
+            $this->prepareSteps($values, $this->projectFile($projectDirectory)->path),
+            $selection->find($sites),
+            $selection,
+            $selection->missingMessage(
+                array_map(static fn (SiteEntry $site): string => $site->id, $sites),
+                $this->globalConfigFile ?? 'the global configuration',
+            ),
         );
     }
 
     /**
-     * Returns all keys with their value and its origin, as written in the files.
+     * Returns the selected site from `--site`, `JXT_SITE` and `default_site`.
+     *
+     * @param string|null $siteOption Value of `--site`; null if it is not given
+     *
+     * @throws ConfigurationException for an unreadable global configuration, invalid values or an empty `--site`
+     */
+    public function selection(?string $siteOption): SiteSelection
+    {
+        $global = $this->globalFile()?->read() ?? [];
+
+        return SiteSelection::choose($siteOption, $this->environmentSite, $this->stringValue($global, ConfigurationKey::DefaultSite));
+    }
+
+    /**
+     * Returns the sites of the global configuration.
+     *
+     * @return list<SiteEntry>
+     *
+     * @throws ConfigurationException for an unreadable file or invalid values
+     */
+    public function sites(): array
+    {
+        return $this->siteEntries($this->globalFile()?->read() ?? []);
+    }
+
+    /**
+     * Returns the keys outside of the sites, except `sites` itself, with their value and its origin, as written in
+     * the files.
      *
      * @return list<ConfigurationEntry>
      *
@@ -123,8 +135,12 @@ final readonly class ConfigurationLoader
     {
         $global = $this->globalFile()?->read() ?? [];
         $project = $this->projectFile($projectDirectory)->read();
+        $keys = array_filter(
+            ConfigurationKey::cases(),
+            static fn (ConfigurationKey $key): bool => $key->scope() !== KeyScope::Site && $key !== ConfigurationKey::Sites,
+        );
 
-        return array_map(
+        return array_values(array_map(
             static fn (ConfigurationKey $key): ConfigurationEntry => match (true) {
                 array_key_exists($key->value, $project)
                     => new ConfigurationEntry($key, $project[$key->value], ConfigurationSource::Project),
@@ -134,8 +150,28 @@ final readonly class ConfigurationLoader
                     => new ConfigurationEntry($key, $key->defaultValue(), ConfigurationSource::Default),
                 default => new ConfigurationEntry($key, null, ConfigurationSource::None),
             },
-            ConfigurationKey::cases(),
-        );
+            $keys,
+        ));
+    }
+
+    /**
+     * Returns the sites of `sites`.
+     *
+     * @param array<string, ConfigurationValue> $global Validated values of the global configuration by key name
+     *
+     * @return list<SiteEntry>
+     *
+     * @throws ConfigurationException for an invalid site
+     */
+    private function siteEntries(array $global): array
+    {
+        $sites = $global[ConfigurationKey::Sites->value] ?? null;
+
+        return is_array($sites) ? array_map(
+            fn (int $index, mixed $site): SiteEntry => SiteEntry::fromValue($site, $index, (string) $this->globalConfigFile),
+            array_keys($sites),
+            $sites,
+        ) : [];
     }
 
     /**

@@ -11,7 +11,6 @@ namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Build\Preparation;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
@@ -66,6 +65,7 @@ final class SyncCommand extends Command
     protected function configure(): void
     {
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show what would be copied and deleted.');
+        SiteOption::add($this);
     }
 
     /**
@@ -78,7 +78,7 @@ final class SyncCommand extends Command
         $dryRun = (bool) $input->getOption('dry-run');
 
         try {
-            $configuration = $this->configurationLoader->load($this->projectDirectory);
+            $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
             $joomlaRoot = $configuration->validJoomlaRoot();
             $this->preparation->run($configuration->prepare, $this->projectDirectory, $io, true);
             $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
@@ -102,9 +102,10 @@ final class SyncCommand extends Command
             $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
 
             $io->writeln(sprintf(
-                '<info>%s</info> → %s%s%s',
+                '<info>%s</info> → %s%s%s%s',
                 $manifest->name(),
                 $joomlaRoot,
+                SiteOption::describe($configuration),
                 $bridgeVersion === null ? '' : ' via jxt bridge',
                 $dryRun ? ' (dry run)' : '',
             ));
@@ -113,10 +114,13 @@ final class SyncCommand extends Command
             $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
 
             if (!$dryRun && $bridgeVersion === null) {
-                if (!$this->applyDirectly($io, $plan, $extensionDirectory, $joomlaRoot, $configuration)) {
+                if (!$this->applyDirectly($io, $plan, $extensionDirectory, $joomlaRoot)) {
                     return Command::FAILURE;
                 }
-            } elseif (!$dryRun && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration, $bridgeVersion)) {
+            } elseif (
+                !$dryRun
+                && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration->testSite(), $bridgeVersion)
+            ) {
                 return Command::FAILURE;
             }
         } catch (JxtException $exception) {
@@ -144,10 +148,9 @@ final class SyncCommand extends Command
         SyncPlan $plan,
         string $extensionDirectory,
         string $joomlaRoot,
-        Configuration $configuration,
     ): bool {
         try {
-            $this->executor->execute($plan, $extensionDirectory, $joomlaRoot, $configuration);
+            $this->executor->execute($plan, $extensionDirectory, $joomlaRoot);
         } catch (DeploymentException $exception) {
             $io->error($exception->getMessage());
             $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt sync then writes '

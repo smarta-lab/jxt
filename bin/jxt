@@ -16,9 +16,11 @@ use SmartA\Jxt\Command\BuildCommand;
 use SmartA\Jxt\Command\CheckCommand;
 use SmartA\Jxt\Command\ConfigCommand;
 use SmartA\Jxt\Command\InstallCommand;
+use SmartA\Jxt\Command\SiteCommand;
 use SmartA\Jxt\Command\SyncCommand;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Configuration\HomeDirectoryResolver;
+use SmartA\Jxt\Configuration\SiteSelection;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Sync\SyncExecutor;
@@ -27,7 +29,11 @@ use Symfony\Component\Console\Application;
 require $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
 
 try {
-    $configurationLoader = ConfigurationLoader::forUser(HomeDirectoryResolver::fromSystem());
+    $environmentSite = getenv(SiteSelection::ENVIRONMENT_VARIABLE);
+    $configurationLoader = ConfigurationLoader::forUser(
+        HomeDirectoryResolver::fromSystem(),
+        is_string($environmentSite) ? $environmentSite : null,
+    );
 } catch (JxtException $exception) {
     fwrite(STDERR, $exception->getMessage() . PHP_EOL);
     exit(1);
@@ -45,6 +51,7 @@ $application->addCommands([
     new BuildCommand($projectDirectory, $configurationLoader, preparation: $preparation),
     new CheckCommand($projectDirectory, $configurationLoader, preparation: $preparation),
     new ConfigCommand($projectDirectory, $configurationLoader, $runsViaSudo),
+    new SiteCommand($projectDirectory, $configurationLoader, $runsViaSudo),
     new BridgeCommand($projectDirectory, $configurationLoader, new Bridge(), $currentUser),
 ]);
 $application->run();

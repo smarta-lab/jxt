@@ -48,6 +48,7 @@ final class BridgeCommand extends Command
     protected function configure(): void
     {
         $this->addArgument('action', InputArgument::OPTIONAL, 'status, add or remove', BridgeAction::Status->value);
+        SiteOption::add($this);
     }
 
     /**
@@ -67,13 +68,14 @@ final class BridgeCommand extends Command
         }
 
         try {
-            $configuration = $this->configurationLoader->load($this->projectDirectory);
+            $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
             $site = $configuration->testSite();
+            $selection = SiteOption::describe($configuration);
 
             return match ($action) {
-                BridgeAction::Status => $this->status($io, $site),
-                BridgeAction::Add => $this->add($io, $site),
-                BridgeAction::Remove => $this->remove($io, $site),
+                BridgeAction::Status => $this->status($io, $site, $selection),
+                BridgeAction::Add => $this->add($io, $site, $selection),
+                BridgeAction::Remove => $this->remove($io, $site, $selection),
             };
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
@@ -84,14 +86,16 @@ final class BridgeCommand extends Command
 
     /**
      * Shows the bundled and the installed version and whether the Joomla CLI runs the plugin's commands.
+     *
+     * @param string $selection How the site was selected, for the output
      */
-    private function status(SymfonyStyle $io, TestSite $site): int
+    private function status(SymfonyStyle $io, TestSite $site, string $selection): int
     {
         $joomlaRoot = $site->joomlaRoot;
         $bundled = $this->bridge->bundledVersion();
         $installed = $this->bridge->installedVersion($joomlaRoot);
 
-        $io->writeln(sprintf('<info>jxt bridge</info> on %s', $joomlaRoot));
+        $io->writeln(sprintf('<info>jxt bridge</info> on %s%s', $joomlaRoot, $selection));
         $io->writeln(sprintf('  Bundled:   %s', $bundled));
         $io->writeln(sprintf('  Installed: %s', $installed ?? 'no'));
         $io->writeln(sprintf('  Runs via:  %s', $site->describeCli()));
@@ -124,11 +128,12 @@ final class BridgeCommand extends Command
 
     /**
      * Installs the bundled plugin and checks that the Joomla CLI runs its commands.
+     *
+     * @param string $selection How the site was selected, for the output
      */
-    private function add(SymfonyStyle $io, TestSite $site): int
+    private function add(SymfonyStyle $io, TestSite $site, string $selection): int
     {
-        $joomlaRoot = $site->joomlaRoot;
-        $io->writeln(sprintf('<info>jxt bridge %s</info> → %s', $this->bridge->bundledVersion(), $joomlaRoot));
+        $io->writeln(sprintf('<info>jxt bridge %s</info> → %s%s', $this->bridge->bundledVersion(), $site->joomlaRoot, $selection));
         $result = $this->bridge->install($site);
         $io->writeln(trim($result->output));
 
@@ -154,12 +159,14 @@ final class BridgeCommand extends Command
 
     /**
      * Uninstalls the plugin if it is installed.
+     *
+     * @param string $selection How the site was selected, for the output
      */
-    private function remove(SymfonyStyle $io, TestSite $site): int
+    private function remove(SymfonyStyle $io, TestSite $site, string $selection): int
     {
         $joomlaRoot = $site->joomlaRoot;
         if ($this->bridge->installedVersion($joomlaRoot) === null) {
-            $io->success(sprintf('The jxt bridge is not installed on %s.', $joomlaRoot));
+            $io->success(sprintf('The jxt bridge is not installed on %s%s.', $joomlaRoot, $selection));
 
             return Command::SUCCESS;
         }
@@ -173,7 +180,7 @@ final class BridgeCommand extends Command
             return Command::FAILURE;
         }
 
-        $io->success(sprintf('jxt bridge removed from %s.', $joomlaRoot));
+        $io->success(sprintf('jxt bridge removed from %s%s.', $joomlaRoot, $selection));
 
         return Command::SUCCESS;
     }

@@ -11,7 +11,6 @@ namespace SmartA\Jxt\Tests\Bridge;
 
 use PHPUnit\Framework\TestCase;
 use SmartA\Jxt\Bridge\PlanStager;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Manifest\ManifestParser;
@@ -59,14 +58,13 @@ final class PlanStagerTest extends TestCase
                 'mod_x.xml',
             ),
             $this->temporaryDirectory . '/project',
-            new Configuration(null, 'www-data', '/dist', 0750, 0640),
         );
         $plan = (new PlanReader())->read($directory);
 
         self::assertSame(PlanReader::FORMAT, PlanStager::FORMAT);
 
-        self::assertSame(0750, $plan->directoryMode);
-        self::assertSame(0640, $plan->fileMode);
+        self::assertSame(0755, $plan->directoryMode);
+        self::assertSame(0644, $plan->fileMode);
         self::assertEquals([new PluginDeletion('modules/mod_x/old.php', false), new PluginDeletion('modules/mod_x/old', true)], $plan->deletions);
         self::assertSame(['administrator/modules/mod_x', 'administrator/modules/mod_x/tmpl'], $plan->directories);
         self::assertEquals([
@@ -92,7 +90,6 @@ final class PlanStagerTest extends TestCase
                 'example.xml',
             ),
             $this->temporaryDirectory,
-            new Configuration(null, null, '/dist', 0755, 0644),
         );
 
         self::assertEquals(new ExtensionIdentity('plugin', 'example', 'system', 0), (new PlanReader())->read($directory)->extension);

@@ -92,6 +92,7 @@ final class InstallCommand extends Command
         );
         $this->addOption('zip', null, InputOption::VALUE_REQUIRED, 'Install this ZIP file instead of building a new one.');
         $this->addOption('clean', null, InputOption::VALUE_NONE, 'Delete the leftovers that the Joomla installer keeps.');
+        SiteOption::add($this);
     }
 
     /**
@@ -120,7 +121,7 @@ final class InstallCommand extends Command
         }
 
         try {
-            $configuration = $this->configurationLoader->load($this->projectDirectory);
+            $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
             $site = $configuration->testSite();
             $joomlaRoot = $site->joomlaRoot;
             [$manifest, $packagePath] = is_string($zip)
@@ -129,7 +130,7 @@ final class InstallCommand extends Command
 
             $previous = $this->installedManifest($manifest, $joomlaRoot);
 
-            $io->writeln(sprintf('<info>%s</info> → %s', basename($packagePath), $joomlaRoot));
+            $io->writeln(sprintf('<info>%s</info> → %s%s', basename($packagePath), $joomlaRoot, SiteOption::describe($configuration)));
             $result = $this->installer->install($packagePath, $site);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
@@ -146,7 +147,7 @@ final class InstallCommand extends Command
         }
 
         $clean = (bool) $input->getOption('clean');
-        $removed = $this->handleLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $configuration, $joomlaRoot, $clean);
+        $removed = $this->handleLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $site, $clean);
 
         if ($removed === null) {
             return Command::FAILURE;
@@ -227,13 +228,12 @@ final class InstallCommand extends Command
         Manifest $manifest,
         Manifest $previous,
         string $packagePath,
-        Configuration $configuration,
-        string $joomlaRoot,
+        TestSite $site,
         bool $clean,
     ): ?int {
         try {
             $files = $this->packagePlanExpander->expand($manifest->plan, $packagePath);
-            $leftovers = $this->leftoverFinder->find($manifest, $previous, $files, $joomlaRoot);
+            $leftovers = $this->leftoverFinder->find($manifest, $previous, $files, $site->joomlaRoot);
         } catch (JxtException $exception) {
             $io->warning('Cannot check for leftovers: ' . $exception->getMessage());
 
@@ -253,7 +253,7 @@ final class InstallCommand extends Command
             return 0;
         }
 
-        return $this->removeLeftovers($io, $manifest, $leftovers, $topLevel, $configuration, $joomlaRoot) ? count($topLevel) : null;
+        return $this->removeLeftovers($io, $manifest, $leftovers, $topLevel, $site) ? count($topLevel) : null;
     }
 
     /**
@@ -267,9 +267,9 @@ final class InstallCommand extends Command
         Manifest $manifest,
         array $leftovers,
         array $topLevel,
-        Configuration $configuration,
-        string $joomlaRoot,
+        TestSite $site,
     ): bool {
+        $joomlaRoot = $site->joomlaRoot;
         $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
         $plan = new SyncPlan([], $leftovers, [], new ManifestComparison(null, null, false, []), []);
 
@@ -280,11 +280,11 @@ final class InstallCommand extends Command
         }
 
         if ($bridgeVersion !== null) {
-            return (new BridgeRun($this->bridge, $this->currentUser))->apply($io, $plan, $manifest, $joomlaRoot, $configuration, $bridgeVersion);
+            return (new BridgeRun($this->bridge, $this->currentUser))->apply($io, $plan, $manifest, $joomlaRoot, $site, $bridgeVersion);
         }
 
         try {
-            $this->executor->execute($plan, $joomlaRoot, $joomlaRoot, $configuration);
+            $this->executor->execute($plan, $joomlaRoot, $joomlaRoot);
         } catch (DeploymentException $exception) {
             $io->error($exception->getMessage());
             $io->note('Missing write permissions on the server? Run jxt bridge add once; jxt install --clean then '

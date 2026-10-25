@@ -28,6 +28,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 final class BridgeCommandTest extends TestCase
 {
     use CommandDisplayTrait;
+    use TestSiteConfigurationTrait;
     use TemporaryDirectoryTrait;
 
     private ScriptedProcessRunner $runner;
@@ -37,7 +38,7 @@ final class BridgeCommandTest extends TestCase
     {
         $this->createTemporaryDirectory();
         mkdir($this->temporaryDirectory . '/tmp');
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']));
+        $this->writeSites(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']);
         $this->writeFile('joomla/configuration.php', '<?php');
     }
 
@@ -56,6 +57,23 @@ final class BridgeCommandTest extends TestCase
         self::assertStringContainsString('Runs via: sudo -u www-data', self::display($tester));
         self::assertStringContainsString('jxt bridge add', self::display($tester));
         self::assertSame([], $this->runner->commands);
+    }
+
+    public function testFailsForUnknownSite(): void
+    {
+        $tester = $this->tester(new ProcessResult(0, ''));
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--site' => 'j5']));
+        self::assertStringContainsString('There is no site "j5" (selected via --site)', self::display($tester));
+        self::assertSame([], $this->runner->commands);
+    }
+
+    public function testNamesTheSiteOfTheOption(): void
+    {
+        $tester = $this->tester(new ProcessResult(0, ''));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--site' => 'local']));
+        self::assertStringContainsString(sprintf('jxt bridge on %s (site "local" via --site)', $this->joomla()), self::display($tester));
     }
 
     public function testStatusOfInstalledBridge(): void
@@ -99,11 +117,11 @@ final class BridgeCommandTest extends TestCase
 
     public function testStatusViaCliCommand(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
+        $this->writeSites([
             'joomla_root' => $this->joomla(),
             'cli_command' => ['docker', 'exec', 'web', 'php'],
             'cli_root' => '/var/www/html',
-        ]));
+        ]);
         $this->installBridge('0.0.1');
         $tester = $this->tester(new ProcessResult(1, 'Error response from daemon: container web is not running'));
 
@@ -148,7 +166,7 @@ final class BridgeCommandTest extends TestCase
 
         return new CommandTester(new BridgeCommand(
             $this->temporaryDirectory . '/project',
-            new ConfigurationLoader(null),
+            new ConfigurationLoader($this->globalConfigFile()),
             new Bridge(
                 new JoomlaCli($this->runner, '/usr/bin/php8.5'),
                 new JoomlaInstaller($this->runner, '/usr/bin/php8.5', $temporaryDirectory),

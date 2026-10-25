@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Bridge;
 
 use SmartA\Jxt\Build\PackageBuilder;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Install\JoomlaCli;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
@@ -143,9 +142,8 @@ final readonly class Bridge
         Manifest $manifest,
         string $extensionDirectory,
         TestSite $site,
-        Configuration $configuration,
     ): ProcessResult {
-        $directory = $this->stager->stage($plan, $manifest, $extensionDirectory, $configuration, $site->stagingDirectory());
+        $directory = $this->stager->stage($plan, $manifest, $extensionDirectory, $site->stagingDirectory());
 
         try {
             return $this->cli->run($site, ['jxt:apply', $site->cliPath($directory)]);

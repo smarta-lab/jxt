@@ -13,7 +13,6 @@ use Closure;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Manifest\ClientType;
 use SmartA\Jxt\Manifest\Manifest;
@@ -21,6 +20,7 @@ use SmartA\Jxt\PhpErrors;
 use SmartA\Jxt\Sync\Deletion;
 use SmartA\Jxt\Sync\FileStatus;
 use SmartA\Jxt\Sync\SyncFile;
+use SmartA\Jxt\Sync\SyncExecutor;
 use SmartA\Jxt\Sync\SyncPlan;
 use SplFileInfo;
 
@@ -60,7 +60,6 @@ final readonly class PlanStager
         SyncPlan $plan,
         Manifest $manifest,
         string $extensionDirectory,
-        Configuration $configuration,
         ?string $parentDirectory = null,
     ): string {
         $parent = $parentDirectory ?? $this->temporaryDirectory ?? sys_get_temp_dir();
@@ -75,8 +74,8 @@ final readonly class PlanStager
 
         $json = json_encode([
             'format' => self::FORMAT,
-            'directory_mode' => $configuration->directoryMode,
-            'file_mode' => $configuration->fileMode,
+            'directory_mode' => SyncExecutor::DIRECTORY_MODE,
+            'file_mode' => SyncExecutor::FILE_MODE,
             'deletions' => array_map(
                 static fn (Deletion $deletion): array => [
                     'target' => $deletion->target,

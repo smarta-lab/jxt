@@ -33,6 +33,7 @@ use ZipArchive;
 final class InstallCommandTest extends TestCase
 {
     use CommandDisplayTrait;
+    use TestSiteConfigurationTrait;
     use GitTrait;
     use TemporaryDirectoryTrait;
 
@@ -45,7 +46,7 @@ final class InstallCommandTest extends TestCase
         $this->createTemporaryDirectory();
         $this->writeFile('project/mod_x.xml', self::MANIFEST);
         $this->writeFile('project/tmpl/default.php', '<?php');
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']));
+        $this->writeSites(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']);
         $this->writeFile('joomla/configuration.php', '<?php');
         mkdir($this->temporaryDirectory . '/tmp');
     }
@@ -113,9 +114,20 @@ final class InstallCommandTest extends TestCase
         yield 'zero width as in SymfonyStyle' => ['0', [119, 78]];
     }
 
+    public function testFailsWithoutSelectedSite(): void
+    {
+        $this->writeFile('config.json', (string) json_encode(['sites' => [['id' => 'local', 'joomla_root' => $this->joomla()]]]));
+        $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('No test site is selected: select one with --site or JXT_SITE', self::display($tester));
+        self::assertSame([], $runner->command);
+    }
+
     public function testRunsWithoutSudoWithoutWebUser(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));
+        $this->writeSites(['joomla_root' => $this->joomla()]);
         $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
 
         self::assertSame(Command::SUCCESS, $this->tester($runner)->execute([]));
@@ -152,11 +164,11 @@ final class InstallCommandTest extends TestCase
 
     public function testFailsForContradictingKeysOfTheTestSite(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
+        $this->writeSites([
             'joomla_root' => $this->joomla(),
             'cli_command' => ['docker', 'exec', 'web', 'php'],
             'web_user' => 'www-data',
-        ]));
+        ]);
         $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
         $tester = $this->tester($runner);
 
@@ -523,7 +535,7 @@ final class InstallCommandTest extends TestCase
     {
         return new CommandTester(new InstallCommand(
             $this->temporaryDirectory . '/project',
-            new ConfigurationLoader(null),
+            new ConfigurationLoader($this->globalConfigFile()),
             new JoomlaInstaller($runner, '/usr/bin/php8.5', $this->temporaryDirectory . '/tmp'),
             'anna',
             preparation: new Preparation($stepRunner ?? new ScriptedStepRunner()),
@@ -535,11 +547,7 @@ final class InstallCommandTest extends TestCase
      */
     private function addPrepareStep(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
-            'joomla_root' => $this->joomla(),
-            'web_user' => 'www-data',
-            'prepare' => [['run' => ['npm', 'run', 'build']]],
-        ]));
+        $this->writeFile('project/.jxt.json', (string) json_encode(['prepare' => [['run' => ['npm', 'run', 'build']]]]));
     }
 
     /**
@@ -551,7 +559,7 @@ final class InstallCommandTest extends TestCase
 
         return new CommandTester(new InstallCommand(
             $this->temporaryDirectory . '/project',
-            new ConfigurationLoader(null),
+            new ConfigurationLoader($this->globalConfigFile()),
             new JoomlaInstaller($runner, '/usr/bin/php8.5', $temporaryDirectory),
             'anna',
             bridge: new Bridge(
@@ -568,11 +576,11 @@ final class InstallCommandTest extends TestCase
      */
     private function useCliCommand(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
+        $this->writeSites([
             'joomla_root' => $this->joomla(),
             'cli_command' => ['docker', 'exec', 'web', 'php'],
             'cli_root' => '/var/www/html',
-        ]));
+        ]);
     }
 
     /**

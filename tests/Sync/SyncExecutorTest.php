@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Tests\Sync;
 
 use PHPUnit\Framework\TestCase;
-use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PlanEntry;
@@ -73,7 +72,7 @@ final class SyncExecutorTest extends TestCase
         self::assertDirectoryDoesNotExist($this->joomla() . '/modules/mod_x/old');
     }
 
-    public function testAppliesConfiguredModes(): void
+    public function testAppliesTheModesOfTheJoomlaInstaller(): void
     {
         $this->writeFile('project/tmpl/a.php');
         $this->writeFile('project/tmpl/b.php');
@@ -92,10 +91,10 @@ final class SyncExecutorTest extends TestCase
             [],
         ));
 
-        self::assertSame(0750, $this->mode('modules/mod_x'));
-        self::assertSame(0750, $this->mode('modules/mod_x/tmpl'));
-        self::assertSame(0640, $this->mode('modules/mod_x/tmpl/a.php'));
-        self::assertSame(0640, $this->mode('modules/mod_x/tmpl/b.php'));
+        self::assertSame(0755, $this->mode('modules/mod_x'));
+        self::assertSame(0755, $this->mode('modules/mod_x/tmpl'));
+        self::assertSame(0644, $this->mode('modules/mod_x/tmpl/a.php'));
+        self::assertSame(0644, $this->mode('modules/mod_x/tmpl/b.php'));
     }
 
     public function testCreatesMissingSharedDirectoriesWithoutTouchingExistingOnes(): void
@@ -114,7 +113,7 @@ final class SyncExecutorTest extends TestCase
 
         self::assertFileExists($this->joomla() . '/language/de-DE/mod_x.ini');
         self::assertSame(0711, $this->mode('language'));
-        self::assertSame(0750, $this->mode('language/de-DE'));
+        self::assertSame(0755, $this->mode('language/de-DE'));
     }
 
     public function testFailsWhenSourceIsMissing(): void
@@ -132,13 +131,11 @@ final class SyncExecutorTest extends TestCase
     }
 
     /**
-     * Executes the plan with modes 750/640.
+     * Executes the plan.
      */
     private function execute(SyncPlan $plan): void
     {
-        $configuration = new Configuration($this->joomla(), null, $this->project() . '/dist', 0750, 0640);
-
-        (new SyncExecutor())->execute($plan, $this->project(), $this->joomla(), $configuration);
+        (new SyncExecutor())->execute($plan, $this->project(), $this->joomla());
     }
 
     /**

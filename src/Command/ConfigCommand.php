@@ -13,7 +13,11 @@ use SmartA\Jxt\Configuration\ConfigurationException;
 use SmartA\Jxt\Configuration\ConfigurationFile;
 use SmartA\Jxt\Configuration\ConfigurationKey;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
+use SmartA\Jxt\Configuration\KeyScope;
 use SmartA\Jxt\Configuration\PrepareStep;
+use SmartA\Jxt\Configuration\SiteEntry;
+use SmartA\Jxt\Configuration\SiteFile;
+use SmartA\Jxt\Configuration\SiteSelection;
 use SmartA\Jxt\Install\CommandLine;
 use SmartA\Jxt\JxtException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -27,6 +31,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
  * Command `jxt config`: shows the configuration and changes the global or the project configuration.
+ *
+ * The keys of a test site always change the selected site in the global configuration (`--site`, `JXT_SITE` or
+ * `default_site`); the site must exist, since sites are only added, removed and renamed with `jxt site`.
  *
  * @phpstan-import-type ConfigurationValue from ConfigurationKey
  */
@@ -62,6 +69,7 @@ final class ConfigCommand extends Command
                 . 'one starts with "-"',
             )
             ->addOption('global', null, InputOption::VALUE_NONE, 'Change the global instead of the project configuration');
+        SiteOption::add($this);
     }
 
     /**
@@ -74,7 +82,7 @@ final class ConfigCommand extends Command
 
         try {
             match ($this->action($input)) {
-                ConfigAction::Show => $this->show($io, $output),
+                ConfigAction::Show => $this->show($io, $input, $output),
                 ConfigAction::Set => $this->set($io, $input),
                 ConfigAction::Unset => $this->unset($io, $input),
             };
@@ -100,30 +108,65 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Shows all keys with value and origin as well as the paths of the configuration files.
+     * Shows all keys with value and origin, the selected test site, the configured sites and the paths of the
+     * configuration files.
      */
-    private function show(SymfonyStyle $io, OutputInterface $output): void
+    private function show(SymfonyStyle $io, InputInterface $input, OutputInterface $output): void
     {
         $table = new Table($output);
         $table->setStyle('compact');
         $table->setHeaders(['Key', 'Value', 'Origin']);
 
-        $entries = $this->configurationLoader->describe($this->projectDirectory);
-
-        foreach ($entries as $entry) {
-            $value = $entry->value === null || $entry->value === [] ? '–' : $this->format($entry->key, $entry->value);
-            $table->addRow([$entry->key->value, $value, $entry->source->value]);
+        foreach ($this->configurationLoader->describe($this->projectDirectory) as $entry) {
+            $table->addRow([$entry->key->value, $this->formatOrDash($entry->key, $entry->value), $entry->source->value]);
         }
 
         $table->render();
+        $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
+        $site = $configuration->site;
         $io->newLine();
-        $siteConflict = $this->siteConflict();
+        $io->writeln(sprintf('Test site: %s', $configuration->siteSelection->describe()));
+
+        if ($site !== null) {
+            $siteTable = new Table($output);
+            $siteTable->setStyle('compact');
+
+            foreach (SiteEntry::keys() as $key) {
+                $siteTable->addRow([$key->value, $this->formatOrDash($key, $this->siteValue($site, $key))]);
+            }
+
+            $siteTable->render();
+        }
+
+        $sites = $this->configurationLoader->sites();
+        $io->newLine();
+        $io->writeln(sprintf('sites:   %s', $sites === [] ? '–' : implode(', ', array_map(
+            static fn (SiteEntry $entry): string => $entry->id,
+            $sites,
+        ))));
         $io->writeln(sprintf('global:  %s', $this->describeFile($this->configurationLoader->globalFile())));
         $io->writeln(sprintf('project: %s', $this->describeFile($this->configurationLoader->projectFile($this->projectDirectory))));
+        $siteProblem = $configuration->siteProblem();
 
-        if ($siteConflict !== null) {
-            $io->warning($siteConflict . self::SITE_CONFLICT_CONSEQUENCE);
+        if ($siteProblem !== null) {
+            $io->warning($siteProblem . self::SITE_CONFLICT_CONSEQUENCE);
         }
+    }
+
+    /**
+     * Returns the value of a key of the site.
+     *
+     * @return ConfigurationValue
+     */
+    private function siteValue(SiteEntry $site, ConfigurationKey $key): string|array|null
+    {
+        return match ($key) {
+            ConfigurationKey::JoomlaRoot => $site->joomlaRoot,
+            ConfigurationKey::WebUser => $site->webUser,
+            ConfigurationKey::CliCommand => $site->cliCommand,
+            ConfigurationKey::CliRoot => $site->cliRoot,
+            default => null,
+        };
     }
 
     /**
@@ -131,8 +174,8 @@ final class ConfigCommand extends Command
      */
     private function set(SymfonyStyle $io, InputInterface $input): void
     {
-        $file = $this->targetFile($input);
-        $key = $this->key($input, $file);
+        $key = $this->key($input);
+        $file = $this->targetFile($input, $key);
         $arguments = $this->valueArguments($input);
         $value = $key->validate(match (true) {
             $key === ConfigurationKey::Prepare => $arguments === ['null'] ? null : [['run' => $arguments]],
@@ -140,10 +183,66 @@ final class ConfigCommand extends Command
             $key->isList() => $this->listValue($arguments),
             default => $this->singleValue($key, $arguments),
         }, $file->path);
-        $file->write([...$file->read(), $key->value => $value]);
 
-        $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($key, $value), $file->path));
-        $this->warnAboutSiteConflict($io);
+        if ($key->scope() === KeyScope::Site) {
+            $siteFile = new SiteFile($file);
+            [$id, $selection] = $this->existingSite($input, $siteFile);
+            $siteFile->write($siteFile->sites()->with($id, $key, $value), $siteFile->defaultSite());
+            $io->success(sprintf(
+                'Saved %s = %s in %s of %s.',
+                $key->value,
+                $this->format($key, $value),
+                $selection->describe(),
+                $file->path,
+            ));
+        } else {
+            $this->assertSiteExists($key, $value, $file);
+            $file->write([...$file->read(), $key->value => $value]);
+            $io->success(sprintf('Saved %s = %s in %s.', $key->value, $this->format($key, $value), $file->path));
+        }
+
+        $this->warnAboutSiteConflict($io, $input);
+    }
+
+    /**
+     * Returns the id of the selected site and the selection, after checking that the site exists.
+     *
+     * @return array{string, SiteSelection}
+     *
+     * @throws ConfigurationException if no site is selected or the selected one does not exist
+     */
+    private function existingSite(InputInterface $input, SiteFile $siteFile): array
+    {
+        $selection = $this->configurationLoader->selection(SiteOption::value($input));
+        $sites = $siteFile->sites();
+
+        if ($selection->id === null || !$sites->has($selection->id)) {
+            throw new ConfigurationException($selection->missingMessage($sites->ids(), $siteFile->file->path));
+        }
+
+        return [$selection->id, $selection];
+    }
+
+    /**
+     * Rejects a `default_site` that names no configured site, so that a typo does not go unnoticed.
+     *
+     * @param ConfigurationValue $value
+     *
+     * @throws ConfigurationException if the site does not exist
+     */
+    private function assertSiteExists(ConfigurationKey $key, string|array|null $value, ConfigurationFile $file): void
+    {
+        $ids = (new SiteFile($file))->sites()->ids();
+
+        if ($key === ConfigurationKey::DefaultSite && is_string($value) && !in_array($value, $ids, true)) {
+            throw new ConfigurationException(sprintf(
+                'There is no site "%s" in %s.%s Add it with jxt site add %s.',
+                $value,
+                $file->path,
+                $ids === [] ? '' : sprintf(' Configured sites: %s.', implode(', ', $ids)),
+                $value,
+            ));
+        }
     }
 
     /**
@@ -196,6 +295,16 @@ final class ConfigCommand extends Command
     }
 
     /**
+     * Formats a value for the output, or `–` if it is not set.
+     *
+     * @param ConfigurationValue $value
+     */
+    private function formatOrDash(ConfigurationKey $key, string|array|null $value): string
+    {
+        return $value === null || $value === [] ? '–' : $this->format($key, $value);
+    }
+
+    /**
      * Formats a value for the output; commands as command line, steps of `prepare` as command lines separated by
      * `; `, other lists comma-separated.
      *
@@ -237,8 +346,15 @@ final class ConfigCommand extends Command
      */
     private function unset(SymfonyStyle $io, InputInterface $input): void
     {
-        $file = $this->targetFile($input);
-        $key = $this->key($input, $file);
+        $key = $this->key($input);
+        $file = $this->targetFile($input, $key);
+
+        if ($key->scope() === KeyScope::Site) {
+            $this->unsetSiteKey($io, $input, $file, $key);
+
+            return;
+        }
+
         $values = $file->read();
 
         if (!array_key_exists($key->value, $values)) {
@@ -255,18 +371,38 @@ final class ConfigCommand extends Command
             $key->value,
             $file->path,
         ));
-        $this->warnAboutSiteConflict($io);
+        $this->warnAboutSiteConflict($io, $input);
     }
 
     /**
-     * Warns if the keys of the test site contradict each other after a change.
-     *
-     * Only a warning, so that a configuration can be changed in several calls, e.g. setting cli_command before
-     * removing web_user.
+     * Removes a key from the selected site; the site itself stays, even without keys.
      */
-    private function warnAboutSiteConflict(SymfonyStyle $io): void
+    private function unsetSiteKey(SymfonyStyle $io, InputInterface $input, ConfigurationFile $file, ConfigurationKey $key): void
     {
-        $siteConflict = $this->siteConflict();
+        $siteFile = new SiteFile($file);
+        [$id, $selection] = $this->existingSite($input, $siteFile);
+        $sites = $siteFile->sites();
+
+        if (!$sites->hasKey($id, $key)) {
+            $io->note(sprintf('%s is not set in %s of %s.', $key->value, $selection->describe(), $file->path));
+
+            return;
+        }
+
+        $siteFile->write($sites->without($id, $key), $siteFile->defaultSite());
+        $io->success(sprintf('Removed %s from %s of %s.', $key->value, $selection->describe(), $file->path));
+        $this->warnAboutSiteConflict($io, $input);
+    }
+
+    /**
+     * Warns if the keys of the selected test site contradict each other after a change.
+     *
+     * Only a warning, so that a site can be changed in several calls, e.g. setting cli_command before removing
+     * web_user.
+     */
+    private function warnAboutSiteConflict(SymfonyStyle $io, InputInterface $input): void
+    {
+        $siteConflict = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input))->site?->conflict();
 
         if ($siteConflict !== null) {
             $io->warning($siteConflict . self::SITE_CONFLICT_CONSEQUENCE);
@@ -274,23 +410,28 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Returns why the keys of the test site in the merged configuration contradict each other, or null.
+     * Returns the file to change: the global configuration for `--global`, the keys of a site and `default_site`,
+     * otherwise the project configuration; nothing is written under sudo so that the file is not owned by root.
+     *
+     * @throws ConfigurationException under sudo, for `sites` itself, or for `--site` with a key outside of a site
      */
-    private function siteConflict(): ?string
-    {
-        return $this->configurationLoader->load($this->projectDirectory)->siteConflict;
-    }
-
-    /**
-     * Returns the file to change; nothing is written under sudo so that the file is not owned by root.
-     */
-    private function targetFile(InputInterface $input): ConfigurationFile
+    private function targetFile(InputInterface $input, ConfigurationKey $key): ConfigurationFile
     {
         if ($this->runsViaSudo) {
             throw new ConfigurationException('Please run jxt config without sudo, otherwise the configuration file would be owned by root.');
         }
 
-        if ((bool) $input->getOption('global')) {
+        if ($key === ConfigurationKey::Sites) {
+            throw new ConfigurationException(
+                'sites is changed with jxt site and the keys of a site, e.g. jxt config set joomla_root /var/www/html --site=<id>.',
+            );
+        }
+
+        if ($key->scope() !== KeyScope::Site && SiteOption::value($input) !== null) {
+            throw new ConfigurationException(sprintf('--site only applies to the keys of a site, not to %s.', $key->value));
+        }
+
+        if ((bool) $input->getOption('global') || in_array($key->scope(), [KeyScope::Site, KeyScope::Global], true)) {
             return $this->configurationLoader->globalFile()
                 ?? throw new ConfigurationException('No global configuration file is defined.');
         }
@@ -301,7 +442,7 @@ final class ConfigCommand extends Command
     /**
      * Returns the validated key from the arguments.
      */
-    private function key(InputInterface $input, ConfigurationFile $file): ConfigurationKey
+    private function key(InputInterface $input): ConfigurationKey
     {
         $name = $input->getArgument('key');
 
@@ -309,7 +450,11 @@ final class ConfigCommand extends Command
             throw new ConfigurationException('Please specify a key, e.g. jxt config set joomla_root /var/www/html.');
         }
 
-        return ConfigurationKey::fromName($name, $file->path);
+        if ($name === SiteEntry::ID_KEY) {
+            throw new ConfigurationException('The id of a site is changed with jxt site rename <id> <new id>.');
+        }
+
+        return ConfigurationKey::fromName($name, 'the arguments');
     }
 
     /**

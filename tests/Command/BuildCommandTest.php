@@ -103,7 +103,7 @@ final class BuildCommandTest extends TestCase
         self::assertSame([], $runner->runs);
     }
 
-    public function testIgnoresContradictingKeysOfTheTestSite(): void
+    public function testIgnoresTheTestSite(): void
     {
         $this->writeFile('mod_x.xml', <<<'XML'
             <extension type="module"><name>mod_x</name><version>1.0.0</version>
@@ -111,9 +111,9 @@ final class BuildCommandTest extends TestCase
             </extension>
             XML);
         $this->writeFile('tmpl/default.php', '<?php');
-        $this->writeFile('.jxt.json', '{"cli_command": ["ddev", "exec", "php"], "web_user": "www-data"}');
+        $this->writeFile('config.json', '{"sites": [{"id": "ddev", "cli_command": ["ddev", "exec", "php"], "web_user": "www-data"}]}');
 
-        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader($this->project . '/config.json', 'missing')));
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertFileExists($this->project . '/dist/mod_x-1.0.0.zip');

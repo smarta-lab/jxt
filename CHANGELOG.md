@@ -22,9 +22,31 @@ project follows [Semantic Versioning](https://semver.org/).
   and optionally a faster replacement for `jxt sync` in `sync`, e.g. to copy
   instead of minifying, or `false` to skip it there.
   `jxt config set prepare -- <command>` sets a single step.
+- Named test sites: the global configuration lists the test sites in
+  `sites`, each with a unique `id`, and the optional `default_site` names the
+  one used by default. `jxt install`, `jxt sync` and `jxt bridge` use the site
+  of `--site=<id>`, otherwise of the environment variable `JXT_SITE` (e.g. in
+  the `.envrc` of a project or Git worktree), otherwise `default_site`, and
+  name a site selected by `--site` or `JXT_SITE` in their output. An unknown
+  site is an error. The new command `jxt site` lists, adds
+  (`add <id> [--default]`), removes and renames (`rename <id> <new id>`,
+  including `default_site`) the sites; `jxt config` sets the keys of an
+  existing site and shows the selected one.
 
 ### Changed
 
+- **Incompatible:** the keys of the test site (`joomla_root`, `web_user`,
+  `cli_command`, `cli_root`) can only be set in a site of `sites` in the
+  global configuration, no longer at its top level or in `.jxt.json`, so a
+  cloned project cannot run commands through `cli_command` or change the
+  directory in which `jxt sync` deletes; `prepare` is the only key of
+  `.jxt.json` that runs commands. The error message shows the site that
+  takes the old values, e.g. for `~/.config/jxt/config.json`:
+  `{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html", "web_user": "www-data"}]}`.
+  A project that used other values in `.jxt.json` gets a site with an id of
+  its own, selected with `JXT_SITE`. `jxt config set` of these keys always
+  writes the global configuration, into an existing site. With `--tag`, the
+  `.jxt.json` of an older tag that sets them is rejected as well.
 - `jxt install` shows HTML that install scripts output for the backend as
   plain text: block elements start a new line, headings are underlined, lists
   get bullets or numbers, and lines are wrapped at the width of the terminal
@@ -39,19 +61,20 @@ project follows [Semantic Versioning](https://semver.org/).
 - `web_user` has no default any more (before: `www-data`): without it, the
   Joomla CLI runs as you without sudo, and `null` resets it like every other
   key. Before, an unset `web_user` gave way to `cli_command`, while the same
-  value set explicitly contradicted it. If you relied on the default, run
-  `jxt config set web_user www-data --global` once; if you cannot write to
+  value set explicitly contradicted it. If you relied on the default, set
+  `web_user` to `www-data` in the site once; if you cannot write to
   `joomla_root` and `web_user` is missing, `jxt install`, `jxt bridge` and
   `jxt sync` via the bridge stop with this hint instead of running the Joomla
   CLI without sudo.
 - `jxt config unset` deletes the configuration file when its last key is
   removed, instead of leaving `{}`.
 
-### Fixed
+### Removed
 
-- If `web_user` in `.jxt.json` contradicts a global `cli_command`, the error
-  message suggests setting `web_user` to `null` in `.jxt.json` instead of in
-  the global configuration, where it would have no effect.
+- **Incompatible:** the keys `dir_mode` and `file_mode`. `jxt sync` sets the
+  modes of the Joomla installer, 0755 for directories and 0644 for files, so
+  that it leaves the same state as `jxt install`, which never used the keys.
+  A configuration that still sets them is rejected with a hint.
 
 ## [0.5.0] - 2026-10-23
 

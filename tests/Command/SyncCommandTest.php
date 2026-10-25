@@ -33,6 +33,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 final class SyncCommandTest extends TestCase
 {
     use CommandDisplayTrait;
+    use TestSiteConfigurationTrait;
     use TemporaryDirectoryTrait;
 
     #[\Override]
@@ -41,7 +42,7 @@ final class SyncCommandTest extends TestCase
         $this->createTemporaryDirectory();
         $this->writeFile('project/mod_x.xml', $this->manifestXml('1.0.0'));
         $this->writeFile('project/tmpl/default.php', '<?php');
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla()]));
+        $this->writeSites(['joomla_root' => $this->joomla()]);
         $this->writeFile('joomla/configuration.php', '<?php');
         $this->writeFile('joomla/modules/mod_x/mod_x.xml', $this->manifestXml('1.0.0'));
         $this->writeFile('joomla/modules/mod_x/tmpl/old.php', '<?php');
@@ -84,7 +85,6 @@ final class SyncCommandTest extends TestCase
     public function testRunsThePrepareStepsWithTheirReplacementsForSync(): void
     {
         $this->writeFile('project/.jxt.json', (string) json_encode([
-            'joomla_root' => $this->joomla(),
             'prepare' => [
                 ['run' => ['npm', 'run', 'minify'], 'sync' => ['npm', 'run', 'minify:copy']],
                 ['run' => ['npm', 'run', 'images'], 'sync' => false],
@@ -106,10 +106,7 @@ final class SyncCommandTest extends TestCase
 
     public function testRunsThePrepareStepsForADryRun(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
-            'joomla_root' => $this->joomla(),
-            'prepare' => [['run' => ['npm', 'run', 'css']]],
-        ]));
+        $this->writeFile('project/.jxt.json', (string) json_encode(['prepare' => [['run' => ['npm', 'run', 'css']]]]));
         $stepRunner = new ScriptedStepRunner();
         $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
 
@@ -120,10 +117,7 @@ final class SyncCommandTest extends TestCase
 
     public function testFailsWithoutSyncingIfAPrepareStepFails(): void
     {
-        $this->writeFile('project/.jxt.json', (string) json_encode([
-            'joomla_root' => $this->joomla(),
-            'prepare' => [['run' => ['npm', 'run', 'css']]],
-        ]));
+        $this->writeFile('project/.jxt.json', (string) json_encode(['prepare' => [['run' => ['npm', 'run', 'css']]]]));
         $stepRunner = new ScriptedStepRunner(static fn (): ProcessResult => new ProcessResult(1, ''));
         $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
 
@@ -194,7 +188,7 @@ final class SyncCommandTest extends TestCase
     {
         $manifest = '<extension type="library"><name>Example</name><libraryname>acme/example</libraryname>'
             . '<version>1.0.0</version><files folder="lib"><folder>src</folder></files></extension>';
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'manifest' => 'lib_example.xml']));
+        $this->writeFile('project/.jxt.json', (string) json_encode(['manifest' => 'lib_example.xml']));
         $this->writeFile('project/lib_example.xml', $manifest);
         $this->writeFile('project/lib/src/Example.php', '<?php');
         $this->writeFile('joomla/administrator/manifests/libraries/acme/example.xml', $manifest);
@@ -219,7 +213,7 @@ final class SyncCommandTest extends TestCase
         $this->writeFile('project/extension/tmpl/default.php', '<?php // extension');
         $this->writeFile(
             'project/.jxt.json',
-            (string) json_encode(['joomla_root' => $this->joomla(), 'manifest' => 'extension/mod_x.xml']),
+            (string) json_encode(['manifest' => 'extension/mod_x.xml']),
         );
         $tester = $this->tester();
 
@@ -263,13 +257,31 @@ final class SyncCommandTest extends TestCase
         }
     }
 
-    public function testFailsWithoutJoomlaRoot(): void
+    public function testFailsWithoutTestSite(): void
     {
-        $this->writeFile('project/.jxt.json', '{}');
+        unlink($this->globalConfigFile());
         $tester = $this->tester();
 
         self::assertSame(Command::FAILURE, $tester->execute([]));
-        self::assertStringContainsString('joomla_root', self::display($tester));
+        self::assertStringContainsString('No test site is configured in', self::display($tester));
+    }
+
+    public function testUsesTheSiteOfTheOptionAndNamesIt(): void
+    {
+        $this->writeSites(['joomla_root' => $this->temporaryDirectory . '/other'], ['id' => 'ddev', 'joomla_root' => $this->joomla()]);
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--site' => 'ddev']));
+        self::assertStringContainsString(sprintf('mod_x → %s (site "ddev" via --site)', $this->joomla()), self::display($tester));
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
+    }
+
+    public function testFailsForUnknownSite(): void
+    {
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute(['--site' => 'j5']));
+        self::assertStringContainsString('There is no site "j5" (selected via --site)', self::display($tester));
     }
 
     public function testFailsForDirectoryWithoutJoomla(): void
@@ -327,7 +339,7 @@ final class SyncCommandTest extends TestCase
     public function testShowsSudoersRulesWhenSudoRefusesTheBridge(): void
     {
         $this->installBridge($this->bundledVersion());
-        $this->writeFile('project/.jxt.json', (string) json_encode(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']));
+        $this->writeSites(['joomla_root' => $this->joomla(), 'web_user' => 'www-data']);
         $tester = $this->tester(new ScriptedProcessRunner(new ProcessResult(1, "sudo: a password is required\n")));
 
         self::assertSame(Command::FAILURE, $tester->execute([]));
@@ -358,7 +370,7 @@ final class SyncCommandTest extends TestCase
 
         return new SyncCommand(
             $this->temporaryDirectory . '/project',
-            new ConfigurationLoader(null),
+            new ConfigurationLoader($this->globalConfigFile()),
             new SyncExecutor(),
             new Bridge(
                 new JoomlaCli($runner, '/usr/bin/php8.5'),
