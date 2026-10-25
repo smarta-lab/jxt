@@ -150,6 +150,12 @@ final class SiteCommandTest extends TestCase
     {
         yield 'unknown action' => [['action' => 'delete'], 'Unknown action "delete"'];
         yield 'add without id' => [['action' => 'add'], 'Please specify the id of the site'];
+        yield 'id for list' => [['action' => 'list', 'id' => 'local'], 'jxt site list takes no further arguments, but got "local".'];
+        yield 'option without dashes for add' => [
+            ['action' => 'add', 'id' => 'j5', 'new-id' => 'default'],
+            'but got "default". Did you mean --default?',
+        ];
+        yield 'second id for remove' => [['action' => 'remove', 'id' => 'local', 'new-id' => 'ddev'], 'but got "ddev".'];
         yield 'add of an existing site' => [['action' => 'add', 'id' => 'ddev'], 'There is already a site "ddev"'];
         yield 'add with an invalid id' => [['action' => 'add', 'id' => 'my site'], 'Invalid site id "my site"'];
         yield 'remove of an unknown site' => [['action' => 'remove', 'id' => 'j5'], 'There is no site "j5" in'];

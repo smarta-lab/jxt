@@ -113,6 +113,7 @@ final class ConfigCommand extends Command
      */
     private function show(SymfonyStyle $io, InputInterface $input, OutputInterface $output): void
     {
+        UnusedArguments::reject($this, [$input->getArgument('key'), $input->getArgument('value')], 'jxt config show');
         $table = new Table($output);
         $table->setStyle('compact');
         $table->setHeaders(['Key', 'Value', 'Origin']);
@@ -346,6 +347,7 @@ final class ConfigCommand extends Command
      */
     private function unset(SymfonyStyle $io, InputInterface $input): void
     {
+        UnusedArguments::reject($this, [$input->getArgument('value')], 'jxt config unset <key>');
         $key = $this->key($input);
         $file = $this->targetFile($input, $key);
 

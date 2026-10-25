@@ -76,6 +76,12 @@ project follows [Semantic Versioning](https://semver.org/).
   that it leaves the same state as `jxt install`, which never used the keys.
   A configuration that still sets them is rejected with a hint.
 
+### Fixed
+
+- `jxt config show` and `jxt config unset <key>` reject arguments they do not
+  use instead of ignoring them, with a hint if one looks like an option
+  without `--`, e.g. `site=local` for `--site=local`.
+
 ## [0.5.0] - 2026-10-23
 
 ### Added

@@ -424,6 +424,11 @@ final class ConfigCommandTest extends TestCase
         yield 'id of a site' => [['action' => 'set', 'key' => 'id', 'value' => ['default']], 'The id of a site is changed with jxt site rename'];
         yield 'missing value' => [['action' => 'set', 'key' => 'web_user'], 'specify a value'];
         yield 'missing key' => [['action' => 'unset'], 'specify a key'];
+        yield 'option without dashes for show' => [
+            ['action' => 'show', 'key' => 'site=local'],
+            'jxt config show takes no further arguments, but got "site=local". Did you mean --site=local?',
+        ];
+        yield 'value for unset' => [['action' => 'unset', 'key' => 'manifest', 'value' => ['mod_x.xml']], 'but got "mod_x.xml".'];
         yield 'global manifest' => [
             ['action' => 'set', 'key' => 'manifest', 'value' => ['mod_x.xml'], '--global' => true],
             'project configuration',

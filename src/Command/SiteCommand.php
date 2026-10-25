@@ -73,7 +73,7 @@ final class SiteCommand extends Command
 
         try {
             match ($action) {
-                SiteAction::List => $this->list($io, $output),
+                SiteAction::List => $this->list($io, $input, $output),
                 SiteAction::Add => $this->add($io, $input),
                 SiteAction::Remove => $this->remove($io, $input),
                 SiteAction::Rename => $this->rename($io, $input),
@@ -91,8 +91,9 @@ final class SiteCommand extends Command
      * Lists the sites with their Joomla root, marks `default_site` and the site selected via `JXT_SITE`, and warns if
      * the selected site cannot be used.
      */
-    private function list(SymfonyStyle $io, OutputInterface $output): void
+    private function list(SymfonyStyle $io, InputInterface $input, OutputInterface $output): void
     {
+        UnusedArguments::reject($this, [$input->getArgument('id'), $input->getArgument('new-id')], 'jxt site list');
         $configuration = $this->configurationLoader->load($this->projectDirectory);
         $sites = $this->configurationLoader->sites();
         $globalFile = $this->configurationLoader->globalFile();
@@ -131,6 +132,7 @@ final class SiteCommand extends Command
      */
     private function add(SymfonyStyle $io, InputInterface $input): void
     {
+        UnusedArguments::reject($this, [$input->getArgument('new-id')], 'jxt site add <id>');
         $siteFile = $this->siteFile();
         $id = $this->newId($input, 'id', $siteFile);
         $default = (bool) $input->getOption('default');
@@ -150,6 +152,7 @@ final class SiteCommand extends Command
      */
     private function remove(SymfonyStyle $io, InputInterface $input): void
     {
+        UnusedArguments::reject($this, [$input->getArgument('new-id')], 'jxt site remove <id>');
         $siteFile = $this->siteFile();
         $id = $this->existingId($input, $siteFile);
         $defaultSite = $siteFile->defaultSite();
