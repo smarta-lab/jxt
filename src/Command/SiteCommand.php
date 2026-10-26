@@ -88,8 +88,8 @@ final class SiteCommand extends Command
     }
 
     /**
-     * Lists the sites with their Joomla root, marks `default_site` and the site selected via `JXT_SITE`, and warns if
-     * the selected site cannot be used.
+     * Lists the sites with their Joomla root, marks `default_site`, the site selected via `JXT_SITE` and incomplete or
+     * contradicting sites, and warns if the selected site cannot be used.
      */
     private function list(SymfonyStyle $io, InputInterface $input, OutputInterface $output): void
     {
@@ -112,6 +112,8 @@ final class SiteCommand extends Command
         foreach ($sites as $site) {
             $notes = array_filter([
                 $site->id === $defaultSite ? 'default_site' : null,
+                $site->joomlaRoot === null ? 'joomla_root missing' : null,
+                $site->conflict() === null ? null : 'contradicting keys',
                 $configuration->siteSelection->isExplicit() && $site->id === $configuration->siteSelection->id
                     ? 'selected via ' . $configuration->siteSelection->source->value
                     : null,

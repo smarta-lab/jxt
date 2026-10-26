@@ -758,13 +758,15 @@ site with only its id. `remove` also removes `default_site` if it refers to the
 site, `rename` changes it with the site. References outside of the global
 configuration, e.g. `JXT_SITE` in an `.envrc` or `--site` in a script, stay
 unchanged; jxt points this out, and a forgotten reference fails on the next
-call, since an unknown site is an error. Like `jxt config`, `jxt site` refuses
-to write under sudo.
+call, since an unknown site is an error. The list marks sites without
+`joomla_root` and with contradicting keys. Like `jxt config`, `jxt site`
+refuses to write under sudo.
 
 ```
 Id      joomla_root
 local   /var/www/html            default_site
 example /home/user/sites/example selected via JXT_SITE
+j5      –                        joomla_root missing
 ```
 
 ## jxt config – show and change the configuration
@@ -798,31 +800,35 @@ directly. Run
 refuses to write under sudo.
 
 ```
-Key           Value      Origin
-manifest      –          not set
-prepare       –          not set
-dist_dir      dist       default
-check_exclude assets/uri project
-check_include –          not set
-default_site  local      global
+Key           Value                            Origin
+manifest      –                                not set
+prepare       –                                not set
+dist_dir      dist                             default
+check_exclude assets/uri                       project
+check_include –                                not set
+default_site  local                            global
+joomla_root   /home/user/sites/example         site
+web_user      –                                not set
+cli_command   docker exec ddev-example-web php site
+cli_root      /var/www/html                    site
 
-Test site: site "example" via JXT_SITE
-joomla_root /home/user/sites/example
-web_user    –
-cli_command docker exec ddev-example-web php
-cli_root    /var/www/html
+Test sites
+local, example
+current site: example via JXT_SITE
 
-sites:   local, example
+Configuration files
 global:  /home/user/.config/jxt/config.json
 project: /home/user/projects/mod_example/.jxt.json
 ```
 
-The origin is one of: project file (`project`), global file (`global`), default
-value (`default`) or not set (`not set`). If the keys of the test site
-contradict each other, e.g. `web_user` next to `cli_command`, `jxt config`,
-`jxt config set` and `jxt config unset` show a warning; `jxt install`,
-`jxt bridge` and `jxt sync` via the bridge fail until it is resolved.
-`jxt config` also warns if the selected site does not exist.
+The table includes the keys of the current site, i.e. of `--site`, `JXT_SITE`
+or `default_site`. The origin is one of: project file (`project`), global file
+(`global`), the current site (`site`), default value (`default`) or not
+set (`not set`). If the keys of the test site contradict each other, e.g.
+`web_user` next to `cli_command`, `jxt config`, `jxt config set` and
+`jxt config unset` show a warning; `jxt install`, `jxt bridge` and `jxt sync`
+via the bridge fail until it is resolved. `jxt config` also warns if no site
+is selected, the selected one does not exist or its `joomla_root` is missing.
 
 ## Configuration
 

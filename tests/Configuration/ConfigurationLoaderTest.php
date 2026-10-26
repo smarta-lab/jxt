@@ -253,6 +253,19 @@ final class ConfigurationLoaderTest extends TestCase
         self::assertSame('no site selected', $configuration->siteSelection->describe());
     }
 
+    public function testReportsMissingJoomlaRootAsSiteProblem(): void
+    {
+        $this->writeSites('ddev', ['id' => 'ddev', 'web_user' => 'www-data']);
+
+        self::assertSame(
+            sprintf(
+                'joomla_root is not set in site "ddev" of %s. Please set it with jxt config set joomla_root <path> --site=ddev.',
+                $this->globalFile(),
+            ),
+            $this->loader()->load($this->project())->siteProblem(),
+        );
+    }
+
     public function testReportsMissingJoomlaRootOfTheSite(): void
     {
         $this->writeSites(null, ['id' => 'ddev', 'web_user' => 'www-data']);

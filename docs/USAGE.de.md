@@ -783,13 +783,15 @@ auf die Seite verweist, `rename` ändert es mit der Seite. Verweise außerhalb
 der globalen Konfiguration, z. B. `JXT_SITE` in einer `.envrc` oder `--site`
 in einem Skript, bleiben unverändert; jxt weist darauf hin, und ein
 vergessener Verweis scheitert beim nächsten Aufruf, da eine unbekannte Seite
-ein Fehler ist. Wie `jxt config` verweigert `jxt site` unter sudo das
-Schreiben.
+ein Fehler ist. Die Liste markiert Seiten ohne `joomla_root` und mit
+widersprüchlichen Schlüsseln. Wie `jxt config` verweigert `jxt site` unter
+sudo das Schreiben.
 
 ```
 Id      joomla_root
 local   /var/www/html            default_site
 example /home/user/sites/example selected via JXT_SITE
+j5      –                        joomla_root missing
 ```
 
 ## jxt config – Konfiguration anzeigen und ändern
@@ -823,32 +825,36 @@ mehrere Schritte und Schritte mit `sync` stehen direkt in der `.jxt.json`.
 verweigert es das Schreiben.
 
 ```
-Key           Value      Origin
-manifest      –          not set
-prepare       –          not set
-dist_dir      dist       default
-check_exclude assets/uri project
-check_include –          not set
-default_site  local      global
+Key           Value                            Origin
+manifest      –                                not set
+prepare       –                                not set
+dist_dir      dist                             default
+check_exclude assets/uri                       project
+check_include –                                not set
+default_site  local                            global
+joomla_root   /home/user/sites/example         site
+web_user      –                                not set
+cli_command   docker exec ddev-example-web php site
+cli_root      /var/www/html                    site
 
-Test site: site "example" via JXT_SITE
-joomla_root /home/user/sites/example
-web_user    –
-cli_command docker exec ddev-example-web php
-cli_root    /var/www/html
+Test sites
+local, example
+current site: example via JXT_SITE
 
-sites:   local, example
+Configuration files
 global:  /home/user/.config/jxt/config.json
 project: /home/user/projects/mod_example/.jxt.json
 ```
 
-Die Herkunft (`Origin`) ist die Projektdatei (`project`), die globale Datei
-(`global`), der Standardwert (`default`) oder nicht gesetzt (`not set`).
-Widersprechen sich die Schlüssel der Testseite, z. B. `web_user` neben
-`cli_command`, zeigen `jxt config`, `jxt config set` und `jxt config unset`
-eine Warnung; `jxt install`, `jxt bridge` und `jxt sync` über die Bridge
-scheitern, bis der Widerspruch behoben ist. `jxt config` warnt auch, wenn die
-gewählte Seite nicht existiert.
+Die Tabelle enthält die Schlüssel der aktuellen Seite, also der von `--site`,
+`JXT_SITE` oder `default_site`. Die Herkunft (`Origin`) ist die Projektdatei
+(`project`), die globale Datei (`global`), die aktuelle Seite (`site`),
+der Standardwert (`default`) oder nicht gesetzt (`not set`). Widersprechen
+sich die Schlüssel der Testseite, z. B. `web_user` neben `cli_command`, zeigen
+`jxt config`, `jxt config set` und `jxt config unset` eine Warnung;
+`jxt install`, `jxt bridge` und `jxt sync` über die Bridge scheitern, bis der
+Widerspruch behoben ist. `jxt config` warnt auch, wenn keine Seite gewählt
+ist, die gewählte nicht existiert oder ihr `joomla_root` fehlt.
 
 ## Konfiguration
 

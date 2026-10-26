@@ -40,12 +40,17 @@ final readonly class Configuration
     }
 
     /**
-     * Returns why the selected test site cannot be used: it is not configured or its keys contradict each other;
-     * null if it can be used.
+     * Returns why the selected test site cannot be used: it is not configured, its keys contradict each other or
+     * `joomla_root` is missing; null if it can be used as far as the configuration tells.
      */
     public function siteProblem(): ?string
     {
-        return $this->site === null ? $this->missingSite : $this->site->conflict();
+        return match (true) {
+            $this->site === null => $this->missingSite,
+            $this->site->conflict() !== null => $this->site->conflict(),
+            $this->site->joomlaRoot === null => self::missingJoomlaRoot($this->site),
+            default => null,
+        };
     }
 
     /**
@@ -57,12 +62,7 @@ final readonly class Configuration
     public function validJoomlaRoot(): string
     {
         $site = $this->site ?? throw new ConfigurationException($this->missingSite);
-        $joomlaRoot = $site->joomlaRoot ?? throw new ConfigurationException(sprintf(
-            'joomla_root is not set in %s of %s. Please set it with jxt config set joomla_root <path> --site=%s.',
-            $site->name(),
-            $site->source,
-            $site->id,
-        ));
+        $joomlaRoot = $site->joomlaRoot ?? throw new ConfigurationException(self::missingJoomlaRoot($site));
 
         if (!is_file($joomlaRoot . '/configuration.php')) {
             throw new ConfigurationException(sprintf(
@@ -97,5 +97,18 @@ final readonly class Configuration
         $site = $this->site ?? throw new ConfigurationException($this->missingSite);
 
         return new TestSite($joomlaRoot, $site->webUser, $site->cliCommand, $site->cliRoot, $site->id);
+    }
+
+    /**
+     * Returns the message for a site without `joomla_root`.
+     */
+    private static function missingJoomlaRoot(SiteEntry $site): string
+    {
+        return sprintf(
+            'joomla_root is not set in %s of %s. Please set it with jxt config set joomla_root <path> --site=%s.',
+            $site->name(),
+            $site->source,
+            $site->id,
+        );
     }
 }

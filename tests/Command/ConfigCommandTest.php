@@ -53,10 +53,10 @@ final class ConfigCommandTest extends TestCase
         self::assertMatchesRegularExpression('/dist_dir\s+\/srv\/dist\s+global/', $display);
         self::assertMatchesRegularExpression('/default_site\s+local\s+global/', $display);
         self::assertMatchesRegularExpression('/check_exclude\s+–\s+not set/', $display);
-        self::assertStringContainsString('Test site: site "local" (default_site)', $display);
-        self::assertMatchesRegularExpression('/joomla_root\s+\/var\/www\/html/', $display);
-        self::assertMatchesRegularExpression('/web_user\s+–/', $display);
-        self::assertStringContainsString('sites:   local, ddev', $display);
+        self::assertMatchesRegularExpression('/joomla_root\s+\/var\/www\/html\s+site\s/', $display);
+        self::assertMatchesRegularExpression('/web_user\s+–\s+not set/', $display);
+        self::assertStringContainsString("Test sites\nlocal, ddev\ncurrent site: local (default_site)\n", $display);
+        self::assertStringContainsString("Configuration files\nglobal:", $display);
         self::assertStringContainsString($this->globalFile(), $display);
         self::assertStringContainsString($this->project() . '/.jxt.json', $display);
         self::assertStringNotContainsString('[WARNING]', $display);
@@ -68,7 +68,7 @@ final class ConfigCommandTest extends TestCase
         $tester = $this->tester('ddev');
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertStringContainsString('Test site: site "ddev" via JXT_SITE', $tester->getDisplay());
+        self::assertStringContainsString('current site: ddev via JXT_SITE', $tester->getDisplay());
         self::assertMatchesRegularExpression('/joomla_root\s+\/srv\/ddev/', $tester->getDisplay());
     }
 
@@ -77,8 +77,10 @@ final class ConfigCommandTest extends TestCase
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['--site' => 'ddev']));
-        self::assertStringContainsString('Test site: site "ddev" via --site', $tester->getDisplay());
+        self::assertStringContainsString('current site: ddev via --site', $tester->getDisplay());
         self::assertStringContainsString('There is no site "ddev"', self::display($tester));
+        self::assertStringContainsString('jxt install, jxt sync and jxt bridge fail until this is resolved.', self::display($tester));
+        self::assertStringNotContainsString('joomla_root', $tester->getDisplay());
     }
 
     public function testShowWarnsIfNoSiteIsSelected(): void
@@ -87,8 +89,18 @@ final class ConfigCommandTest extends TestCase
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
-        self::assertStringContainsString('Test site: no site selected', $tester->getDisplay());
+        self::assertStringContainsString('current site: –', $tester->getDisplay());
         self::assertStringContainsString('No test site is selected', self::display($tester));
+    }
+
+    public function testShowWarnsAboutMissingJoomlaRoot(): void
+    {
+        $this->writeSites('local', ['id' => 'local', 'web_user' => 'www-data']);
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('joomla_root is not set in site "local"', self::display($tester));
+        self::assertStringContainsString('jxt config set joomla_root <path> --site=local.', self::display($tester));
     }
 
     public function testSetWritesProjectFileAndKeepsOtherValues(): void

@@ -45,8 +45,20 @@ final class SiteCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
         self::assertMatchesRegularExpression('/local\s+\/var\/www\/html\s+default_site/', $tester->getDisplay());
-        self::assertMatchesRegularExpression('/ddev\s+–\s+selected via JXT_SITE/', $tester->getDisplay());
-        self::assertStringNotContainsString('[WARNING]', $tester->getDisplay());
+        self::assertMatchesRegularExpression('/ddev\s+–\s+joomla_root missing, selected via JXT_SITE/', $tester->getDisplay());
+        self::assertStringContainsString('joomla_root is not set in site "ddev"', self::display($tester));
+    }
+
+    public function testMarksSitesWithContradictingKeys(): void
+    {
+        $this->writeConfiguration(
+            '{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/srv/site", "web_user": "x", "cli_command": ["php"]}]}',
+        );
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertMatchesRegularExpression('/local\s+\/srv\/site\s+default_site, contradicting keys/', $tester->getDisplay());
+        self::assertStringContainsString('cannot be combined', self::display($tester));
     }
 
     public function testListWarnsAboutAnUnknownDefaultSite(): void

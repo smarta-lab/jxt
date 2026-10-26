@@ -83,6 +83,19 @@ final readonly class SiteSelection
     }
 
     /**
+     * Summarizes the selection for `jxt config`, e.g. `leaflet via JXT_SITE` or `local (default_site)`; `–` if no
+     * site is selected.
+     */
+    public function summary(): string
+    {
+        return match ($this->source) {
+            SiteSelectionSource::None => '–',
+            SiteSelectionSource::DefaultSite => sprintf('%s (%s)', $this->id, $this->source->value),
+            default => sprintf('%s via %s', $this->id, $this->source->value),
+        };
+    }
+
+    /**
      * Returns why no site can be used: none is selected, or the selected one does not exist.
      *
      * @param list<string> $ids    Ids of the configured sites

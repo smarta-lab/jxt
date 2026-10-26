@@ -43,6 +43,8 @@ final class ConfigCommand extends Command
     private const string SITE_CONFLICT_CONSEQUENCE = ' jxt install, jxt bridge and jxt sync via the bridge fail until '
         . 'this is resolved.';
 
+    private const string SITE_PROBLEM_CONSEQUENCE = ' jxt install, jxt sync and jxt bridge fail until this is resolved.';
+
     /**
      * @param string $projectDirectory Project directory of the extension, usually the current directory
      * @param bool   $runsViaSudo      Whether the command runs via sudo; nothing is written then
@@ -108,12 +110,14 @@ final class ConfigCommand extends Command
     }
 
     /**
-     * Shows all keys with value and origin, the selected test site, the configured sites and the paths of the
-     * configuration files.
+     * Shows all keys with value and origin, including those of the current test site, then the configured sites,
+     * the current site and the paths of the configuration files.
      */
     private function show(SymfonyStyle $io, InputInterface $input, OutputInterface $output): void
     {
         UnusedArguments::reject($this, [$input->getArgument('key'), $input->getArgument('value')], 'jxt config show');
+        $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
+        $site = $configuration->site;
         $table = new Table($output);
         $table->setStyle('compact');
         $table->setHeaders(['Key', 'Value', 'Origin']);
@@ -122,35 +126,28 @@ final class ConfigCommand extends Command
             $table->addRow([$entry->key->value, $this->formatOrDash($entry->key, $entry->value), $entry->source->value]);
         }
 
-        $table->render();
-        $configuration = $this->configurationLoader->load($this->projectDirectory, SiteOption::value($input));
-        $site = $configuration->site;
-        $io->newLine();
-        $io->writeln(sprintf('Test site: %s', $configuration->siteSelection->describe()));
-
         if ($site !== null) {
-            $siteTable = new Table($output);
-            $siteTable->setStyle('compact');
-
             foreach (SiteEntry::keys() as $key) {
-                $siteTable->addRow([$key->value, $this->formatOrDash($key, $this->siteValue($site, $key))]);
+                $value = $this->siteValue($site, $key);
+                $isSet = $value !== null && $value !== [];
+                $table->addRow([$key->value, $this->formatOrDash($key, $value), $isSet ? 'site' : 'not set']);
             }
-
-            $siteTable->render();
         }
 
+        $table->render();
         $sites = $this->configurationLoader->sites();
         $io->newLine();
-        $io->writeln(sprintf('sites:   %s', $sites === [] ? '–' : implode(', ', array_map(
-            static fn (SiteEntry $entry): string => $entry->id,
-            $sites,
-        ))));
+        $io->writeln('<info>Test sites</info>');
+        $io->writeln($sites === [] ? '–' : implode(', ', array_map(static fn (SiteEntry $entry): string => $entry->id, $sites)));
+        $io->writeln(sprintf('current site: %s', $configuration->siteSelection->summary()));
+        $io->newLine();
+        $io->writeln('<info>Configuration files</info>');
         $io->writeln(sprintf('global:  %s', $this->describeFile($this->configurationLoader->globalFile())));
         $io->writeln(sprintf('project: %s', $this->describeFile($this->configurationLoader->projectFile($this->projectDirectory))));
         $siteProblem = $configuration->siteProblem();
 
         if ($siteProblem !== null) {
-            $io->warning($siteProblem . self::SITE_CONFLICT_CONSEQUENCE);
+            $io->warning($siteProblem . ($site?->conflict() === null ? self::SITE_PROBLEM_CONSEQUENCE : self::SITE_CONFLICT_CONSEQUENCE));
         }
     }
 
