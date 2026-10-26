@@ -226,6 +226,47 @@ final class LanguageCheckerTest extends TestCase
         );
     }
 
+    public function testLiteralFollowedByConcatenationStartsBuiltKeys(): void
+    {
+        $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\n"
+            . "MOD_EXAMPLE_STATE_ON=\"On\"\nMOD_EXAMPLE_STATE_OFF=\"Off\"\nMOD_EXAMPLE_TYPE_A=\"A\"\n"
+            . "MOD_EXAMPLE_MODE=\"Mode\"\nMOD_EXAMPLE_MODE_FAST=\"Fast\"\nMOD_EXAMPLE_OTHER=\"Other\"\n";
+        $this->writeFile('language/en-GB/mod_example.ini', $keys);
+        $this->writeFile('language/de-DE/mod_example.ini', $keys);
+        $this->writeFile(
+            'tmpl/default.php',
+            "<?php\necho Text::_('MOD_EXAMPLE_TITLE'), Text::_('MOD_EXAMPLE_TEXT');\n"
+                . "echo Text::_('MOD_EXAMPLE_STATE' . \$state), Text::_(\"MOD_EXAMPLE_TYPE_\".\$type);\n"
+                . "echo Text::_('MOD_EXAMPLE_FLAG' . \$flag), Text::_('MOD_EXAMPLE_' . \$key);\n",
+        );
+        $this->writeFile('media/js/site.js', "Joomla.Text._('MOD_EXAMPLE_MODE' + mode);\n");
+
+        self::assertSame([
+            'ERROR language/undefined: MOD_EXAMPLE_FLAG is used in tmpl/default.php but not defined',
+            'INFO language/unused: MOD_EXAMPLE_OTHER is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
+    }
+
+    public function testPluralKeysHaveSuffixes(): void
+    {
+        $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\n"
+            . "MOD_EXAMPLE_N_ITEMS=\"%d items\"\nMOD_EXAMPLE_N_ITEMS_1=\"One item\"\n"
+            . "MOD_EXAMPLE_N_DAYS_ONE=\"One day\"\nMOD_EXAMPLE_N_DAYS_MORE=\"%d days\"\nMOD_EXAMPLE_N_DAYSX=\"X\"\n";
+        $this->writeFile('language/en-GB/mod_example.ini', $keys);
+        $this->writeFile('language/de-DE/mod_example.ini', $keys);
+        $this->writeFile(
+            'tmpl/default.php',
+            "<?php\necho Text::_('MOD_EXAMPLE_TITLE'), Text::_('MOD_EXAMPLE_TEXT');\n"
+                . "echo Text::plural('MOD_EXAMPLE_N_ITEMS', \$items), Text::plural( \"MOD_EXAMPLE_N_DAYS\", \$days);\n"
+                . "echo Text::plural('MOD_EXAMPLE_N_WEEKS', \$weeks);\n",
+        );
+
+        self::assertSame([
+            'ERROR language/undefined: MOD_EXAMPLE_N_WEEKS is used in tmpl/default.php but not defined',
+            'INFO language/unused: MOD_EXAMPLE_N_DAYSX is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
+    }
+
     public function testPluginPrefixContainsGroup(): void
     {
         $this->writeFile('example.xml', <<<'XML'

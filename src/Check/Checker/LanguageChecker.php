@@ -24,8 +24,9 @@ use SmartA\Jxt\PhpErrors;
  * `administrator/language/`); as in Joomla, the language tag in front of a file name (`de-DE.mod_x.ini`) is
  * optional. Language constants with the prefix of the
  * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`, `COM_X_`) used in PHP, XML, JS or SQL files outside of
- * comments must be defined. Defined constants not found in the code are only a notice, as constants may be
- * built at runtime; keys without the prefix are searched literally, and constants that Joomla uses itself
+ * comments must be defined, or be the start of a defined key if they are concatenated or used with
+ * `Text::plural()`. Defined constants not found in the code are only a notice, as constants may be built at
+ * runtime; keys starting with such a literal count as used, keys without the prefix are searched literally, and constants that Joomla uses itself
  * (the extension name, template positions and layouts, including the layout overrides of templates) are never
  * reported.
  */
@@ -56,9 +57,10 @@ final readonly class LanguageChecker implements Checker
         $defined = array_unique(array_merge(...array_merge(...array_map(array_values(...), array_values($keys)))));
         $code = $this->readCode($context);
         $used = $this->usedConstants($code, $prefix);
+        $built = $this->builtConstants($code, $prefix);
 
         foreach ($used as $constant => $files) {
-            if (!in_array($constant, $defined, true)) {
+            if (!in_array($constant, $defined, true) && !$this->buildsDefinedKey($built[$constant] ?? null, $defined)) {
                 $report->add(CheckName::LanguageUndefined, Severity::Error, sprintf(
                     '%s is used in %s but not defined',
                     $constant,
@@ -73,6 +75,7 @@ final readonly class LanguageChecker implements Checker
             if (
                 !isset($used[$constant])
                 && preg_match($implicit, $constant) !== 1
+                && !array_any($built, static fn(string $pattern): bool => preg_match($pattern, $constant) === 1)
                 && (str_starts_with($constant, $prefix) || !$this->containsLiterally($code, $constant))
             ) {
                 $report->add(CheckName::LanguageUnused, Severity::Notice, sprintf(
@@ -228,6 +231,47 @@ final readonly class LanguageChecker implements Checker
         }
 
         return $used;
+    }
+
+    /**
+     * Returns the patterns of the keys built at runtime from a literal that is longer than the prefix (the prefix
+     * alone tells nothing): a literal followed by `.` or `+` is the start of the keys, the key of
+     * `Text::plural()` is used with a plural suffix (`_1`, `_MORE` …) and only as a fallback without one.
+     *
+     * @param array<string, string> $code Code by file
+     *
+     * @return array<string, string> Patterns of the built keys by literal
+     */
+    private function builtConstants(array $code, string $prefix): array
+    {
+        $quoted = preg_quote($prefix, '/');
+        $built = [];
+
+        foreach ($code as $content) {
+            preg_match_all('/[\'"](' . $quoted . '[A-Z0-9_]+)[\'"]\s*[.+]/', $content, $matches);
+
+            foreach ($matches[1] as $literal) {
+                $built[$literal] = '/^' . preg_quote($literal, '/') . '/';
+            }
+
+            preg_match_all('/\bJ?Text::plural\(\s*[\'"](' . $quoted . '[A-Z0-9_]+)[\'"]/', $content, $matches);
+
+            foreach ($matches[1] as $literal) {
+                $built[$literal] ??= '/^' . preg_quote($literal, '/') . '(_|$)/';
+            }
+        }
+
+        return $built;
+    }
+
+    /**
+     * Tells whether one of the defined keys matches the pattern of the built keys.
+     *
+     * @param array<string> $defined
+     */
+    private function buildsDefinedKey(?string $pattern, array $defined): bool
+    {
+        return $pattern !== null && array_any($defined, static fn(string $key): bool => preg_match($pattern, $key) === 1);
     }
 
     /**

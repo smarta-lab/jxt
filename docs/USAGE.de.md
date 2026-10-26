@@ -686,8 +686,8 @@ scheitern.
 | `language/parse` | eine Sprachdatei lässt sich nicht lesen | Fehler | Fehler |
 | `language/files` | eine Sprachdatei fehlt in einer Sprache, verglichen je Zielordner (wie in Joomla ist der Sprach-Tag vor dem Dateinamen, `de-DE.mod_example.ini`, optional) | Fehler | Fehler |
 | `language/keys` | ein Schlüssel fehlt in einer Sprache | Fehler | Fehler |
-| `language/undefined` | eine in PHP, XML, JS oder SQL (außerhalb von Kommentaren) verwendete Sprachkonstante ist nicht definiert | Fehler | Fehler |
-| `language/unused` | eine definierte Konstante steht nicht im Code außerhalb von Kommentaren (sie kann zur Laufzeit zusammengesetzt werden; Name der Erweiterung, `<name>` des Manifests, Template-Positionen und Layouts, auch Layout-Overrides von Templates, werden nie gemeldet) | Hinweis | Hinweis |
+| `language/undefined` | eine in PHP, XML, JS oder SQL (außerhalb von Kommentaren) verwendete Sprachkonstante ist nicht definiert; eine Konstante vor `.` oder `+` muss der Anfang eines definierten Schlüssels sein, der Schlüssel von `Text::plural()` darf auch nur mit Plural-Suffix (`_1`, `_MORE` …) definiert sein | Fehler | Fehler |
+| `language/unused` | eine definierte Konstante steht nicht im Code außerhalb von Kommentaren (sie kann zur Laufzeit zusammengesetzt werden; Schlüssel, die mit einer verketteten Konstante oder dem Schlüssel von `Text::plural()` beginnen, Name der Erweiterung, `<name>` des Manifests, Template-Positionen und Layouts, auch Layout-Overrides von Templates, werden nie gemeldet) | Hinweis | Hinweis |
 | `composer/version-field` | `composer.json` hat ein `version`-Feld | Warnung | Warnung |
 
 Die Whitespace-Prüfungen umfassen die versionierten und die nicht versionierten,

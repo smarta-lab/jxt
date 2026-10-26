@@ -69,6 +69,14 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt config unset` deletes the configuration file when its last key is
   removed, instead of leaving `{}`.
 
+- `jxt check` recognises language keys built from a literal: a constant
+  followed by `.` or `+` (`'COM_X_STATE_' . $state`) counts as the start of
+  keys, and the key of `Text::plural('COM_X_N_ITEMS', $n)` is used with a
+  plural suffix (`COM_X_N_ITEMS_1`, `COM_X_N_ITEMS_MORE`). Such a constant is
+  only reported as undefined if no defined key matches, and the defined keys
+  that match are no longer reported as unused. A literal that is just the
+  prefix (`'COM_X_' . $key`) is ignored.
+
 ### Removed
 
 - **Incompatible:** the keys `dir_mode` and `file_mode`. `jxt sync` sets the
