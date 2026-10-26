@@ -535,7 +535,8 @@ Rejected:
   `autoload.files` of its `composer.json`, which `bin/jxt` loads with
   `vendor/autoload.php`. It would only look safe, and add friction on every
   change of `prepare` plus an option for CI that everyone would set. It may
-  make sense once jxt can be installed globally.
+  make sense once jxt can be installed globally, then with a hash of
+  `prepare` only, per project path, and failing with `-n` and in CI.
 - **Sites by project path** in the global file: a worktree would need a copy,
   a moved directory would silently fall back to the default site, and a
   project could not use several sites.
@@ -622,6 +623,9 @@ minified files, a manifest with the version filled in). The project setting
 `prepare` lists commands that jxt runs in the project directory before
 `jxt build`, `jxt install`, `jxt check` and `jxt sync`.
 
+- **Name:** the steps prepare the files that jxt builds, checks or copies;
+  that the name equals npm's lifecycle script `prepare` was accepted.
+  `build_steps` reads as "only for `jxt build`", `steps` says nothing.
 - **Before the manifest:** the steps run after loading the configuration (and,
   for `install` and `sync`, after checking the test site, so a configuration
   error does not wait for slow steps) but before jxt looks for the manifest,
@@ -634,6 +638,9 @@ minified files, a manifest with the version filled in). The project setting
   `jxt build`" and suggests `install` and `check` keys), modes such as
   `release`/`dev`, and `command` instead of `run` (longer; `run` is familiar
   from GitHub Actions).
+- **`jxt sync --dry-run`** runs the steps as well: otherwise the preview
+  would compare outdated files, and the option only promises not to change
+  the site.
 - **Steps for `jxt check`:** without them, a generated manifest is not found
   and generated files are reported as missing. A CI that checks such a
   project needs its tools anyway.
@@ -728,6 +735,18 @@ a check that rests on a guess (`language/unused`) only reports notices.
   literals, which is enough without a full parser. Constants are found by the
   prefix; defined keys without it are searched literally, since the prefix
   pattern cannot find them.
+- **Built language keys:** a constant followed by `.` or `+` is the start of
+  keys, and the key of `Text::plural()` is used with a plural suffix; both are
+  fixed patterns of the code itself. A literal that is just the prefix is
+  ignored, since it would mark every key as used. Not added: the keys that
+  Joomla builds from a prefix (messages of `AdminController`, mail templates,
+  labels of fieldsets and fields plugins, tasks), a list that grows with every
+  Joomla version and would only save notices; and checking site and
+  administrator code against the language files of their own area, which
+  would need the area of every code file and special cases (`.sys.ini` for
+  the manifest, layouts and menus). The language check must not raise false
+  errors, since `--strict` fails the CI on them; it does not aim to find every
+  missing key.
 - **Selecting checks** works as in Ruff, ShellCheck or PHP_CodeSniffer:
   `--exclude` and `--include` with `all`, a group or a single check; the order
   does not matter. The command line overrides `.jxt.json`, within one source

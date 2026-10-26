@@ -549,7 +549,8 @@ directory before `jxt build`, `jxt install`, `jxt check` and `jxt sync`:
   step that fails (exit code other than 0) or cannot be started stops jxt
   before anything is built, checked or copied; `jxt check` then exits with
   `2`.
-- `jxt install --zip` runs no steps, since it builds nothing.
+- `jxt install --zip` runs no steps, since it builds nothing. `jxt sync
+  --dry-run` runs them, so that the preview compares the generated files.
 - Under sudo, jxt refuses to run the steps, since the generated files would be
   owned by root.
 

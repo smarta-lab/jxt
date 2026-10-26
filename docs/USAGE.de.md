@@ -566,6 +566,8 @@ Projektordner vor `jxt build`, `jxt install`, `jxt check` und `jxt sync` aus:
   hält jxt an, bevor etwas gebaut, geprüft oder kopiert wird; `jxt check`
   endet dann mit `2`.
 - `jxt install --zip` führt keine Schritte aus, da es nichts baut.
+  `jxt sync --dry-run` führt sie aus, damit die Vorschau die erzeugten Dateien
+  vergleicht.
 - Unter sudo verweigert jxt die Schritte, da die erzeugten Dateien sonst root
   gehörten.
 
