@@ -6,6 +6,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-26
+
 ### Added
 
 - Libraries (`type="library"`): `jxt build`, `jxt install`, `jxt sync` and
@@ -31,7 +33,8 @@ project follows [Semantic Versioning](https://semver.org/).
   site is an error. The new command `jxt site` lists, adds
   (`add <id> [--default]`), removes and renames (`rename <id> <new id>`,
   including `default_site`) the sites; `jxt config` sets the keys of an
-  existing site and shows the selected one.
+  existing site and shows the selected one. `jxt config` and `jxt site` warn
+  if the selected site has no `joomla_root`.
 
 ### Changed
 
@@ -51,7 +54,8 @@ project follows [Semantic Versioning](https://semver.org/).
   plain text: block elements start a new line, headings are underlined, lists
   get bullets or numbers, and lines are wrapped at the width of the terminal
   like the blocks of jxt (at most 120 characters, 80 if the width is
-  unknown). Other lines of the Joomla CLI stay unchanged. jxt now requires `ext-dom`.
+  unknown). Other lines of the Joomla CLI stay unchanged. jxt now requires
+  `ext-dom`.
 - Contradicting keys of the test site (`web_user` next to `cli_command`,
   `cli_root` without `cli_command`) are only an error in the commands that
   use the Joomla CLI: `jxt install`, `jxt bridge` and `jxt sync` via the
@@ -68,7 +72,6 @@ project follows [Semantic Versioning](https://semver.org/).
   CLI without sudo.
 - `jxt config unset` deletes the configuration file when its last key is
   removed, instead of leaving `{}`.
-
 - `jxt check` recognises language keys built from a literal: a constant
   followed by `.` or `+` (`'COM_X_STATE_' . $state`) counts as the start of
   keys, and the key of `Text::plural('COM_X_N_ITEMS', $n)` is used with a
@@ -285,7 +288,8 @@ First public release.
 - `jxt build`: build an installable ZIP file from the manifest.
 - `jxt config`: show and change the global and per-project configuration.
 
-[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/smarta-lab/jxt/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/smarta-lab/jxt/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/smarta-lab/jxt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/smarta-lab/jxt/compare/v0.3.0...v0.4.0
