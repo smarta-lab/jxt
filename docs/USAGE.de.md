@@ -2,6 +2,7 @@
 
 [English](USAGE.md)
 
+- [Befehle im Überblick](#befehle-im-überblick)
 - [jxt install – auf dem Testserver installieren](#jxt-install--auf-dem-testserver-installieren)
   - [Git-Tag installieren](#git-tag-installieren)
   - [Vorhandene ZIP-Datei installieren](#vorhandene-zip-datei-installieren)
@@ -26,28 +27,37 @@
 - [jxt site – Testseiten verwalten](#jxt-site--testseiten-verwalten)
 - [jxt config – Konfiguration anzeigen und ändern](#jxt-config--konfiguration-anzeigen-und-ändern)
 - [Konfiguration](#konfiguration)
+  - [Manifest](#manifest)
   - [Testseiten](#testseiten)
 - [jxt ohne vendor/bin aufrufen](#jxt-ohne-vendorbin-aufrufen)
 
-Alle Befehle werden im Projektordner einer Erweiterung ausgeführt. Meist ist das
-der Ordner mit dem Manifest (`mod_*.xml`, `templateDetails.xml` oder die
-XML-Datei eines Plugins oder einer Komponente, z. B. `example.xml`). Das
-Manifest wird automatisch gefunden: Es ist die einzige XML-Datei in diesem
-Ordner mit dem Wurzelelement `<extension>`.
+## Befehle im Überblick
 
-Liegt die Erweiterung in einem Unterordner des Projekts (z. B. `extension/`,
-während `composer.json`, `tests/` und `docs/` im Projektordner liegen) oder
-enthält der Projektordner mehr als ein Manifest, wird das Manifest in der
-Projektkonfiguration angegeben:
-
-```bash
-vendor/bin/jxt config set manifest extension/mod_example.xml
+```text
+jxt install [--tag=<tag> | --zip=<file>] [--clean] [--site=<id>]
+jxt sync [--dry-run] [--site=<id>]
+jxt bridge [status | add | remove] [--site=<id>]
+jxt build [--tag=<tag>]
+jxt check [--release] [--strict] [--tag=<tag>] [--format=text|github]
+          [--exclude=<checks>] [--include=<checks>]
+jxt site [list | add <id> [--default] | remove <id> | rename <id> <new id>]
+jxt config [show] [--site=<id>]
+jxt config set <key> <value>... [--global] [--site=<id>]
+jxt config unset <key> [--global] [--site=<id>]
 ```
 
-Wie beim Joomla-Installer gelten alle Pfade im Manifest relativ zum Ordner des
-Manifests. `.jxt.json` und `dist/` bleiben im Projektordner.
+Alle Befehle werden im Projektordner der Erweiterung ausgeführt, meist dem
+Ordner mit dem Manifest; jxt findet das Manifest selbst, siehe
+[Manifest](#manifest). Die Ausgabe von jxt ist englisch; die Beispiele zeigen
+sie unverändert.
 
-Die Ausgabe von jxt ist englisch; die Beispiele unten zeigen sie unverändert.
+Im Projekt wird jxt als `vendor/bin/jxt` aufgerufen (oder siehe
+[jxt ohne vendor/bin aufrufen](#jxt-ohne-vendorbin-aufrufen)). Ohne `--site`
+nimmt jxt die Seite aus `JXT_SITE` oder `default_site`, siehe
+[Testseiten](#testseiten). Jeder Befehl nimmt außerdem die allgemeinen
+Optionen von Symfony Console, z. B. `-q` (nur Fehler) und `-n` (keine
+Rückfragen); `vendor/bin/jxt help <befehl>` beschreibt die Optionen eines
+Befehls.
 
 ## jxt install – auf dem Testserver installieren
 
@@ -885,6 +895,25 @@ Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`),
 `null` oder bei `prepare` und `sites` Listen von Objekten. `null` setzt einen
 Schlüssel auf seinen Standardwert zurück. Unbekannte Schlüssel werden
 abgewiesen, damit Tippfehler auffallen.
+
+### Manifest
+
+Meist ist der Projektordner der Ordner mit dem Manifest (`mod_*.xml`,
+`templateDetails.xml` oder die XML-Datei eines Plugins oder einer Komponente,
+z. B. `example.xml`). Das Manifest wird automatisch gefunden: Es ist die
+einzige XML-Datei in diesem Ordner mit dem Wurzelelement `<extension>`.
+
+Liegt die Erweiterung in einem Unterordner des Projekts (z. B. `extension/`,
+während `composer.json`, `tests/` und `docs/` im Projektordner liegen) oder
+enthält der Projektordner mehr als ein Manifest, wird das Manifest in der
+Projektkonfiguration angegeben:
+
+```bash
+vendor/bin/jxt config set manifest extension/mod_example.xml
+```
+
+Wie beim Joomla-Installer gelten alle Pfade im Manifest relativ zum Ordner des
+Manifests. `.jxt.json` und `dist/` bleiben im Projektordner.
 
 ### Testseiten
 

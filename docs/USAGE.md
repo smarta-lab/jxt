@@ -2,6 +2,7 @@
 
 [Deutsch](USAGE.de.md)
 
+- [Commands at a glance](#commands-at-a-glance)
 - [jxt install – install on the test server](#jxt-install--install-on-the-test-server)
   - [Installing a Git tag](#installing-a-git-tag)
   - [Installing an existing ZIP file](#installing-an-existing-zip-file)
@@ -26,27 +27,35 @@
 - [jxt site – manage the test sites](#jxt-site--manage-the-test-sites)
 - [jxt config – show and change the configuration](#jxt-config--show-and-change-the-configuration)
 - [Configuration](#configuration)
+  - [Manifest](#manifest)
   - [Test sites](#test-sites)
 - [Calling jxt without vendor/bin](#calling-jxt-without-vendorbin)
 
-All commands are run in the project directory of an extension. Usually this is
-the directory containing the manifest (`mod_*.xml`, `templateDetails.xml` or the
-XML file of a plugin or component, e.g. `example.xml`). The manifest is found
-automatically: it is the only XML file in that directory whose root element is
-`<extension>`.
+## Commands at a glance
 
-If the extension lives in a subdirectory of the project (e.g. `extension/`, with
-`composer.json`, `tests/` and `docs/` in the project directory), or if the
-project directory contains more than one manifest, set the manifest in the
-project configuration:
-
-```bash
-vendor/bin/jxt config set manifest extension/mod_example.xml
+```text
+jxt install [--tag=<tag> | --zip=<file>] [--clean] [--site=<id>]
+jxt sync [--dry-run] [--site=<id>]
+jxt bridge [status | add | remove] [--site=<id>]
+jxt build [--tag=<tag>]
+jxt check [--release] [--strict] [--tag=<tag>] [--format=text|github]
+          [--exclude=<checks>] [--include=<checks>]
+jxt site [list | add <id> [--default] | remove <id> | rename <id> <new id>]
+jxt config [show] [--site=<id>]
+jxt config set <key> <value>... [--global] [--site=<id>]
+jxt config unset <key> [--global] [--site=<id>]
 ```
 
-As with the Joomla installer, all paths in the manifest are relative to the
-directory of the manifest. `.jxt.json` and `dist/` stay in the project
-directory.
+Run all commands in the project directory of the extension, usually the
+directory containing the manifest; jxt finds the manifest itself, see
+[Manifest](#manifest).
+
+In a project, call jxt as `vendor/bin/jxt` (or see
+[Calling jxt without vendor/bin](#calling-jxt-without-vendorbin)). Without
+`--site`, jxt uses the site of `JXT_SITE` or `default_site`, see
+[Test sites](#test-sites). Every command also takes the general options of
+Symfony Console, e.g. `-q` (only errors) and `-n` (no questions);
+`vendor/bin/jxt help <command>` describes the options of a command.
 
 ## jxt install – install on the test server
 
@@ -856,6 +865,26 @@ called sudo (`SUDO_USER`), not from `/root`.
 All values are strings, lists of strings (`check_exclude`, `check_include`),
 `null`, or for `prepare` and `sites` lists of objects. `null` resets a key to
 its default. Unknown keys are rejected, so typos do not go unnoticed.
+
+### Manifest
+
+Usually the project directory is the directory containing the manifest
+(`mod_*.xml`, `templateDetails.xml` or the XML file of a plugin or component,
+e.g. `example.xml`). The manifest is found automatically: it is the only XML
+file in that directory whose root element is `<extension>`.
+
+If the extension lives in a subdirectory of the project (e.g. `extension/`,
+with `composer.json`, `tests/` and `docs/` in the project directory), or if the
+project directory contains more than one manifest, set the manifest in the
+project configuration:
+
+```bash
+vendor/bin/jxt config set manifest extension/mod_example.xml
+```
+
+As with the Joomla installer, all paths in the manifest are relative to the
+directory of the manifest. `.jxt.json` and `dist/` stay in the project
+directory.
 
 ### Test sites
 
