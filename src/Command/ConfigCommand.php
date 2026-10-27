@@ -314,7 +314,7 @@ final class ConfigCommand extends Command
             return $value ?? 'null';
         }
 
-        if ($key === ConfigurationKey::Prepare) {
+        if ($key === ConfigurationKey::Prepare && array_is_list($value)) {
             return implode('; ', array_map($this->formatStep(...), array_keys($value), $value));
         }
 
@@ -447,10 +447,6 @@ final class ConfigCommand extends Command
 
         if (!is_string($name)) {
             throw new ConfigurationException('Please specify a key, e.g. jxt config set joomla_root /var/www/html.');
-        }
-
-        if ($name === SiteEntry::ID_KEY) {
-            throw new ConfigurationException('The id of a site is changed with jxt site rename <id> <new id>.');
         }
 
         return ConfigurationKey::fromName($name, 'the arguments');

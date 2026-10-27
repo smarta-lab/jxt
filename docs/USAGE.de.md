@@ -464,14 +464,17 @@ solange ein Befehl PHP im Container startet, z. B. `podman exec`.
 
 DDEV führt PHP unter dem eigenen Benutzer aus, und die Dateien der Seite gehören
 einem selbst. Der Web-Container heißt `ddev-<projekt>-web`, und `docker exec`
-nutzt standardmäßig den eigenen Benutzer. Die Seite in `sites`:
+nutzt standardmäßig den eigenen Benutzer. Die Seite in der globalen Datei:
 
 ```json
 {
-    "id": "example",
-    "joomla_root": "/home/user/sites/example",
-    "cli_command": ["docker", "exec", "ddev-example-web", "php"],
-    "cli_root": "/var/www/html"
+    "sites": {
+        "example": {
+            "joomla_root": "/home/user/sites/example",
+            "cli_command": ["docker", "exec", "ddev-example-web", "php"],
+            "cli_root": "/var/www/html"
+        }
+    }
 }
 ```
 
@@ -488,14 +491,17 @@ Mit dem offiziellen Image `joomla` und Docker Compose ist die Seite z. B. mit
 `./site:/var/www/html` eingebunden, Apache läuft als `www-data`, und die Dateien
 gehören `www-data` (UID 33). Der Container heißt
 `<projekt>-<dienst>-<nummer>`, und `docker exec` läuft standardmäßig als root,
-deshalb ist `-u www-data` nötig. Die Seite in `sites`:
+deshalb ist `-u www-data` nötig. Die Seite in der globalen Datei:
 
 ```json
 {
-    "id": "example",
-    "joomla_root": "/home/user/sites/example/site",
-    "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
-    "cli_root": "/var/www/html"
+    "sites": {
+        "example": {
+            "joomla_root": "/home/user/sites/example/site",
+            "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
+            "cli_root": "/var/www/html"
+        }
+    }
 }
 ```
 
@@ -790,7 +796,7 @@ vendor/bin/jxt site rename <id> <new id>    # Seite umbenennen
 Seiten werden nur mit `jxt site` angelegt, entfernt und umbenannt, damit ein
 Tippfehler in `--site` keine Seite anlegt; ihre Schlüssel setzt
 [jxt config](#jxt-config--konfiguration-anzeigen-und-ändern). `add` legt eine
-Seite an, die nur ihre id hat. `remove` entfernt auch `default_site`, wenn es
+Seite ohne Schlüssel an. `remove` entfernt auch `default_site`, wenn es
 auf die Seite verweist, `rename` ändert es mit der Seite. Verweise außerhalb
 der globalen Konfiguration, z. B. `JXT_SITE` in einer `.envrc` oder `--site`
 in einem Skript, bleiben unverändert; jxt weist darauf hin, und ein
@@ -892,7 +898,8 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `check_include` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
 
 Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`),
-`null` oder bei `prepare` und `sites` Listen von Objekten. `null` setzt einen
+`null`, bei `prepare` eine Liste von Objekten und bei `sites` ein Objekt mit
+den Seiten nach id. `null` setzt einen
 Schlüssel auf seinen Standardwert zurück. Unbekannte Schlüssel werden
 abgewiesen, damit Tippfehler auffallen.
 
@@ -918,12 +925,14 @@ Manifests. `.jxt.json` und `dist/` bleiben im Projektordner.
 ### Testseiten
 
 Die Testseiten stehen nur in der globalen Datei, da sie den eigenen Rechner
-beschreiben, nicht das Projekt, und `cli_command` Befehle ausführt. Jede Seite
-ist ein Objekt in der Liste `sites`:
+beschreiben, nicht das Projekt, und `cli_command` Befehle ausführt. `sites` ist
+ein Objekt mit den Seiten nach id; eine id beginnt mit einem Buchstaben und
+darf Buchstaben, Ziffern, `_`, `.` und `-` enthalten. Steht eine id zweimal da,
+gilt wie in JSON üblich die letzte Seite; `jxt site add` lässt das nicht zu.
+Jede Seite ist ein Objekt mit diesen Schlüsseln:
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `id` | Kennung der Seite (Buchstaben, Ziffern, `_`, `.`, `-`), unter den Seiten eindeutig | – (erforderlich) |
 | `joomla_root` | Absoluter Pfad der Joomla-Seite; muss `configuration.php` enthalten | – (erforderlich) |
 | `web_user` | Benutzer, als der `jxt install` und die jxt-Bridge die Joomla-CLI per sudo ausführen, z. B. `www-data`; nicht mit `cli_command` | – (die Joomla-CLI läuft als der eigene Benutzer, ohne sudo) |
 | `cli_command` | Befehl, der PHP für die Joomla-CLI startet, z. B. in einem Container, statt sudo; siehe [Testseiten in Containern](#testseiten-in-containern) | – |
@@ -934,15 +943,14 @@ Beispiel `~/.config/jxt/config.json`:
 ```json
 {
     "default_site": "local",
-    "sites": [
-        { "id": "local", "joomla_root": "/var/www/html", "web_user": "www-data" },
-        {
-            "id": "leaflet",
+    "sites": {
+        "local": { "joomla_root": "/var/www/html", "web_user": "www-data" },
+        "leaflet": {
             "joomla_root": "/home/user/ddev/leaflet",
             "cli_command": ["ddev", "exec", "-p", "leaflet", "php"],
             "cli_root": "/var/www/html"
         }
-    ]
+    }
 }
 ```
 

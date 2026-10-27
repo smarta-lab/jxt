@@ -12,15 +12,15 @@ namespace SmartA\Jxt\Configuration;
 /**
  * A test site in `sites` of the global configuration, as written there.
  *
- * Every site has an id that is unique among the sites. A site is complete in itself and inherits nothing. Missing or
+ * `sites` is an object with the sites by id. A site is complete in itself and inherits nothing. Missing or
  * contradicting keys do not prevent loading; they are reported when the site is used, so that a site can be changed
  * in several calls of `jxt config`.
  */
 final readonly class SiteEntry
 {
-    public const string ID_KEY = 'id';
+    public const string ID_RULE = 'It must start with a letter and may contain letters, digits, "_", "." and "-".';
 
-    private const string ID_PATTERN = '/^[A-Za-z0-9_.-]+$/';
+    private const string ID_PATTERN = '/^[A-Za-z][A-Za-z0-9_.-]*$/';
 
     /**
      * @param string       $id         Id of the site
@@ -44,31 +44,29 @@ final readonly class SiteEntry
     /**
      * Validates a site of `sites` and creates it.
      *
-     * @param int    $index  Position of the site, starting at 0
-     * @param string $source File the site comes from
+     * @param array-key $id     Id of the site, its key in `sites`
+     * @param string    $source File the site comes from
      *
-     * @throws ConfigurationException for an invalid site
+     * @throws ConfigurationException for an invalid id or site
      */
-    public static function fromValue(mixed $value, int $index, string $source): self
+    public static function fromValue(int|string $id, mixed $value, string $source): self
     {
-        $label = sprintf('Site %d of "%s" in %s', $index + 1, ConfigurationKey::Sites->value, $source);
+        $id = (string) $id;
+        $label = sprintf('Site "%s" in %s', $id, $source);
+
+        if (!self::isValidId($id)) {
+            throw new ConfigurationException(sprintf('Invalid site id "%s" in %s. %s', $id, $source, self::ID_RULE));
+        }
 
         if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             throw new ConfigurationException(
-                sprintf('%s must be an object, e.g. {"id": "local", "joomla_root": "/var/www/html"}.', $label),
+                sprintf('%s must be an object, e.g. {"joomla_root": "/var/www/html"}.', $label),
             );
         }
 
-        $id = null;
         $values = [];
 
         foreach ($value as $name => $siteValue) {
-            if ($name === self::ID_KEY) {
-                $id = self::validateId($siteValue, $label);
-
-                continue;
-            }
-
             $key = ConfigurationKey::tryFrom((string) $name);
 
             if ($key === null || $key->scope() !== KeyScope::Site) {
@@ -76,17 +74,11 @@ final readonly class SiteEntry
                     '%s has the unknown key "%s". Allowed: %s.',
                     $label,
                     $name,
-                    implode(', ', [self::ID_KEY, ...array_map(static fn (ConfigurationKey $key): string => $key->value, self::keys())]),
+                    implode(', ', array_map(static fn (ConfigurationKey $key): string => $key->value, self::keys())),
                 ));
             }
 
             $values[$key->value] = $key->validate($siteValue, $label);
-        }
-
-        if ($id === null) {
-            throw new ConfigurationException(
-                sprintf('%s has no id; every site needs one, e.g. {"id": "local", "joomla_root": "/var/www/html"}.', $label),
-            );
         }
 
         $string = static fn (ConfigurationKey $key): ?string => is_string($values[$key->value] ?? null) ? $values[$key->value] : null;
@@ -105,7 +97,7 @@ final readonly class SiteEntry
     }
 
     /**
-     * Returns the keys a site may have besides its id.
+     * Returns the keys a site may have.
      *
      * @return list<ConfigurationKey>
      */
@@ -118,7 +110,10 @@ final readonly class SiteEntry
     }
 
     /**
-     * Checks whether a value can be the id of a site: letters, digits, `_`, `.` and `-`.
+     * Checks whether a value can be the id of a site: a letter, then letters, digits, `_`, `.` and `-`.
+     *
+     * The first letter keeps ids from being integer keys after `json_decode()`, which would make `sites` a list, and
+     * from looking like an option.
      */
     public static function isValidId(string $id): bool
     {
@@ -155,22 +150,6 @@ final readonly class SiteEntry
             ),
             default => null,
         };
-    }
-
-    /**
-     * Validates the id of a site.
-     *
-     * @throws ConfigurationException for an invalid id
-     */
-    private static function validateId(mixed $id, string $label): string
-    {
-        if (!is_string($id) || !self::isValidId($id)) {
-            throw new ConfigurationException(
-                sprintf('%s has an invalid id. It may contain letters, digits, "_", "." and "-".', $label),
-            );
-        }
-
-        return $id;
     }
 
     /**

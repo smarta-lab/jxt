@@ -79,7 +79,7 @@ final class ConfigurationLoaderTest extends TestCase
     {
         $this->writeFile(
             'config.json',
-            '{"dist_dir": "/srv/dist", "default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}]}',
+            '{"dist_dir": "/srv/dist", "default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}}}',
         );
         $this->writeFile('project/.jxt.json', '{"manifest": null}');
 
@@ -149,8 +149,8 @@ final class ConfigurationLoaderTest extends TestCase
     {
         $this->writeSites(
             'local',
-            ['id' => 'ddev', 'joomla_root' => '/srv/ddev'],
-            ['id' => 'local', 'joomla_root' => '/var/www/html/', 'web_user' => 'apache'],
+            ddev: ['joomla_root' => '/srv/ddev'],
+            local: ['joomla_root' => '/var/www/html/', 'web_user' => 'apache'],
         );
 
         $configuration = $this->loader()->load($this->project());
@@ -164,7 +164,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testSelectsTheSiteOfTheEnvironmentVariable(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites('local', local: ['joomla_root' => '/var/www/html'], ddev: ['joomla_root' => '/srv/ddev']);
 
         $configuration = $this->loader('ddev')->load($this->project());
 
@@ -176,7 +176,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testOptionTakesPrecedenceOverTheEnvironmentVariable(): void
     {
-        $this->writeSites(null, ['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites(null, local: ['joomla_root' => '/var/www/html'], ddev: ['joomla_root' => '/srv/ddev']);
 
         $configuration = $this->loader('ddev')->load($this->project(), 'local');
 
@@ -186,14 +186,14 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testEmptyEnvironmentVariableSelectsTheDefaultSite(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/var/www/html']);
+        $this->writeSites('local', local: ['joomla_root' => '/var/www/html']);
 
         self::assertSame('/var/www/html', $this->loader('')->load($this->project())->site?->joomlaRoot);
     }
 
     public function testAnyIdIsJustAName(): void
     {
-        $this->writeSites('default', ['id' => 'default', 'joomla_root' => '/var/www/html']);
+        $this->writeSites('default', default: ['joomla_root' => '/var/www/html']);
 
         self::assertSame('default', $this->loader()->load($this->project(), 'default')->site?->id);
     }
@@ -208,7 +208,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsUnknownSiteWhenItIsUsed(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites('local', local: ['joomla_root' => '/var/www/html'], ddev: ['joomla_root' => '/srv/ddev']);
         $configuration = $this->loader('j5')->load($this->project());
 
         self::assertNull($configuration->site);
@@ -225,7 +225,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsUnknownDefaultSite(): void
     {
-        $this->writeSites('j5', ['id' => 'local', 'joomla_root' => '/var/www/html']);
+        $this->writeSites('j5', local: ['joomla_root' => '/var/www/html']);
 
         self::assertStringContainsString(
             'There is no site "j5" (selected via default_site)',
@@ -235,14 +235,14 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testWorksWithoutDefaultSiteIfASiteIsSelected(): void
     {
-        $this->writeSites(null, ['id' => 'ddev', 'joomla_root' => '/srv/ddev'], ['id' => 'j5', 'joomla_root' => '/srv/j5']);
+        $this->writeSites(null, ddev: ['joomla_root' => '/srv/ddev'], j5: ['joomla_root' => '/srv/j5']);
 
         self::assertSame('/srv/j5', $this->loader('j5')->load($this->project())->site?->joomlaRoot);
     }
 
     public function testReportsThatNoSiteIsSelected(): void
     {
-        $this->writeSites(null, ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites(null, ddev: ['joomla_root' => '/srv/ddev']);
 
         $configuration = $this->loader()->load($this->project());
 
@@ -255,7 +255,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsMissingJoomlaRootAsSiteProblem(): void
     {
-        $this->writeSites('ddev', ['id' => 'ddev', 'web_user' => 'www-data']);
+        $this->writeSites('ddev', ddev: ['web_user' => 'www-data']);
 
         self::assertSame(
             sprintf(
@@ -268,7 +268,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsMissingJoomlaRootOfTheSite(): void
     {
-        $this->writeSites(null, ['id' => 'ddev', 'web_user' => 'www-data']);
+        $this->writeSites(null, ddev: ['web_user' => 'www-data']);
 
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage(sprintf(
@@ -281,8 +281,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReadsCliCommandOfTheSite(): void
     {
-        $this->writeSites('local', [
-            'id' => 'local',
+        $this->writeSites('local', local: [
             'joomla_root' => '/home/user/site',
             'cli_command' => ['docker', 'exec', 'web', 'php', '-d', 'memory_limit=-1', '-d', 'display_errors=0'],
             'cli_root' => '/var/www/html/',
@@ -300,8 +299,8 @@ final class ConfigurationLoaderTest extends TestCase
     {
         $this->writeSites(
             'local',
-            ['id' => 'local', 'joomla_root' => '/var/www/html', 'web_user' => 'apache'],
-            ['id' => 'ddev', 'joomla_root' => '/srv/ddev'],
+            local: ['joomla_root' => '/var/www/html', 'web_user' => 'apache'],
+            ddev: ['joomla_root' => '/srv/ddev'],
         );
 
         self::assertNull($this->loader('ddev')->load($this->project())->site?->webUser);
@@ -309,7 +308,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsWebUserWithCliCommandAsSiteProblem(): void
     {
-        $this->writeSites(null, ['id' => 'ddev', 'joomla_root' => '/srv/ddev', 'web_user' => 'apache', 'cli_command' => ['ddev', 'exec', 'php']]);
+        $this->writeSites(null, ddev: ['joomla_root' => '/srv/ddev', 'web_user' => 'apache', 'cli_command' => ['ddev', 'exec', 'php']]);
 
         self::assertSame(
             sprintf(
@@ -323,7 +322,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testReportsCliRootWithoutCliCommandAsSiteProblem(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/srv/site', 'cli_root' => '/var/www/html']);
+        $this->writeSites('local', local: ['joomla_root' => '/srv/site', 'cli_root' => '/var/www/html']);
 
         self::assertSame(
             sprintf('cli_root is only used together with cli_command (in site "local" of %s).', $this->globalFile()),
@@ -333,7 +332,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testTestSiteRejectsSiteConflict(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/srv/site', 'cli_root' => '/var/www/html']);
+        $this->writeSites('local', local: ['joomla_root' => '/srv/site', 'cli_root' => '/var/www/html']);
         $configuration = $this->loader()->load($this->project());
 
         $this->expectException(ConfigurationException::class);
@@ -345,7 +344,7 @@ final class ConfigurationLoaderTest extends TestCase
     public function testTestSiteKeepsTheIdOfTheSite(): void
     {
         $this->writeFile('joomla/configuration.php');
-        $this->writeSites(null, ['id' => 'ddev', 'joomla_root' => $this->directory . '/joomla', 'cli_command' => ['ddev', 'exec', 'php']]);
+        $this->writeSites(null, ddev: ['joomla_root' => $this->directory . '/joomla', 'cli_command' => ['ddev', 'exec', 'php']]);
 
         $site = $this->loader('ddev')->load($this->project())->testSite();
 
@@ -366,8 +365,8 @@ final class ConfigurationLoaderTest extends TestCase
                     'joomla_root, web_user can no longer be set at the top level of %s: the keys of the test site belong '
                     . 'to a site in "sites" of the global configuration ~/.config/jxt/config.json, e.g.:',
                     $this->project() . '/.jxt.json',
-                ) . "\n{\n    \"sites\": [\n        {\n            \"id\": \"project\",\n"
-                . "            \"joomla_root\": \"/var/www/html\"\n        }\n    ]\n}\n"
+                ) . "\n{\n    \"sites\": {\n        \"project\": {\n"
+                . "            \"joomla_root\": \"/var/www/html\"\n        }\n    }\n}\n"
                 . 'Select it for this project with --site or JXT_SITE, e.g. in its .envrc.',
                 $exception->getMessage(),
             );
@@ -382,10 +381,35 @@ final class ConfigurationLoaderTest extends TestCase
         $this->expectExceptionMessage(
             sprintf('joomla_root, web_user can no longer be set at the top level of %s', $this->globalFile()) . ': the '
             . "keys of the test site belong to a site in \"sites\" of the global configuration ~/.config/jxt/config.json, e.g.:\n{\n"
-            . "    \"default_site\": \"local\",\n    \"sites\": [\n        {\n            \"id\": \"local\",\n",
+            . "    \"default_site\": \"local\",\n    \"sites\": {\n        \"local\": {\n",
         );
 
         $this->loader()->load($this->project());
+    }
+
+    public function testRejectsTheListOfSitesOfJxt06WithTheSitesById(): void
+    {
+        $this->writeFile('config.json', '{"sites": [{"id": "local", "joomla_root": "/var/www/html"}, {"id": "ddev"}]}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessage(
+            "Since jxt 0.7, sites is no longer a list; for your sites:\n{\n    \"sites\": {\n        \"local\": {\n"
+            . "            \"joomla_root\": \"/var/www/html\"\n        },\n        \"ddev\": {}\n    }\n}",
+        );
+
+        $this->loader()->load($this->project());
+    }
+
+    public function testRejectsAListOfSitesWithoutIdsWithTheExampleOnly(): void
+    {
+        $this->writeFile('config.json', '{"sites": [{"joomla_root": "/var/www/html"}]}');
+
+        try {
+            $this->loader()->load($this->project());
+            self::fail('A list of sites was accepted.');
+        } catch (ConfigurationException $exception) {
+            self::assertStringEndsWith('e.g. {"local": {"joomla_root": "/var/www/html"}}.', $exception->getMessage());
+        }
     }
 
     public function testRejectsInvalidDefaultSite(): void
@@ -400,7 +424,7 @@ final class ConfigurationLoaderTest extends TestCase
 
     public function testRejectsSitesInTheProjectConfiguration(): void
     {
-        $this->writeFile('project/.jxt.json', '{"sites": [{"joomla_root": "/var/www/html"}]}');
+        $this->writeFile('project/.jxt.json', '{"sites": {"local": {"joomla_root": "/var/www/html"}}}');
 
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('sites can only be set in the global configuration');
@@ -519,39 +543,42 @@ final class ConfigurationLoaderTest extends TestCase
      */
     public static function invalidSites(): iterable
     {
-        yield 'object for sites' => ['{"a": {"joomla_root": "/var/www"}}', 'must be a non-empty list of sites'];
-        yield 'empty sites' => ['[]', 'must be a non-empty list of sites'];
-        yield 'string as site' => ['["/var/www"]', 'Site 1 of "sites" in'];
-        yield 'list as site' => ['[{"id": "a"}, ["/srv"]]', 'Site 2 of "sites"'];
-        yield 'unknown key in a site' => [
-            '[{"id": "a", "dist_dir": "build"}]',
-            'has the unknown key "dist_dir". Allowed: id, joomla_root, web_user, cli_command, cli_root.',
+        yield 'list for sites' => [
+            '[{"joomla_root": "/var/www"}]',
+            'must be an object with the sites by id, e.g. {"local": {"joomla_root": "/var/www/html"}}.',
         ];
-        yield 'removed mode in a site' => ['[{"id": "a", "dir_mode": "0775"}]', 'unknown key "dir_mode"'];
-        yield 'site without id' => ['[{"joomla_root": "/var/www"}]', 'has no id; every site needs one'];
-        yield 'id with a space' => ['[{"id": "my site"}]', 'has an invalid id'];
-        yield 'number as id' => ['[{"id": 1}]', 'has an invalid id'];
-        yield 'duplicate id' => ['[{"id": "a"}, {"id": "a"}]', 'The id "a" is used by more than one site'];
-        yield 'relative Joomla directory' => ['[{"id": "a", "joomla_root": "html"}]', 'Invalid value "html" for "joomla_root" in Site 1 of "sites"'];
-        yield 'wrong type' => ['[{"id": "a", "web_user": 33}]', 'web_user'];
-        yield 'empty value' => ['[{"id": "a", "web_user": " "}]', 'web_user'];
-        yield 'string for a command' => ['[{"id": "a", "cli_command": "docker exec web php"}]', 'must be a non-empty list of arguments'];
-        yield 'empty command' => ['[{"id": "a", "cli_command": []}]', 'must be a non-empty list of arguments'];
-        yield 'empty argument in a command' => ['[{"id": "a", "cli_command": ["php", ""]}]', 'must be a non-empty list of arguments'];
-        yield 'relative CLI root' => ['[{"id": "a", "cli_command": ["php"], "cli_root": "html"}]', 'Invalid value "html" for "cli_root"'];
+        yield 'empty sites' => ['{}', 'must be an object with the sites by id'];
+        yield 'string as site' => ['{"a": "/var/www"}', 'Site "a" in'];
+        yield 'list as site' => ['{"a": {}, "b": ["/srv"]}', 'Site "b" in'];
+        yield 'unknown key in a site' => [
+            '{"a": {"dist_dir": "build"}}',
+            'has the unknown key "dist_dir". Allowed: joomla_root, web_user, cli_command, cli_root.',
+        ];
+        yield 'removed mode in a site' => ['{"a": {"dir_mode": "0775"}}', 'unknown key "dir_mode"'];
+        yield 'id key in a site' => ['{"a": {"id": "a"}}', 'unknown key "id"'];
+        yield 'id with a space' => ['{"my site": {}}', 'Invalid site id "my site"'];
+        yield 'number as id' => ['{"a": {}, "1": {}}', 'Invalid site id "1"'];
+        yield 'id starting with a dash' => ['{"-a": {}}', 'It must start with a letter'];
+        yield 'relative Joomla directory' => ['{"a": {"joomla_root": "html"}}', 'Invalid value "html" for "joomla_root" in Site "a" in'];
+        yield 'wrong type' => ['{"a": {"web_user": 33}}', 'web_user'];
+        yield 'empty value' => ['{"a": {"web_user": " "}}', 'web_user'];
+        yield 'string for a command' => ['{"a": {"cli_command": "docker exec web php"}}', 'must be a non-empty list of arguments'];
+        yield 'empty command' => ['{"a": {"cli_command": []}}', 'must be a non-empty list of arguments'];
+        yield 'empty argument in a command' => ['{"a": {"cli_command": ["php", ""]}}', 'must be a non-empty list of arguments'];
+        yield 'relative CLI root' => ['{"a": {"cli_command": ["php"], "cli_root": "html"}}', 'Invalid value "html" for "cli_root"'];
     }
 
     /**
      * Writes the sites and `default_site` into the global configuration.
      *
      * @param string|null          $defaultSite Value of `default_site`; null to leave it out
-     * @param array<string, mixed> ...$sites
+     * @param array<string, mixed> ...$sites      The sites as named arguments by id, e.g. `local: []`
      */
     private function writeSites(?string $defaultSite, array ...$sites): void
     {
         $this->writeFile('config.json', (string) json_encode([
             ...($defaultSite === null ? [] : ['default_site' => $defaultSite]),
-            'sites' => array_values($sites),
+            'sites' => (object) array_map(static fn (array $site): object => (object) $site, $sites),
         ]));
     }
 

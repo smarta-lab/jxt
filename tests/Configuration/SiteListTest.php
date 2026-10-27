@@ -28,8 +28,8 @@ final class SiteListTest extends TestCase
         $sites = $this->sites()->with('ddev', ConfigurationKey::WebUser, 'www-data');
 
         self::assertSame([
-            ['id' => 'local', 'joomla_root' => '/var/www/html'],
-            ['id' => 'ddev', 'joomla_root' => '/srv/ddev', 'web_user' => 'www-data'],
+            'local' => ['joomla_root' => '/var/www/html'],
+            'ddev' => ['joomla_root' => '/srv/ddev', 'web_user' => 'www-data'],
         ], $sites->sites);
     }
 
@@ -38,31 +38,31 @@ final class SiteListTest extends TestCase
         self::assertSame($this->sites()->sites, $this->sites()->with('j5', ConfigurationKey::WebUser, 'www-data')->sites);
     }
 
-    public function testAddsASiteWithOnlyItsId(): void
+    public function testAddsASiteWithoutKeys(): void
     {
-        self::assertSame(['id' => 'j5'], $this->sites()->withSite('j5')->sites[2]);
+        self::assertSame(['local', 'ddev', 'j5'], $this->sites()->withSite('j5')->ids());
+        self::assertSame([], $this->sites()->withSite('j5')->sites['j5'] ?? null);
     }
 
     public function testRemovesAKeyAndKeepsTheSite(): void
     {
         $sites = $this->sites()->without('ddev', ConfigurationKey::JoomlaRoot);
 
-        self::assertSame(['id' => 'ddev'], $sites->sites[1]);
+        self::assertSame([], $sites->sites['ddev'] ?? null);
         self::assertFalse($sites->hasKey('ddev', ConfigurationKey::JoomlaRoot));
         self::assertTrue($sites->hasKey('local', ConfigurationKey::JoomlaRoot));
     }
 
-    public function testRenamesASite(): void
+    public function testRenamesASiteAtItsPosition(): void
     {
         $sites = $this->sites()->renamed('local', 'default');
 
-        self::assertSame(['id' => 'default', 'joomla_root' => '/var/www/html'], $sites->sites[0]);
-        self::assertFalse($sites->has('local'));
+        self::assertSame(['default' => ['joomla_root' => '/var/www/html'], 'ddev' => ['joomla_root' => '/srv/ddev']], $sites->sites);
     }
 
     public function testRemovesASite(): void
     {
-        self::assertSame([['id' => 'local', 'joomla_root' => '/var/www/html']], $this->sites()->withoutSite('ddev')->value());
+        self::assertSame(['local' => ['joomla_root' => '/var/www/html']], $this->sites()->withoutSite('ddev')->value());
     }
 
     public function testValueIsNullWithoutSites(): void
@@ -75,6 +75,6 @@ final class SiteListTest extends TestCase
      */
     private function sites(): SiteList
     {
-        return SiteList::fromValue([['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']]);
+        return SiteList::fromValue(['local' => ['joomla_root' => '/var/www/html'], 'ddev' => ['joomla_root' => '/srv/ddev']]);
     }
 }

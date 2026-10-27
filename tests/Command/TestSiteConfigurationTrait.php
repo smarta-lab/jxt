@@ -17,16 +17,19 @@ namespace SmartA\Jxt\Tests\Command;
 trait TestSiteConfigurationTrait
 {
     /**
-     * Writes the sites into the global configuration; a site without id gets `local`, and the first site is the
-     * default site.
+     * Writes the sites into the global configuration; a site given as positional argument gets the id `local`, others
+     * are named arguments by id, and the first site is the default site.
      *
      * @param array<string, mixed> ...$sites
      */
     private function writeSites(array ...$sites): void
     {
-        $sites = array_map(static fn (array $site): array => ['id' => 'local', ...$site], array_values($sites));
+        $sites = array_combine(
+            array_map(static fn (int|string $id): string => is_int($id) ? 'local' : $id, array_keys($sites)),
+            array_map(static fn (array $site): object => (object) $site, $sites),
+        );
 
-        $this->writeFile('config.json', (string) json_encode(['default_site' => $sites[0]['id'], 'sites' => $sites]));
+        $this->writeFile('config.json', (string) json_encode(['default_site' => array_key_first($sites), 'sites' => (object) $sites]));
     }
 
     /**

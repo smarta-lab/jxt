@@ -40,7 +40,7 @@ final class SiteCommandTest extends TestCase
 
     public function testListsTheSitesWithDefaultAndSelection(): void
     {
-        $this->writeConfiguration('{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}, {"id": "ddev"}]}');
+        $this->writeConfiguration('{"default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}, "ddev": {}}}');
         $tester = $this->tester('ddev');
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -52,7 +52,7 @@ final class SiteCommandTest extends TestCase
     public function testMarksSitesWithContradictingKeys(): void
     {
         $this->writeConfiguration(
-            '{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/srv/site", "web_user": "x", "cli_command": ["php"]}]}',
+            '{"default_site": "local", "sites": {"local": {"joomla_root": "/srv/site", "web_user": "x", "cli_command": ["php"]}}}',
         );
         $tester = $this->tester();
 
@@ -63,7 +63,7 @@ final class SiteCommandTest extends TestCase
 
     public function testListWarnsAboutAnUnknownDefaultSite(): void
     {
-        $this->writeConfiguration('{"default_site": "j5", "sites": [{"id": "local"}]}');
+        $this->writeConfiguration('{"default_site": "j5", "sites": {"local": {}}}');
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -84,33 +84,33 @@ final class SiteCommandTest extends TestCase
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'add', 'id' => 'local', '--default' => true]));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"dist_dir": "/srv/dist", "default_site": "local", "sites": [{"id": "local"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"dist_dir": "/srv/dist", "default_site": "local", "sites": {"local": {}}}');
         self::assertStringContainsString('Added site "local" as default site to', self::display($tester));
         self::assertStringContainsString('jxt config set <key> <value> --site=local', self::display($tester));
     }
 
     public function testAddsASiteWithoutChangingTheDefaultSite(): void
     {
-        $this->writeConfiguration('{"default_site": "local", "sites": [{"id": "local"}]}');
+        $this->writeConfiguration('{"default_site": "local", "sites": {"local": {}}}');
 
         self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'add', 'id' => 'ddev']));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": [{"id": "local"}, {"id": "ddev"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": {"local": {}, "ddev": {}}}');
     }
 
     public function testRemovesASiteAndTheDefaultSiteThatReferredToIt(): void
     {
-        $this->writeConfiguration('{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}, {"id": "ddev"}]}');
+        $this->writeConfiguration('{"default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}, "ddev": {}}}');
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'remove', 'id' => 'local']));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"sites": [{"id": "ddev"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"sites": {"ddev": {}}}');
         self::assertStringContainsString('and default_site, which referred to it', self::display($tester));
         self::assertStringContainsString('JXT_SITE=local in an .envrc or --site=local', self::display($tester));
     }
 
     public function testRemovingTheLastSiteDeletesTheEmptyFile(): void
     {
-        $this->writeConfiguration('{"sites": [{"id": "local"}]}');
+        $this->writeConfiguration('{"sites": {"local": {}}}');
 
         self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'remove', 'id' => 'local']));
         self::assertFileDoesNotExist($this->globalFile());
@@ -118,13 +118,13 @@ final class SiteCommandTest extends TestCase
 
     public function testRenamesASiteAndTheDefaultSite(): void
     {
-        $this->writeConfiguration('{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}]}');
+        $this->writeConfiguration('{"default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}}}');
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'rename', 'id' => 'local', 'new-id' => 'default']));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "default", "sites": [{"id": "default", "joomla_root": "/var/www/html"}]}',
+            '{"default_site": "default", "sites": {"default": {"joomla_root": "/var/www/html"}}}',
         );
         self::assertStringContainsString('Renamed site "local" to "default"', self::display($tester));
         self::assertStringContainsString('default_site now refers to "default"', self::display($tester));
@@ -133,10 +133,10 @@ final class SiteCommandTest extends TestCase
 
     public function testRenamesASiteWithoutTouchingAnotherDefaultSite(): void
     {
-        $this->writeConfiguration('{"default_site": "local", "sites": [{"id": "local"}, {"id": "ddev"}]}');
+        $this->writeConfiguration('{"default_site": "local", "sites": {"local": {}, "ddev": {}}}');
 
         self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'rename', 'id' => 'ddev', 'new-id' => 'leaflet']));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": [{"id": "local"}, {"id": "leaflet"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": {"local": {}, "leaflet": {}}}');
     }
 
     /**
@@ -146,7 +146,7 @@ final class SiteCommandTest extends TestCase
     #[DataProvider('invalidInput')]
     public function testRejectsInvalidInputWithoutWriting(array $input, string $expectedMessage): void
     {
-        $configuration = '{"default_site": "local", "sites": [{"id": "local"}, {"id": "ddev"}]}';
+        $configuration = '{"default_site": "local", "sites": {"local": {}, "ddev": {}}}';
         $this->writeConfiguration($configuration);
         $tester = $this->tester();
 
@@ -178,7 +178,7 @@ final class SiteCommandTest extends TestCase
 
     public function testRefusesToWriteUnderSudoButLists(): void
     {
-        $this->writeConfiguration('{"sites": [{"id": "local"}]}');
+        $this->writeConfiguration('{"sites": {"local": {}}}');
         $tester = new CommandTester(new SiteCommand($this->temporaryDirectory . '/project', new ConfigurationLoader($this->globalFile()), true));
 
         self::assertSame(Command::FAILURE, $tester->execute(['action' => 'add', 'id' => 'ddev']));

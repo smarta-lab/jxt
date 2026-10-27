@@ -111,7 +111,7 @@ final class BuildCommandTest extends TestCase
             </extension>
             XML);
         $this->writeFile('tmpl/default.php', '<?php');
-        $this->writeFile('config.json', '{"sites": [{"id": "ddev", "cli_command": ["ddev", "exec", "php"], "web_user": "www-data"}]}');
+        $this->writeFile('config.json', '{"sites": {"ddev": {"cli_command": ["ddev", "exec", "php"], "web_user": "www-data"}}}');
 
         $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader($this->project . '/config.json', 'missing')));
 

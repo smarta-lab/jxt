@@ -18,18 +18,26 @@ namespace SmartA\Jxt\Configuration;
 final readonly class SiteList
 {
     /**
-     * @param list<array<array-key, mixed>> $sites The sites as written
+     * @param array<string, array<array-key, mixed>> $sites The sites as written, by id
      */
     public function __construct(public array $sites = [])
     {
     }
 
     /**
-     * Creates the list from the validated value of `sites`; null if it is not set.
+     * Creates the list from the validated value of `sites`; empty if it is not set.
      */
     public static function fromValue(mixed $value): self
     {
-        return new self(is_array($value) ? array_values(array_filter($value, is_array(...))) : []);
+        $sites = [];
+
+        foreach (is_array($value) ? $value : [] as $id => $site) {
+            if (is_array($site)) {
+                $sites[(string) $id] = $site;
+            }
+        }
+
+        return new self($sites);
     }
 
     /**
@@ -39,10 +47,7 @@ final readonly class SiteList
      */
     public function ids(): array
     {
-        return array_values(array_filter(
-            array_map(static fn (array $site): mixed => $site[SiteEntry::ID_KEY] ?? null, $this->sites),
-            is_string(...),
-        ));
+        return array_keys($this->sites);
     }
 
     /**
@@ -50,7 +55,7 @@ final readonly class SiteList
      */
     public function has(string $id): bool
     {
-        return $this->index($id) !== null;
+        return array_key_exists($id, $this->sites);
     }
 
     /**
@@ -58,17 +63,15 @@ final readonly class SiteList
      */
     public function hasKey(string $id, ConfigurationKey $key): bool
     {
-        $index = $this->index($id);
-
-        return $index !== null && array_key_exists($key->value, $this->sites[$index]);
+        return $this->has($id) && array_key_exists($key->value, $this->sites[$id]);
     }
 
     /**
-     * Returns the list with a new site that has only its id.
+     * Returns the list with a new site without keys.
      */
     public function withSite(string $id): self
     {
-        return new self([...$this->sites, [SiteEntry::ID_KEY => $id]]);
+        return new self([...$this->sites, $id => []]);
     }
 
     /**
@@ -92,11 +95,21 @@ final readonly class SiteList
     }
 
     /**
-     * Returns the list with the site renamed.
+     * Returns the list with the site renamed at its position.
      */
     public function renamed(string $id, string $newId): self
     {
-        return $this->changed($id, static fn (array $site): array => [...$site, SiteEntry::ID_KEY => $newId]);
+        if (!$this->has($id)) {
+            return $this;
+        }
+
+        $sites = [];
+
+        foreach ($this->sites as $siteId => $site) {
+            $sites[$siteId === $id ? $newId : $siteId] = $site;
+        }
+
+        return new self($sites);
     }
 
     /**
@@ -104,17 +117,13 @@ final readonly class SiteList
      */
     public function withoutSite(string $id): self
     {
-        $index = $this->index($id);
-
-        return $index === null
-            ? $this
-            : new self(array_values(array_filter($this->sites, static fn (int $i): bool => $i !== $index, ARRAY_FILTER_USE_KEY)));
+        return new self(array_diff_key($this->sites, [$id => true]));
     }
 
     /**
      * Returns the value for `sites`, or null if no site is left.
      *
-     * @return list<array<array-key, mixed>>|null
+     * @return array<string, array<array-key, mixed>>|null
      */
     public function value(): ?array
     {
@@ -128,29 +137,13 @@ final readonly class SiteList
      */
     private function changed(string $id, \Closure $change): self
     {
-        $index = $this->index($id);
-
-        if ($index === null) {
+        if (!$this->has($id)) {
             return $this;
         }
 
         $sites = $this->sites;
-        $sites[$index] = $change($sites[$index]);
+        $sites[$id] = $change($sites[$id]);
 
         return new self($sites);
-    }
-
-    /**
-     * Returns the position of the site, or null if it does not exist.
-     */
-    private function index(string $id): ?int
-    {
-        foreach ($this->sites as $index => $site) {
-            if (($site[SiteEntry::ID_KEY] ?? null) === $id) {
-                return $index;
-            }
-        }
-
-        return null;
     }
 }

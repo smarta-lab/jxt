@@ -449,14 +449,17 @@ starts PHP in the container, e.g. `podman exec`.
 
 DDEV runs PHP as your own user, and the files of the site belong to you. The
 web container is called `ddev-<project>-web`, and `docker exec` uses your user
-by default. The site in `sites`:
+by default. The site in the global file:
 
 ```json
 {
-    "id": "example",
-    "joomla_root": "/home/user/sites/example",
-    "cli_command": ["docker", "exec", "ddev-example-web", "php"],
-    "cli_root": "/var/www/html"
+    "sites": {
+        "example": {
+            "joomla_root": "/home/user/sites/example",
+            "cli_command": ["docker", "exec", "ddev-example-web", "php"],
+            "cli_root": "/var/www/html"
+        }
+    }
 }
 ```
 
@@ -473,14 +476,17 @@ With the official `joomla` image and Docker Compose, the site is mounted with
 e.g. `./site:/var/www/html`, Apache runs as `www-data`, and the files belong to
 `www-data` (UID 33). The container is called `<project>-<service>-<number>`,
 and `docker exec` runs as root by default, so `-u www-data` is required. The
-site in `sites`:
+site in the global file:
 
 ```json
 {
-    "id": "example",
-    "joomla_root": "/home/user/sites/example/site",
-    "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
-    "cli_root": "/var/www/html"
+    "sites": {
+        "example": {
+            "joomla_root": "/home/user/sites/example/site",
+            "cli_command": ["docker", "exec", "-u", "www-data", "example-joomla-1", "php"],
+            "cli_root": "/var/www/html"
+        }
+    }
 }
 ```
 
@@ -764,7 +770,7 @@ vendor/bin/jxt site rename <id> <new id>    # rename a site
 Sites are only added, removed and renamed with `jxt site`, so that a typo in
 `--site` does not add a site; their keys are set with
 [jxt config](#jxt-config--show-and-change-the-configuration). `add` creates a
-site with only its id. `remove` also removes `default_site` if it refers to the
+site without keys. `remove` also removes `default_site` if it refers to the
 site, `rename` changes it with the site. References outside of the global
 configuration, e.g. `JXT_SITE` in an `.envrc` or `--site` in a script, stay
 unchanged; jxt points this out, and a forgotten reference fails on the next
@@ -863,7 +869,8 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
 
 All values are strings, lists of strings (`check_exclude`, `check_include`),
-`null`, or for `prepare` and `sites` lists of objects. `null` resets a key to
+`null`, a list of objects for `prepare`, or an object with the sites by id for
+`sites`. `null` resets a key to
 its default. Unknown keys are rejected, so typos do not go unnoticed.
 
 ### Manifest
@@ -889,12 +896,14 @@ directory.
 ### Test sites
 
 The test sites are only defined in the global file, since they describe your
-machine, not the project, and `cli_command` runs commands. Each site is an
-object in the list `sites`:
+machine, not the project, and `cli_command` runs commands. `sites` is an
+object with the sites by id; an id starts with a letter and may contain
+letters, digits, `_`, `.` and `-`. If an id appears twice, the last site counts,
+as usual in JSON; `jxt site add` does not let this happen. Each site is an
+object with these keys:
 
 | Key | Meaning | Default |
 |---|---|---|
-| `id` | Id of the site (letters, digits, `_`, `.`, `-`), unique among the sites | – (required) |
 | `joomla_root` | Absolute path of the Joomla site; must contain `configuration.php` | – (required) |
 | `web_user` | User as which `jxt install` and the jxt bridge run the Joomla CLI via sudo, e.g. `www-data`; not with `cli_command` | – (the Joomla CLI runs as you, without sudo) |
 | `cli_command` | Command that starts PHP for the Joomla CLI, e.g. in a container, instead of sudo; see [Test sites in containers](#test-sites-in-containers) | – |
@@ -905,15 +914,14 @@ Example `~/.config/jxt/config.json`:
 ```json
 {
     "default_site": "local",
-    "sites": [
-        { "id": "local", "joomla_root": "/var/www/html", "web_user": "www-data" },
-        {
-            "id": "leaflet",
+    "sites": {
+        "local": { "joomla_root": "/var/www/html", "web_user": "www-data" },
+        "leaflet": {
             "joomla_root": "/home/user/ddev/leaflet",
             "cli_command": ["ddev", "exec", "-p", "leaflet", "php"],
             "cli_root": "/var/www/html"
         }
-    ]
+    }
 }
 ```
 

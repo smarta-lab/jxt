@@ -235,9 +235,7 @@ final class SiteCommand extends Command
         $id = $this->argument($input, $argument);
 
         if (!SiteEntry::isValidId($id)) {
-            throw new ConfigurationException(
-                sprintf('Invalid site id "%s". It may contain letters, digits, "_", "." and "-".', $id),
-            );
+            throw new ConfigurationException(sprintf('Invalid site id "%s". %s', $id, SiteEntry::ID_RULE));
         }
 
         if ($siteFile->sites()->has($id)) {

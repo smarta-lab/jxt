@@ -116,7 +116,7 @@ final class InstallCommandTest extends TestCase
 
     public function testFailsWithoutSelectedSite(): void
     {
-        $this->writeFile('config.json', (string) json_encode(['sites' => [['id' => 'local', 'joomla_root' => $this->joomla()]]]));
+        $this->writeFile('config.json', (string) json_encode(['sites' => ['local' => ['joomla_root' => $this->joomla()]]]));
         $runner = new RecordingProcessRunner(new ProcessResult(0, ''));
         $tester = $this->tester($runner);
 

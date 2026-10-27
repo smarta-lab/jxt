@@ -478,7 +478,7 @@ Podman, `ddev exec -p <project>` and a different PHP on the host alike.
 ## Named test sites
 
 The keys that describe the test site (`joomla_root`, `web_user`,
-`cli_command`, `cli_root`) live only in sites of the list `sites` of the
+`cli_command`, `cli_root`) live only in the sites of `sites` in the
 global configuration; at the top level of either file and in `.jxt.json`
 they are an error, whose message shows the site that takes their values.
 
@@ -488,8 +488,15 @@ they are an error, whose message shows the site that takes their values.
   directory in which `jxt sync` deletes. Now `prepare` is the only key of the
   repository that runs commands, and it is a property of the project by
   design.
-- **List with ids:** each site is an object with an `id`, unique among the
-  sites and otherwise just a name, without reserved values. A site inherits
+- **Sites by id:** `sites` is an object with the sites by id, like the
+  services of Docker Compose; the id is just a name, without reserved values.
+  It starts with a letter: `json_decode()` turns keys such as `"1"` into
+  integers, so `{"0": {}}` would read like a list, and an id such as `-x`
+  would look like an option. A duplicate id cannot be reported, since
+  `json_decode()` keeps the last site; `jxt site add` and `rename` refuse
+  existing ids, so this only happens when editing the file by hand. When
+  writing, jxt encodes `sites` and every site as objects, so that a site
+  without keys does not become `[]`. A site inherits
   nothing, otherwise a `web_user` would leak into a site with `cli_command`,
   the contradiction jxt rejects. Missing or contradicting keys of a site are
   only errors when the site is used, as before, so that `jxt config` can
@@ -528,6 +535,11 @@ they are an error, whose message shows the site that takes their values.
 
 Rejected:
 
+- **A list of sites with an `id` each** (jxt 0.6): it came from the first
+  implementation, whose default site had no id; with `default_site`, every
+  site is referred to by its id, and the list only added possible errors (a
+  missing id), while the order of the sites does not matter. For the list,
+  jxt shows the same sites by id; this hint is removed before 1.0.
 - **`jxt allow`**, an approval of a cloned `.jxt.json` like `direnv allow`:
   with jxt as a Composer dev dependency, the repository's code already runs
   before jxt reads its configuration, through the `scripts` of

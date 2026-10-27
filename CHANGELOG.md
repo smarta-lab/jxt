@@ -6,6 +6,14 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Incompatible:** `sites` in the global configuration is an object with the
+  sites by id instead of a list of sites with an `id` each, e.g.
+  `{"sites": {"local": {"joomla_root": "/var/www/html"}}}`. For the list of
+  jxt 0.6, jxt shows the same sites in the new format. Site ids must now start
+  with a letter.
+
 ## [0.6.0] - 2026-10-26
 
 ### Added

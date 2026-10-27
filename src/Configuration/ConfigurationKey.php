@@ -12,7 +12,7 @@ namespace SmartA\Jxt\Configuration;
 /**
  * Allowed keys in the configuration files with their scope, default values and validation rules.
  *
- * @phpstan-type ConfigurationValue string|list<string>|non-empty-list<mixed>|null
+ * @phpstan-type ConfigurationValue string|list<string>|non-empty-list<mixed>|non-empty-array<string, mixed>|null
  */
 enum ConfigurationKey: string
 {
@@ -39,6 +39,8 @@ enum ConfigurationKey: string
     private const string CHECK_NAME_PATTERN = '#^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$#';
 
     private const string STEP_EXAMPLE = '{"run": ["npm", "run", "build"]}';
+
+    private const string SITES_EXAMPLE = '{"local": {"joomla_root": "/var/www/html"}}';
 
     /**
      * Returns the default value, or null if the key is unset when not specified.
@@ -85,7 +87,7 @@ enum ConfigurationKey: string
      *
      * Single values must be non-empty strings, `default_site` the id of a site. Commands must be non-empty lists of
      * non-empty arguments. Other lists must contain check names (`group` or `group/check`) and are returned without
-     * duplicates. The steps of `prepare` and the sites of `sites` are returned as written.
+     * duplicates. The steps of `prepare` are returned as written, the sites of `sites` as written by id.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
      *
@@ -106,6 +108,19 @@ enum ConfigurationKey: string
             $this->isList() => $this->validateList($value, $source),
             default => $this->validateString($value, $source),
         };
+    }
+
+    /**
+     * Returns the value as written to a configuration file: the sites of `sites` as objects, even without keys, so
+     * that `json_encode()` does not write them as lists.
+     *
+     * @param ConfigurationValue $value
+     */
+    public function jsonValue(string|array|null $value): mixed
+    {
+        return $this === self::Sites && is_array($value)
+            ? (object) array_map(static fn (mixed $site): mixed => is_array($site) ? (object) $site : $site, $value)
+            : $value;
     }
 
     /**
@@ -202,35 +217,59 @@ enum ConfigurationKey: string
     }
 
     /**
-     * Validates the sites of `sites` and returns them as written.
+     * Validates the sites of `sites` and returns them by id.
      *
-     * @return non-empty-list<mixed>
+     * Duplicate ids cannot be detected, since `json_decode()` keeps the last site with the same id.
+     *
+     * @return non-empty-array<string, mixed>
      *
      * @throws ConfigurationException for an invalid value
      */
     private function validateSites(mixed $value, string $source): array
     {
-        if (!is_array($value) || $value === [] || !array_is_list($value)) {
+        if (!is_array($value) || $value === [] || array_is_list($value)) {
             throw new ConfigurationException(sprintf(
-                'Value of "%s" in %s must be a non-empty list of sites, e.g. [{"joomla_root": "/var/www/html"}].',
+                'Value of "%s" in %s must be an object with the sites by id, e.g. %s.%s',
                 $this->value,
                 $source,
+                self::SITES_EXAMPLE,
+                is_array($value) && $value !== [] && array_is_list($value) ? self::sitesListHint($value) : '',
             ));
         }
 
-        $ids = [];
+        $sites = [];
 
-        foreach ($value as $index => $site) {
-            $id = SiteEntry::fromValue($site, $index, $source)->id;
-
-            if (in_array($id, $ids, true)) {
-                throw new ConfigurationException(sprintf('The id "%s" is used by more than one site in %s.', $id, $source));
-            }
-
-            $ids[] = $id;
+        foreach ($value as $id => $site) {
+            $sites[SiteEntry::fromValue($id, $site, $source)->id] = $site;
         }
 
-        return $value;
+        return $sites;
+    }
+
+    /**
+     * Returns the sites of the list format of jxt 0.6 by id, for the error message.
+     *
+     * Transitional: remove before 1.0.
+     *
+     * @param list<mixed> $sites
+     */
+    private static function sitesListHint(array $sites): string
+    {
+        $converted = [];
+
+        foreach ($sites as $site) {
+            $id = is_array($site) ? ($site['id'] ?? null) : null;
+
+            if (!is_string($id) || array_key_exists($id, $converted)) {
+                return '';
+            }
+
+            $converted[$id] = (object) array_diff_key($site, ['id' => true]);
+        }
+
+        $json = json_encode([self::Sites->value => (object) $converted], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return $json === false ? '' : PHP_EOL . 'Since jxt 0.7, sites is no longer a list; for your sites:' . PHP_EOL . $json;
     }
 
     /**

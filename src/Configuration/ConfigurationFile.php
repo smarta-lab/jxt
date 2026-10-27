@@ -97,7 +97,7 @@ final readonly class ConfigurationFile
         foreach (ConfigurationKey::cases() as $key) {
             if (array_key_exists($key->value, $values)) {
                 $this->assertAllowed($key);
-                $ordered[$key->value] = $values[$key->value];
+                $ordered[$key->value] = $key->jsonValue($values[$key->value]);
             }
         }
 
@@ -170,7 +170,7 @@ final readonly class ConfigurationFile
         $example = json_encode(
             [
                 ...($this->isGlobal ? [ConfigurationKey::DefaultSite->value => $id] : []),
-                ConfigurationKey::Sites->value => [[SiteEntry::ID_KEY => $id, ...$site]],
+                ConfigurationKey::Sites->value => [$id => $site],
             ],
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         );

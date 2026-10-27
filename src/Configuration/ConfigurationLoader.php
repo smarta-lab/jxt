@@ -168,7 +168,7 @@ final readonly class ConfigurationLoader
         $sites = $global[ConfigurationKey::Sites->value] ?? null;
 
         return is_array($sites) ? array_map(
-            fn (int $index, mixed $site): SiteEntry => SiteEntry::fromValue($site, $index, (string) $this->globalConfigFile),
+            fn (int|string $id, mixed $site): SiteEntry => SiteEntry::fromValue($id, $site, (string) $this->globalConfigFile),
             array_keys($sites),
             $sites,
         ) : [];
@@ -188,7 +188,7 @@ final readonly class ConfigurationLoader
     {
         $steps = $values[ConfigurationKey::Prepare->value] ?? null;
 
-        return is_array($steps) ? array_map(
+        return is_array($steps) && array_is_list($steps) ? array_map(
             static fn (int $index, mixed $step): PrepareStep
                 => PrepareStep::fromValue($step, ConfigurationKey::Prepare->stepLabel($index, $source)),
             array_keys($steps),

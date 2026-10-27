@@ -268,7 +268,7 @@ final class SyncCommandTest extends TestCase
 
     public function testUsesTheSiteOfTheOptionAndNamesIt(): void
     {
-        $this->writeSites(['joomla_root' => $this->temporaryDirectory . '/other'], ['id' => 'ddev', 'joomla_root' => $this->joomla()]);
+        $this->writeSites(['joomla_root' => $this->temporaryDirectory . '/other'], ddev: ['joomla_root' => $this->joomla()]);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['--site' => 'ddev']));

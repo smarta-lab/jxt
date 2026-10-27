@@ -42,7 +42,7 @@ final class ConfigCommandTest extends TestCase
         $this->writeFile('home/config.json', (string) json_encode([
             'dist_dir' => '/srv/dist',
             'default_site' => 'local',
-            'sites' => [['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']],
+            'sites' => ['local' => ['joomla_root' => '/var/www/html'], 'ddev' => ['joomla_root' => '/srv/ddev']],
         ]));
         $this->writeFile('project/.jxt.json', '{"manifest": "mod_x.xml"}');
         $tester = $this->tester();
@@ -64,7 +64,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testShowsTheSiteOfTheEnvironmentVariable(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites('local', local: ['joomla_root' => '/var/www/html'], ddev: ['joomla_root' => '/srv/ddev']);
         $tester = $this->tester('ddev');
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -85,7 +85,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testShowWarnsIfNoSiteIsSelected(): void
     {
-        $this->writeSites(null, ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites(null, ddev: ['joomla_root' => '/srv/ddev']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -95,7 +95,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testShowWarnsAboutMissingJoomlaRoot(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'web_user' => 'www-data']);
+        $this->writeSites('local', local: ['web_user' => 'www-data']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -130,13 +130,13 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetSiteKeyChangesTheDefaultSiteInTheGlobalFile(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'joomla_root', 'value' => ['/var/www/html']]));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}]}',
+            '{"default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}}}',
         );
         self::assertFileDoesNotExist($this->project() . '/.jxt.json');
         self::assertStringContainsString('Saved joomla_root = /var/www/html in site "local" (default_site) of', self::display($tester));
@@ -144,7 +144,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetSiteKeyChangesTheSiteOfTheOption(): void
     {
-        $this->writeSites('local', ['id' => 'local'], ['id' => 'ddev']);
+        $this->writeSites('local', local: [], ddev: []);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([
@@ -155,25 +155,25 @@ final class ConfigCommandTest extends TestCase
         ]));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local"}, {"id": "ddev", "joomla_root": "/srv/ddev"}]}',
+            '{"default_site": "local", "sites": {"local": {}, "ddev": {"joomla_root": "/srv/ddev"}}}',
         );
         self::assertStringContainsString('in site "ddev" via --site of', self::display($tester));
     }
 
     public function testSetSiteKeyChangesTheSiteOfTheEnvironmentVariable(): void
     {
-        $this->writeSites('local', ['id' => 'local'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites('local', local: [], ddev: ['joomla_root' => '/srv/ddev']);
 
         self::assertSame(Command::SUCCESS, $this->tester('ddev')->execute(['action' => 'set', 'key' => 'joomla_root', 'value' => ['/srv/other']]));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local"}, {"id": "ddev", "joomla_root": "/srv/other"}]}',
+            '{"default_site": "local", "sites": {"local": {}, "ddev": {"joomla_root": "/srv/other"}}}',
         );
     }
 
     public function testSetSiteKeyDoesNotAddASite(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
         $tester = $this->tester();
 
         self::assertSame(Command::FAILURE, $tester->execute([
@@ -184,7 +184,7 @@ final class ConfigCommandTest extends TestCase
         ]));
         self::assertStringContainsString('There is no site "lefalet" (selected via --site)', self::display($tester));
         self::assertStringContainsString('Add it with jxt site add lefalet.', self::display($tester));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": [{"id": "local"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "local", "sites": {"local": {}}}');
     }
 
     public function testSetSiteKeyWithoutSitesPointsToJxtSiteAdd(): void
@@ -199,15 +199,15 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetDefaultSite(): void
     {
-        $this->writeSites('local', ['id' => 'local'], ['id' => 'ddev']);
+        $this->writeSites('local', local: [], ddev: []);
 
         self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'set', 'key' => 'default_site', 'value' => ['ddev']]));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "ddev", "sites": [{"id": "local"}, {"id": "ddev"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"default_site": "ddev", "sites": {"local": {}, "ddev": {}}}');
     }
 
     public function testRejectsDefaultSiteThatDoesNotExist(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
         $tester = $this->tester();
 
         self::assertSame(Command::FAILURE, $tester->execute(['action' => 'set', 'key' => 'default_site', 'value' => ['ddev']]));
@@ -217,10 +217,10 @@ final class ConfigCommandTest extends TestCase
 
     public function testUnsetDefaultSite(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
 
         self::assertSame(Command::SUCCESS, $this->tester()->execute(['action' => 'unset', 'key' => 'default_site']));
-        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"sites": [{"id": "local"}]}');
+        self::assertJsonStringEqualsJsonFile($this->globalFile(), '{"sites": {"local": {}}}');
     }
 
     public function testSetNullStoresJsonNull(): void
@@ -258,7 +258,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetCommandKeepsArgumentsAsTheyAre(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([
@@ -268,15 +268,15 @@ final class ConfigCommandTest extends TestCase
         ]));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local", "cli_command": '
-            . '["docker", "exec", "-u", "www-data", "web", "php", "-d", "error_log=a,b"]}]}',
+            '{"default_site": "local", "sites": {"local": {"cli_command": '
+            . '["docker", "exec", "-u", "www-data", "web", "php", "-d", "error_log=a,b"]}}}',
         );
         self::assertStringContainsString('cli_command = docker exec -u www-data web php -d error_log=a,b', self::display($tester));
     }
 
     public function testShowsCommandAsCommandLine(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/srv/site', 'cli_command' => ['docker', 'exec', 'my web', 'php']]);
+        $this->writeSites('local', local: ['joomla_root' => '/srv/site', 'cli_command' => ['docker', 'exec', 'my web', 'php']]);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -334,20 +334,20 @@ final class ConfigCommandTest extends TestCase
 
     public function testUnsetSiteKeyKeepsTheSiteEvenWithoutKeys(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'joomla_root' => '/var/www/html'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']);
+        $this->writeSites('local', local: ['joomla_root' => '/var/www/html'], ddev: ['joomla_root' => '/srv/ddev']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'unset', 'key' => 'joomla_root', '--site' => 'ddev']));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local", "joomla_root": "/var/www/html"}, {"id": "ddev"}]}',
+            '{"default_site": "local", "sites": {"local": {"joomla_root": "/var/www/html"}, "ddev": {}}}',
         );
         self::assertStringContainsString('Removed joomla_root from site "ddev" via --site of', self::display($tester));
     }
 
     public function testUnsetOfAKeyThatIsNotSetOnlyNotes(): void
     {
-        $this->writeSites('local', ['id' => 'local']);
+        $this->writeSites('local', local: []);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'unset', 'key' => 'web_user']));
@@ -356,13 +356,13 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetWarnsAboutWebUserNextToCliCommandButSaves(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'cli_command' => ['docker', 'exec', 'web', 'php']]);
+        $this->writeSites('local', local: ['cli_command' => ['docker', 'exec', 'web', 'php']]);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'web_user', 'value' => ['apache']]));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local", "cli_command": ["docker", "exec", "web", "php"], "web_user": "apache"}]}',
+            '{"default_site": "local", "sites": {"local": {"cli_command": ["docker", "exec", "web", "php"], "web_user": "apache"}}}',
         );
         self::assertStringContainsString('[WARNING]', $tester->getDisplay());
         self::assertStringContainsString('cannot be combined', self::display($tester));
@@ -371,7 +371,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetWarnsAboutCliCommandNextToWebUser(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'web_user' => 'apache']);
+        $this->writeSites('local', local: ['web_user' => 'apache']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'set', 'key' => 'cli_command', 'value' => ['ddev', 'exec', 'php']]));
@@ -380,20 +380,20 @@ final class ConfigCommandTest extends TestCase
 
     public function testUnsetWarnsAboutCliRootWithoutCliCommand(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'cli_command' => ['ddev', 'exec', 'php'], 'cli_root' => '/var/www/html']);
+        $this->writeSites('local', local: ['cli_command' => ['ddev', 'exec', 'php'], 'cli_root' => '/var/www/html']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'unset', 'key' => 'cli_command']));
         self::assertJsonStringEqualsJsonFile(
             $this->globalFile(),
-            '{"default_site": "local", "sites": [{"id": "local", "cli_root": "/var/www/html"}]}',
+            '{"default_site": "local", "sites": {"local": {"cli_root": "/var/www/html"}}}',
         );
         self::assertStringContainsString('cli_root is only used together with cli_command', self::display($tester));
     }
 
     public function testShowWarnsAboutContradictions(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'cli_command' => ['ddev', 'exec', 'php'], 'web_user' => 'apache']);
+        $this->writeSites('local', local: ['cli_command' => ['ddev', 'exec', 'php'], 'web_user' => 'apache']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -402,7 +402,7 @@ final class ConfigCommandTest extends TestCase
 
     public function testSetWithoutContradictionDoesNotWarn(): void
     {
-        $this->writeSites('local', ['id' => 'local', 'cli_command' => ['ddev', 'exec', 'php'], 'web_user' => 'apache']);
+        $this->writeSites('local', local: ['cli_command' => ['ddev', 'exec', 'php'], 'web_user' => 'apache']);
         $tester = $this->tester();
 
         self::assertSame(Command::SUCCESS, $tester->execute(['action' => 'unset', 'key' => 'web_user']));
@@ -433,7 +433,6 @@ final class ConfigCommandTest extends TestCase
         yield 'unknown key' => [['action' => 'set', 'key' => 'joomla_rot', 'value' => ['/x']], 'joomla_rot'];
         yield 'invalid value' => [['action' => 'set', 'key' => 'joomla_root', 'value' => ['html']], 'Invalid value "html" for "joomla_root"'];
         yield 'removed key' => [['action' => 'set', 'key' => 'dir_mode', 'value' => ['775']], 'dir_mode in the arguments is no longer supported'];
-        yield 'id of a site' => [['action' => 'set', 'key' => 'id', 'value' => ['default']], 'The id of a site is changed with jxt site rename'];
         yield 'missing value' => [['action' => 'set', 'key' => 'web_user'], 'specify a value'];
         yield 'missing key' => [['action' => 'unset'], 'specify a key'];
         yield 'option without dashes for show' => [
@@ -497,13 +496,13 @@ final class ConfigCommandTest extends TestCase
      * Writes the sites and `default_site` into the global configuration.
      *
      * @param string|null          $defaultSite Value of `default_site`; null to leave it out
-     * @param array<string, mixed> ...$sites
+     * @param array<string, mixed> ...$sites      The sites as named arguments by id, e.g. `local: []`
      */
     private function writeSites(?string $defaultSite, array ...$sites): void
     {
         $this->writeFile('home/config.json', (string) json_encode([
             ...($defaultSite === null ? [] : ['default_site' => $defaultSite]),
-            'sites' => array_values($sites),
+            'sites' => (object) array_map(static fn (array $site): object => (object) $site, $sites),
         ]));
     }
 

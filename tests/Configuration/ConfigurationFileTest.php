@@ -106,15 +106,24 @@ final class ConfigurationFileTest extends TestCase
     public function testWritesSitesAsWritten(): void
     {
         $file = new ConfigurationFile($this->temporaryDirectory . '/config.json', true);
-        $sites = [['id' => 'local', 'joomla_root' => '/var/www/html', 'web_user' => 'www-data'], ['id' => 'ddev', 'joomla_root' => '/srv/ddev']];
+        $sites = ['local' => ['joomla_root' => '/var/www/html', 'web_user' => 'www-data'], 'ddev' => ['joomla_root' => '/srv/ddev']];
 
         $file->write(['sites' => $sites, 'default_site' => 'local', 'dist_dir' => '/srv/dist']);
 
         self::assertSame(['dist_dir' => '/srv/dist', 'default_site' => 'local', 'sites' => $sites], $file->read());
     }
 
+    public function testWritesSitesWithoutKeysAsObjects(): void
+    {
+        $file = new ConfigurationFile($this->temporaryDirectory . '/config.json', true);
+
+        $file->write(['sites' => ['local' => [], 'ddev' => ['joomla_root' => '/srv/ddev']]]);
+
+        self::assertJsonStringEqualsJsonFile($file->path, '{"sites": {"local": {}, "ddev": {"joomla_root": "/srv/ddev"}}}');
+    }
+
     /**
-     * @param array<string, string|non-empty-list<mixed>> $values
+     * @param array<string, string|non-empty-list<mixed>|non-empty-array<string, mixed>> $values
      */
     #[DataProvider('keysOutsideOfTheirScope')]
     public function testRejectsKeysOutsideOfTheirScope(bool $isGlobal, array $values, string $expectedMessage): void
@@ -128,7 +137,7 @@ final class ConfigurationFileTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{bool, array<string, string|non-empty-list<mixed>>, string}>
+     * @return iterable<string, array{bool, array<string, string|non-empty-list<mixed>|non-empty-array<string, mixed>>, string}>
      */
     public static function keysOutsideOfTheirScope(): iterable
     {
@@ -138,7 +147,11 @@ final class ConfigurationFileTest extends TestCase
             ['joomla_root' => '/var/www'],
             'joomla_root can no longer be set at the top level',
         ];
-        yield 'sites in the project' => [false, ['sites' => [['id' => 'a']]], 'sites can only be set in the global configuration'];
+        yield 'sites in the project' => [
+            false,
+            ['sites' => ['a' => ['joomla_root' => '/var/www']]],
+            'sites can only be set in the global configuration',
+        ];
         yield 'prepare in the global file' => [true, ['prepare' => [['run' => ['npm']]]], 'prepare can only be set in the project configuration'];
     }
 }
