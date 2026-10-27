@@ -763,13 +763,15 @@ project. Unknown names are rejected.
 ```bash
 vendor/bin/jxt site                         # list the sites, default_site and the selected site
 vendor/bin/jxt site add <id> [--default]    # add a site, with --default as default_site
-vendor/bin/jxt site remove <id>             # remove a site
+vendor/bin/jxt site remove <id>             # remove the entry of a site
 vendor/bin/jxt site rename <id> <new id>    # rename a site
 ```
 
-Sites are only added, removed and renamed with `jxt site`, so that a typo in
-`--site` does not add a site; their keys are set with
-[jxt config](#jxt-config--show-and-change-the-configuration). `add` creates a
+`jxt site` manages the entries of the sites in the global configuration; you
+set up the Joomla installation itself beforehand and remove it yourself as
+well. Sites are only added, removed and renamed with `jxt site`, so that a typo
+in `--site` does not add a site; their keys are set with
+[jxt config](#jxt-config--show-and-change-the-configuration). `add` adds a
 site without keys. `remove` also removes `default_site` if it refers to the
 site, `rename` changes it with the site. References outside of the global
 configuration, e.g. `JXT_SITE` in an `.envrc` or `--site` in a script, stay
@@ -895,8 +897,10 @@ directory.
 
 ### Test sites
 
-The test sites are only defined in the global file, since they describe your
-machine, not the project, and `cli_command` runs commands. `sites` is an
+A test site is a Joomla installation on your machine or in a container that
+you set up yourself; jxt only knows it from its configuration. The test sites
+are only defined in the global file, since they describe your machine, not the
+project, and `cli_command` runs commands. `sites` is an
 object with the sites by id; an id starts with a letter and may contain
 letters, digits, `_`, `.` and `-`. If an id appears twice, the last site counts,
 as usual in JSON; `jxt site add` does not let this happen. Each site is an
@@ -916,9 +920,9 @@ Example `~/.config/jxt/config.json`:
     "default_site": "local",
     "sites": {
         "local": { "joomla_root": "/var/www/html", "web_user": "www-data" },
-        "leaflet": {
-            "joomla_root": "/home/user/ddev/leaflet",
-            "cli_command": ["ddev", "exec", "-p", "leaflet", "php"],
+        "example": {
+            "joomla_root": "/home/user/sites/example",
+            "cli_command": ["docker", "exec", "ddev-example-web", "php"],
             "cli_root": "/var/www/html"
         }
     }
@@ -932,10 +936,10 @@ A site is complete in itself and takes nothing from another site.
 `default_site` is optional: without it, every call needs `--site` or
 `JXT_SITE`. A site that does not exist is an error, jxt never falls back to
 another site. If the site comes from `--site` or `JXT_SITE`, the output names
-it, e.g. `mod_example → /home/user/ddev/leaflet (site "leaflet" via
+it, e.g. `mod_example → /home/user/sites/example (site "example" via
 JXT_SITE)`. `jxt build` and `jxt check` do not use a site.
 
-The site `local` of the example is set up with:
+The site `local` of the example is added with:
 
 ```bash
 vendor/bin/jxt site add local --default
@@ -950,7 +954,7 @@ worktree, e.g. for a bugfix of an older version on a site of its own, gets an
 
 ```bash
 PATH_add vendor/bin
-export JXT_SITE=leaflet
+export JXT_SITE=example
 ```
 
 The site cannot be selected in `.jxt.json`: the ids are your own names and do
