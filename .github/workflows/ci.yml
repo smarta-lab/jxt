@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '17 4 * * 1' # weekly, for new versions of the dependencies
 
 permissions:
   contents: read
@@ -25,6 +27,8 @@ jobs:
             dependencies: locked
           - php: '8.4'
             dependencies: lowest
+          - php: '8.5'
+            dependencies: highest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,6 +55,10 @@ jobs:
       - name: Install lowest dependencies
         if: matrix.dependencies == 'lowest'
         run: composer update --no-interaction --no-progress --prefer-lowest --prefer-stable
+
+      - name: Install highest dependencies
+        if: matrix.dependencies == 'highest'
+        run: composer update --no-interaction --no-progress --prefer-stable
 
       - name: PHPUnit
         run: vendor/bin/phpunit --fail-on-skipped
