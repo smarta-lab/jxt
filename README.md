@@ -56,7 +56,9 @@ Add it to an extension project as a development dependency:
 composer require --dev smarta-lab/jxt
 ```
 
-Add `/dist/` to the project's `.gitignore`.
+jxt writes the ZIP files to `dist/` in the project directory by default
+(`dist_dir`, see [Configuration](docs/USAGE.md#configuration)); add this
+directory to the project's `.gitignore`.
 
 To work on jxt itself while using it in a project, a Composer `path`
 repository creates a symlink, so changes to jxt take effect immediately:
