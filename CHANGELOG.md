@@ -6,6 +6,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-27
+
 ### Changed
 
 - **Incompatible:** `sites` in the global configuration is an object with the
@@ -296,7 +298,8 @@ First public release.
 - `jxt build`: build an installable ZIP file from the manifest.
 - `jxt config`: show and change the global and per-project configuration.
 
-[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/smarta-lab/jxt/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/smarta-lab/jxt/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/smarta-lab/jxt/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/smarta-lab/jxt/compare/v0.4.0...v0.4.1

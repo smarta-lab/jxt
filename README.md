@@ -34,7 +34,7 @@ plugins, components and libraries.
 jxt is below 1.0: commands and configuration may still change, and each
 minor version may contain breaking changes. They are marked as
 **Incompatible** in the [changelog](CHANGELOG.md), together with what to
-change. Composer treats `^0.6` as `>=0.6.0 <0.7.0`, so updates within a minor
+change. Composer treats `^0.7` as `>=0.7.0 <0.8.0`, so updates within a minor
 version are safe. Feedback before 1.0 is very welcome in
 [Discussions](https://github.com/smarta-lab/jxt/discussions).
 
