@@ -750,7 +750,11 @@ a check that rests on a guess (`language/unused`) only reports notices.
 - **Built language keys:** a constant followed by `.` or `+` is the start of
   keys, and the key of `Text::plural()` is used with a plural suffix; both are
   fixed patterns of the code itself. A literal that is just the prefix is
-  ignored, since it would mark every key as used. Not added: the keys that
+  ignored, since it would mark every key as used. A literal starting with `_`
+  after `.` or `+` (`$this->t['l'] . '_INFO'`) completes the prefix of the
+  extension: in Phoca Cart, the variable held that prefix in every case (101
+  notices less), while taking it as the end of keys with any prefix also
+  matched `$field . '_DESC'` and hid 235 more notices without a basis. Not added: the keys that
   Joomla builds from a prefix (messages of `AdminController`, mail templates,
   labels of fieldsets and fields plugins, tasks), a list that grows with every
   Joomla version and would only save notices; and checking site and

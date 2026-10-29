@@ -683,7 +683,7 @@ fail the check.
 | `language/files` | a language file is missing in one language, compared per target directory (as in Joomla, the language tag in front of the file name, `de-DE.mod_example.ini`, is optional) | error | error |
 | `language/keys` | a key is missing in one language | error | error |
 | `language/undefined` | a language constant used in PHP, XML, JS or SQL (outside of comments) is not defined; a constant followed by `.` or `+` must be the start of a defined key, the key of `Text::plural()` may also be defined only with a plural suffix (`_1`, `_MORE` …) | error | error |
-| `language/unused` | a defined constant is not found in the code outside of comments (it may be built at runtime; keys starting with a concatenated constant or with the key of `Text::plural()`, the extension name, the `<name>` of the manifest, template positions and layouts, including layout overrides of templates, are never reported) | notice | notice |
+| `language/unused` | a defined constant is not found in the code outside of comments (it may be built at runtime; keys starting with a concatenated constant or with the key of `Text::plural()`, keys that a literal such as `'_TITLE'` after a variable completes from the prefix of the extension (`$prefix . '_TITLE'`), the extension name, the `<name>` of the manifest, template positions and layouts, including layout overrides of templates, are never reported) | notice | notice |
 | `composer/version-field` | `composer.json` has a `version` field | warning | warning |
 
 The whitespace checks cover the tracked and untracked, not ignored files of

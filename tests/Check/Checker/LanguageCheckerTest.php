@@ -247,6 +247,30 @@ final class LanguageCheckerTest extends TestCase
         ], $this->findings(new LanguageChecker()));
     }
 
+    public function testLiteralAfterConcatenationCompletesPrefixInVariable(): void
+    {
+        $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\n"
+            . "MOD_EXAMPLE_INFORMATION=\"Information\"\nMOD_EXAMPLE_N_ITEMS_HIDDEN=\"%d hidden\"\n"
+            . "MOD_EXAMPLE_N_ITEMS_HIDDEN_X=\"X\"\nMOD_EXAMPLE_MODE_FAST=\"Fast\"\n"
+            . "MOD_EXAMPLE_PART_A=\"A\"\nMOD_EXAMPLE_SAVED=\"Saved\"\nMOD_EXAMPLE_FIELD_DESC=\"Description\"\n";
+        $this->writeFile('language/en-GB/mod_example.ini', $keys);
+        $this->writeFile('language/de-DE/mod_example.ini', $keys);
+        $this->writeFile(
+            'tmpl/default.php',
+            "<?php\necho Text::_('MOD_EXAMPLE_TITLE'), Text::_('MOD_EXAMPLE_TEXT');\n"
+                . "echo Text::_(\$this->t['l'] . '_INFORMATION'), Text::sprintf(\$this->text_prefix.\"_N_ITEMS_HIDDEN\", \$n);\n"
+                . "echo Text::_(\$prefix . '_PART_' . \$part), Text::_('_SAVED'), Text::_(\$field . '_DESC');\n",
+        );
+        $this->writeFile('media/js/site.js', "Joomla.Text._(prefix + '_MODE_FAST');\n");
+
+        self::assertSame([
+            'INFO language/unused: MOD_EXAMPLE_N_ITEMS_HIDDEN_X is defined but not found in the code (may be built at runtime)',
+            'INFO language/unused: MOD_EXAMPLE_PART_A is defined but not found in the code (may be built at runtime)',
+            'INFO language/unused: MOD_EXAMPLE_SAVED is defined but not found in the code (may be built at runtime)',
+            'INFO language/unused: MOD_EXAMPLE_FIELD_DESC is defined but not found in the code (may be built at runtime)',
+        ], $this->findings(new LanguageChecker()));
+    }
+
     public function testPluralKeysHaveSuffixes(): void
     {
         $keys = "MOD_EXAMPLE_TITLE=\"Title\"\nMOD_EXAMPLE_TEXT=\"Text\"\n"

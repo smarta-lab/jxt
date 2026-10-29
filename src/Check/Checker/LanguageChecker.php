@@ -26,7 +26,8 @@ use SmartA\Jxt\PhpErrors;
  * extension (`MOD_X_`, `TPL_X_`, `PLG_GROUP_X_`, `COM_X_`) used in PHP, XML, JS or SQL files outside of
  * comments must be defined, or be the start of a defined key if they are concatenated or used with
  * `Text::plural()`. Defined constants not found in the code are only a notice, as constants may be built at
- * runtime; keys starting with such a literal count as used, keys without the prefix are searched literally, and constants that Joomla uses itself
+ * runtime; keys starting with such a literal or completing the prefix in a variable with a literal (`$prefix .
+ * '_TITLE'`) count as used, keys without the prefix are searched literally, and constants that Joomla uses itself
  * (the extension name, template positions and layouts, including the layout overrides of templates) are never
  * reported.
  */
@@ -58,6 +59,7 @@ final readonly class LanguageChecker implements Checker
         $code = $this->readCode($context);
         $used = $this->usedConstants($code, $prefix);
         $built = $this->builtConstants($code, $prefix);
+        $prefixed = $this->keysFromVariablePrefix($code, $prefix);
 
         foreach ($used as $constant => $files) {
             if (!in_array($constant, $defined, true) && !$this->buildsDefinedKey($built[$constant] ?? null, $defined)) {
@@ -76,6 +78,7 @@ final readonly class LanguageChecker implements Checker
                 !isset($used[$constant])
                 && preg_match($implicit, $constant) !== 1
                 && !array_any($built, static fn(string $pattern): bool => preg_match($pattern, $constant) === 1)
+                && !isset($prefixed[$constant])
                 && (str_starts_with($constant, $prefix) || !$this->containsLiterally($code, $constant))
             ) {
                 $report->add(CheckName::LanguageUnused, Severity::Notice, sprintf(
@@ -262,6 +265,31 @@ final readonly class LanguageChecker implements Checker
         }
 
         return $built;
+    }
+
+    /**
+     * Returns the keys built from the prefix in a variable: a literal that starts with `_` and follows `.` or `+`
+     * (`$this->text_prefix . '_N_ITEMS_HIDDEN'`, `prefix + '_TITLE'`) and is not followed by another
+     * concatenation completes the prefix without its trailing `_` (`COM_X_N_ITEMS_HIDDEN`). Other prefixes in the
+     * variable are not assumed: a generic ending such as `'_DESC'` would mark every key with it as used.
+     *
+     * @param array<string, string> $code Code by file
+     *
+     * @return array<string, true> Keys as array keys
+     */
+    private function keysFromVariablePrefix(array $code, string $prefix): array
+    {
+        $keys = [];
+
+        foreach ($code as $content) {
+            preg_match_all('/[.+]\s*([\'"])(_[A-Z0-9_]*[A-Z0-9])\1(?!\s*[.+])/', $content, $matches);
+
+            foreach ($matches[2] as $ending) {
+                $keys[rtrim($prefix, '_') . $ending] = true;
+            }
+        }
+
+        return $keys;
     }
 
     /**

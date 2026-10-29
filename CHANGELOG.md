@@ -6,6 +6,15 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `jxt check` recognises language keys built from the prefix in a variable:
+  a literal starting with `_` after `.` or `+` (`$this->text_prefix .
+  '_N_ITEMS_HIDDEN'`) completes the prefix of the extension
+  (`COM_X_N_ITEMS_HIDDEN`), and such keys are no longer reported as unused.
+  Other prefixes are not assumed, so `$field . '_DESC'` does not mark every
+  key ending with `_DESC` as used.
+
 ## [0.7.0] - 2026-10-27
 
 ### Changed
