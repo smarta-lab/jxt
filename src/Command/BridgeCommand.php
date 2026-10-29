@@ -120,7 +120,7 @@ final class BridgeCommand extends Command
         if (version_compare($installed, $bundled, '>')) {
             $io->note('The installed bridge is newer, jxt sync uses it. jxt bridge add installs the bundled version.');
         } elseif ($installed !== $bundled) {
-            $io->note('The installed bridge is older, jxt sync updates it to the bundled version.');
+            $io->note('The installed bridge is older, jxt sync updates it to the bundled version. jxt bridge add updates it now.');
         }
 
         return Command::SUCCESS;

@@ -382,11 +382,13 @@ und zu installieren.
   kopiert `jxt sync` die Dateien wie bisher selbst.
 - **Aktualisierung:** Ist die installierte Bridge älter als die mit dem eigenen
   jxt gelieferte, installiert `jxt sync` zuerst die mitgelieferte Version und
-  meldet das. Eine neuere Bridge wird so genutzt, wie sie ist, damit Projekte
-  mit unterschiedlichen jxt-Versionen auf einer Site sie nicht abwechselnd neu
-  installieren. Liest sie den Plan des eigenen jxt nicht mehr, bricht
-  `jxt sync` mit einer Meldung ab; dann jxt im Projekt aktualisieren oder dessen
-  Bridge mit `jxt bridge add` installieren.
+  meldet das; sofort aktualisiert `jxt bridge add`, das die mitgelieferte
+  Version über eine installierte Bridge jeder Version installiert. Eine neuere
+  Bridge wird so genutzt, wie sie ist, damit Projekte mit unterschiedlichen
+  jxt-Versionen auf einer Site sie nicht abwechselnd neu installieren. Liest sie
+  den Plan des eigenen jxt nicht mehr, bricht `jxt sync` mit einer Meldung ab;
+  dann jxt im Projekt aktualisieren oder dessen Bridge mit `jxt bridge add`
+  installieren.
 - **Manifest-Cache:** Nach dem Anwenden frischt die Bridge den Manifest-Cache
   der Erweiterung auf, sodass der Erweiterungsmanager die neue Version zeigt.
 - **Sicherheit:** Die Bridge reagiert nur auf Aufrufe über die Joomla-CLI und

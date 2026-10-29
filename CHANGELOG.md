@@ -8,6 +8,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `jxt bridge status` mentions `jxt bridge add` for an older bridge, which
+  updates it right away instead of with the next `jxt sync`.
 - `jxt check` recognises language keys built from the prefix in a variable:
   a literal starting with `_` after `.` or `+` (`$this->text_prefix .
   '_N_ITEMS_HIDDEN'`) completes the prefix of the extension
