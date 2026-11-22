@@ -6,13 +6,10 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-22
+
 ### Added
 
-- `zip_extras` in `.jxt.json` lists files and directories that `jxt build`
-  and `jxt install` add to the ZIP without the manifest listing them, e.g.
-  `["LICENSE"]`: the Joomla installer ignores them, so a license ships with
-  the extension without being installed on the site, also for components and
-  packages.
 - `jxt build` builds packages (`type="package"`): it finds the manifests of
   the extensions listed in `<files>` in the subdirectories by `type`, `id`,
   `client` and `group`, builds each from its directory and packs them with the
@@ -31,6 +28,11 @@ project follows [Semantic Versioning](https://semver.org/).
 - `jxt sync` syncs each extension of a package after its own build steps and
   points to `jxt install` if the files of the package itself differ from the
   site.
+- `zip_extras` in `.jxt.json` lists files and directories that `jxt build`
+  and `jxt install` add to the ZIP without the manifest listing them, e.g.
+  `["LICENSE"]`: the Joomla installer ignores them, so a license ships with
+  the extension without being installed on the site, also for components and
+  packages.
 
 ### Changed
 
@@ -335,7 +337,8 @@ First public release.
 - `jxt build`: build an installable ZIP file from the manifest.
 - `jxt config`: show and change the global and per-project configuration.
 
-[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/smarta-lab/jxt/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/smarta-lab/jxt/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/smarta-lab/jxt/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/smarta-lab/jxt/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/smarta-lab/jxt/compare/v0.4.1...v0.5.0

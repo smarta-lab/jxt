@@ -7,8 +7,8 @@ below 1.0, each minor version may contain breaking changes.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.7.x   | yes       |
-| < 0.7   | no        |
+| 0.8.x   | yes       |
+| < 0.8   | no        |
 
 ## Reporting a Vulnerability
 
