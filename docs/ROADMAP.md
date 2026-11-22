@@ -8,7 +8,11 @@ Released changes are listed in the [changelog](../CHANGELOG.md).
   script and the language files of the package itself, which `jxt sync` only
   compares with the site so far. This needs a bridge that accepts
   `administrator/manifests/packages/`; it is worth it only if packages with
-  changing language files of their own turn up.
+  changing language files of their own turn up. With such a bridge, two
+  gaps could be closed as well: `jxt install` could check the script
+  directory `administrator/manifests/packages/<packagename>/` for leftovers,
+  and `jxt sync` could refresh the manifest cache of the package itself, so
+  that the extension manager shows its new version without `jxt install`.
 - States of the test site: save the database and files of a test site as a
   snapshot with a description, and restore it with one command, e.g. before
   trying an extension or to go back to a known state after a test. A
