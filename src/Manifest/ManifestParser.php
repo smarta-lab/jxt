@@ -19,6 +19,8 @@ use SmartA\Jxt\Deployment\PlanEntry;
  *
  * Takes `<files>`, `<scriptfile>`, `<languages>`, `<media>` and the manifest file itself
  * into account, for components also `<files>` and `<languages>` in `<administration>` and `<files>` in `<api>`.
+ * For packages, `<files>` lists the extensions of the package (`Manifest::$packageEntries`), which are not part of
+ * the plan.
  * All paths are relative to the extension directory, i.e. the directory of the manifest.
  */
 final class ManifestParser
@@ -112,6 +114,7 @@ final class ManifestParser
             trim((string) $root->name),
             $type === ExtensionType::Template && trim((string) $root->inheritable) === '1',
             $type === ExtensionType::Template && trim((string) $root->parent) !== '' ? trim((string) $root->parent) : null,
+            $type === ExtensionType::Package ? $this->packageEntries($root) : [],
         );
     }
 
@@ -244,7 +247,7 @@ final class ManifestParser
     /**
      * Determines the application area from the attribute `client`; defaults to `site`.
      *
-     * The Joomla installer ignores the attribute for plugins and libraries, which always belong to the site, and
+     * The Joomla installer ignores the attribute for plugins, libraries and packages, which always belong to the site, and
      * for components, which it registers for the administrator.
      */
     private function clientType(SimpleXMLElement $root, ExtensionType $type): ClientType
@@ -255,7 +258,7 @@ final class ManifestParser
             return ClientType::Administrator;
         }
 
-        if ($client === '' || $type === ExtensionType::Plugin || $type === ExtensionType::Library) {
+        if ($client === '' || in_array($type, [ExtensionType::Plugin, ExtensionType::Library, ExtensionType::Package], true)) {
             return ClientType::Site;
         }
 
@@ -272,6 +275,7 @@ final class ManifestParser
      * Plugins: attribute `plugin` of an entry in the first `<files>` as it is, without a fallback.
      * Components: as templates, with the prefix `com_` if it is missing.
      * Libraries: `<libraryname>` as it is, which may contain `/`.
+     * Packages: `<packagename>` with the prefix `pkg_`.
      */
     private function element(SimpleXMLElement $root, ExtensionType $type): string
     {
@@ -283,6 +287,10 @@ final class ManifestParser
 
         if ($type === ExtensionType::Library) {
             return $this->libraryName(trim((string) $root->libraryname));
+        }
+
+        if ($type === ExtensionType::Package) {
+            return 'pkg_' . $this->packageName(trim((string) $root->packagename));
         }
 
         $elementTag = trim((string) $root->element);
@@ -353,6 +361,19 @@ final class ManifestParser
     }
 
     /**
+     * Returns the package name if it is safe as a directory name, which the Joomla installer uses as it is for the
+     * directory of the install script.
+     */
+    private function packageName(string $name): string
+    {
+        if ($name === '') {
+            throw new ManifestException('The package name <packagename> is missing in the manifest.');
+        }
+
+        return $this->validName($name, 'package name');
+    }
+
+    /**
      * Returns the validated plugin group from the attribute `group`, or null for other extension types.
      */
     private function group(SimpleXMLElement $root, ExtensionType $type): ?string
@@ -416,7 +437,8 @@ final class ManifestParser
      * Returns the `<files>` sections with their target directories.
      *
      * Components have one directory each for `<files>` (site), `<administration><files>` and `<api><files>`;
-     * other types only know `<files>`, which goes to the install directory.
+     * other types only know `<files>`, which goes to the install directory, except for packages, whose `<files>`
+     * lists their extensions.
      *
      * @param list<string> $installDirectories Directories of the extension, the install directory first
      *
@@ -424,6 +446,10 @@ final class ManifestParser
      */
     private function fileSections(SimpleXMLElement $root, ExtensionType $type, array $installDirectories): array
     {
+        if ($type === ExtensionType::Package) {
+            return [];
+        }
+
         if ($type !== ExtensionType::Component) {
             return $this->withValue($this->children($root, 'files'), $installDirectories[0]);
         }
@@ -485,6 +511,45 @@ final class ManifestParser
         }
 
         return $entries;
+    }
+
+    /**
+     * Returns the extensions of a package from the first `<files>`, the only section the Joomla installer reads.
+     *
+     * @return list<PackageEntry>
+     */
+    private function packageEntries(SimpleXMLElement $root): array
+    {
+        $files = $this->children($root, 'files')[0] ?? null;
+
+        if ($files === null) {
+            return [];
+        }
+
+        $sourcePrefix = $this->sourcePrefix($files);
+        $entries = [];
+
+        foreach ($files->children() as $child) {
+            $entries[] = new PackageEntry(
+                $sourcePrefix . RelativePath::normalize((string) $child),
+                $this->optionalAttribute($child, 'type'),
+                $this->optionalAttribute($child, 'id'),
+                $this->optionalAttribute($child, 'client'),
+                $this->optionalAttribute($child, 'group'),
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Returns the trimmed value of an attribute, or null if it is missing or empty.
+     */
+    private function optionalAttribute(SimpleXMLElement $element, string $name): ?string
+    {
+        $value = trim((string) $element[$name]);
+
+        return $value === '' ? null : $value;
     }
 
     /**

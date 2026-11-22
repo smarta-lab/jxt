@@ -83,6 +83,7 @@ final class SyncCommand extends Command
             $this->preparation->run($configuration->prepare, $this->projectDirectory, $io, true);
             $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
             $manifest = $this->manifestParser->parseFile($manifestFile);
+            PackageGuard::reject($manifest, 'sync');
             $extensionDirectory = dirname($manifestFile);
             $installedManifest = $joomlaRoot . '/' . $manifest->installedManifest();
 

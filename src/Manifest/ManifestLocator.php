@@ -90,7 +90,7 @@ final class ManifestLocator
     /**
      * Checks whether the file contains well-formed XML with the root element `<extension>`.
      */
-    private function isManifest(string $file): bool
+    public function isManifest(string $file): bool
     {
         $previous = libxml_use_internal_errors(true);
 

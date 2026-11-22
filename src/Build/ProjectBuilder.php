@@ -15,6 +15,7 @@ use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Install\ProcessRunner;
 use SmartA\Jxt\Install\SystemProcessRunner;
 use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Manifest\ExtensionType;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -23,7 +24,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  * Builds the ZIP file of a project from its working copy or from the committed files of a Git tag, for
  * `jxt build` and `jxt install`.
  *
- * The prepare steps run first, before the manifest is located, since they may generate it.
+ * The prepare steps run first, before the manifest is located, since they may generate it. For a package, the
+ * PackageAssembler builds each of its extensions the same way from its own directory.
  */
 final readonly class ProjectBuilder
 {
@@ -36,6 +38,7 @@ final readonly class ProjectBuilder
         private ProcessRunner $processRunner = new SystemProcessRunner(),
         private TagExporter $tagExporter = new TagExporter(),
         private Preparation $preparation = new Preparation(),
+        private PackageAssembler $packageAssembler = new PackageAssembler(),
     ) {
     }
 
@@ -57,6 +60,15 @@ final readonly class ProjectBuilder
         $manifestFile = $this->manifestLocator->locate($projectDirectory, $configuration->manifestFile);
         $manifest = $this->manifestParser->parseFile($manifestFile);
         $extensionDirectory = dirname($manifestFile);
+
+        if ($manifest->type === ExtensionType::Package) {
+            return $this->packageAssembler->build(
+                $manifest,
+                $extensionDirectory,
+                $distDirectory,
+                fn (string $directory, string $childDistDirectory): ProjectBuild => $this->build($directory, $childDistDirectory, $output),
+            );
+        }
 
         return new ProjectBuild(
             $manifest,
@@ -84,6 +96,6 @@ final readonly class ProjectBuilder
             fn (string $directory): ProjectBuild => $this->build($directory, $distDirectory, $output),
         );
 
-        return new ProjectBuild($build->manifest, $build->package, $build->unlisted, $tag);
+        return $build->withTag($tag);
     }
 }

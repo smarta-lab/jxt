@@ -19,6 +19,7 @@
   - [DDEV](#ddev)
   - [Offizielles Joomla-Image](#offizielles-joomla-image)
 - [jxt build – installierbare ZIP-Datei erstellen](#jxt-build--installierbare-zip-datei-erstellen)
+  - [Pakete](#pakete)
 - [Build-Schritte](#build-schritte)
 - [jxt check – vor einem Release prüfen](#jxt-check--vor-einem-release-prüfen)
   - [Git-Tag prüfen](#git-tag-prüfen)
@@ -189,6 +190,13 @@ Bei Templates ist der Template-Ordner zugleich der Ort für im Backend angelegte
 Overrides (`html/`) und für `user.css`/`user.js`. Sie stehen nicht in der
 ZIP-Datei und gelten daher als Altlasten, die `--clean` löscht, wie es auch
 `jxt sync` tut; vorher die Liste eines einfachen `jxt install` prüfen.
+
+Bei einem [Paket](#pakete) installiert `jxt install` das Paket-ZIP mit einem
+Aufruf des Joomla-Installers, damit Joomla die Erweiterungen dem Paket
+zuordnet, und prüft die Altlasten jeder enthaltenen Erweiterung. Einträge, die
+jxt nicht lesen kann (z. B. vom Typ `file`), werden mit einer Warnung
+übersprungen. Der Ordner des Installationsskripts des Pakets
+(`administrator/manifests/packages/<packagename>/`) wird nicht geprüft.
 
 ### Einrichtung: sudo ohne Passwort für den Joomla-Installer
 
@@ -545,6 +553,41 @@ trotzdem.
 
 Erzeugt das Projekt zuerst Dateien, stehen die Befehle unter `prepare` (siehe
 [Build-Schritte](#build-schritte)); `jxt build` führt sie vor dem Bauen aus.
+
+### Pakete
+
+Ist das Manifest ein Paketmanifest (`type="package"`), erstellt `jxt build`
+`dist/pkg_<packagename>-<version>.zip` mit dem Paketmanifest, seinem
+`<scriptfile>` und `<languages>` sowie den in `<files>` genannten
+Erweiterungen:
+
+```xml
+<files folder="dist">
+    <file type="component" id="com_example">com_example-1.0.0.zip</file>
+    <file type="plugin" id="example" group="system">plg_system_example-1.0.0.zip</file>
+</files>
+```
+
+jxt sucht die Manifeste der Erweiterungen in den Unterordnern des Pakets (bis
+zu drei Ebenen; nicht in versteckten Ordnern, `dist`, dem Zielordner,
+`vendor`, `node_modules` und `tests`) und ordnet sie über `type`, `id`,
+`client` (Module, Templates) und `group` (Plugins) zu, die Attribute, mit
+denen Joomla die Erweiterungen eines Pakets deinstalliert. Jede Erweiterung
+wird aus ihrem Ordner mit ihrer eigenen `.jxt.json` und ihren Build-Schritten
+gebaut. Ein Eintrag mit der Endung `.zip` erhält das ZIP der Erweiterung unter
+dem Namen des Eintrags, jeder andere Eintrag ihre entpackten Dateien. Die ZIPs
+der Erweiterungen landen nur im Paket, nicht im Zielordner.
+
+Ein Eintrag ohne passendes Manifest wird unverändert übernommen, wenn die Datei
+oder der Ordner existiert, z. B. das ZIP eines anderen Anbieters. Ein Fehler
+ist es, wenn kein Manifest passt und die Datei fehlt, wenn ein Manifest nur in
+`client` oder `group` abweicht oder wenn mehrere Manifeste passen. jxt warnt,
+wenn ein ZIP-Eintrag weder wie das ZIP seiner Erweiterung noch ohne Version
+(`com_example.zip`) heißt, z. B. nach einer neuen Version der Erweiterung.
+
+`jxt install` installiert Pakete (siehe [Altlasten](#altlasten)); `jxt sync`
+und `jxt check` unterstützen sie noch nicht und laufen im Ordner jeder
+einzelnen Erweiterung.
 
 ## Build-Schritte
 

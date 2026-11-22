@@ -17,11 +17,13 @@ use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\EntryKind;
-use SmartA\Jxt\Deployment\PackagePlanExpander;
 use SmartA\Jxt\Install\InstallException;
 use SmartA\Jxt\Install\InstallerOutput;
 use SmartA\Jxt\Install\JoomlaInstaller;
 use SmartA\Jxt\Install\ProcessResult;
+use SmartA\Jxt\Install\ZipContent;
+use SmartA\Jxt\Install\ZipContentReader;
+use SmartA\Jxt\Install\ZipExtension;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestException;
@@ -49,7 +51,9 @@ use Symfony\Component\Console\Terminal;
  * without prepare steps.
  *
  * Afterwards it reports leftovers: entries in the exclusive directories of the extension that the installed ZIP
- * file does not contain, since the Joomla installer does not remove files from listed folders. The ZIP file is
+ * file does not contain, since the Joomla installer does not remove files from listed folders. A package is
+ * installed with one call, so that Joomla links its extensions to it; the leftovers are checked for each of its
+ * extensions. The ZIP file is
  * the only reliable record of what was installed, so there is no separate command for this. With `--clean`, the
  * leftovers are deleted like the deletions of `jxt sync`: via the jxt bridge if it is installed, otherwise with
  * the developer's own permissions.
@@ -71,7 +75,7 @@ final class InstallCommand extends Command
         ?ProjectBuilder $projectBuilder = null,
         private readonly PackageManifestReader $packageManifestReader = new PackageManifestReader(),
         private readonly ManifestParser $manifestParser = new ManifestParser(),
-        private readonly PackagePlanExpander $packagePlanExpander = new PackagePlanExpander(),
+        private readonly ZipContentReader $zipContentReader = new ZipContentReader(),
         private readonly LeftoverFinder $leftoverFinder = new LeftoverFinder(),
         private readonly SyncExecutor $executor = new SyncExecutor(),
         private readonly Bridge $bridge = new Bridge(),
@@ -128,7 +132,11 @@ final class InstallCommand extends Command
                 ? $this->existingPackage($zip)
                 : $this->newPackage($io, $configuration, is_string($tag) ? $tag : null);
 
-            $previous = $this->installedManifest($manifest, $joomlaRoot);
+            $content = $this->zipContent($manifest, $packagePath);
+            $previous = is_string($content) ? [] : array_map(
+                fn (ZipExtension $extension): ?Manifest => $this->installedManifest($extension->manifest, $joomlaRoot),
+                $content->extensions,
+            );
 
             $io->writeln(sprintf('<info>%s</info> → %s%s', basename($packagePath), $joomlaRoot, SiteOption::describe($configuration)));
             $result = $this->installer->install($packagePath, $site);
@@ -147,7 +155,7 @@ final class InstallCommand extends Command
         }
 
         $clean = (bool) $input->getOption('clean');
-        $removed = $this->handleLeftovers($io, $manifest, $previous ?? $manifest, $packagePath, $site, $clean);
+        $removed = $this->handleLeftovers($io, $content, $previous, $site, $clean);
 
         if ($removed === null) {
             return Command::FAILURE;
@@ -218,42 +226,108 @@ final class InstallCommand extends Command
     }
 
     /**
-     * Finds the leftovers of the installed ZIP file on the site and lists them with a hint on `--clean`, or deletes
-     * them with `--clean`.
+     * Reads the extensions of the ZIP file before installing it, so that their installed manifests can be read
+     * first; returns the error message if that fails.
+     */
+    private function zipContent(Manifest $manifest, string $packagePath): ZipContent|string
+    {
+        try {
+            return $this->zipContentReader->read($manifest, $packagePath);
+        } catch (JxtException $exception) {
+            return $exception->getMessage();
+        }
+    }
+
+    /**
+     * Finds the leftovers of the extensions of the installed ZIP file on the site and lists them with a hint on
+     * `--clean`, or deletes them with `--clean`.
+     *
+     * @param ZipContent|string    $content  Extensions of the ZIP file, or the error message if they are unknown
+     * @param list<Manifest|null>  $previous Manifest installed before per extension, null if there was none
      *
      * @return int|null Number of removed entries (a leftover directory counts once), or null if deleting failed
      */
     private function handleLeftovers(
         SymfonyStyle $io,
-        Manifest $manifest,
-        Manifest $previous,
-        string $packagePath,
+        ZipContent|string $content,
+        array $previous,
         TestSite $site,
         bool $clean,
     ): ?int {
-        try {
-            $files = $this->packagePlanExpander->expand($manifest->plan, $packagePath);
-            $leftovers = $this->leftoverFinder->find($manifest, $previous, $files, $site->joomlaRoot);
-        } catch (JxtException $exception) {
-            $io->warning('Cannot check for leftovers: ' . $exception->getMessage());
+        if (is_string($content)) {
+            $io->warning('Cannot check for leftovers: ' . $content);
 
             return 0;
         }
 
-        $topLevel = $this->leftoverFinder->topLevel($leftovers);
+        foreach ($content->skipped as $entry => $reason) {
+            $io->warning(sprintf('Cannot check for leftovers of %s: %s.', $entry, $reason));
+        }
 
-        if ($topLevel === []) {
+        $found = $this->findLeftovers($io, $content->extensions, $previous, $site->joomlaRoot);
+
+        if ($found === []) {
             return 0;
         }
 
         if (!$clean) {
-            $io->warning(implode("\n", ['Not removed by the Joomla installer:', ...array_map($this->label(...), $topLevel)]));
+            $labels = array_merge(...array_map(
+                fn (array $leftovers): array => array_map($this->label(...), $leftovers[2]),
+                $found,
+            ));
+            $io->warning(implode("\n", ['Not removed by the Joomla installer:', ...$labels]));
             $io->note('They no longer belong to the extension. jxt install --clean removes them.');
 
             return 0;
         }
 
-        return $this->removeLeftovers($io, $manifest, $leftovers, $topLevel, $site) ? count($topLevel) : null;
+        $removed = 0;
+
+        foreach ($found as [$manifest, $leftovers, $topLevel]) {
+            if (!$this->removeLeftovers($io, $manifest, $leftovers, $topLevel, $site)) {
+                return null;
+            }
+
+            $removed += count($topLevel);
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Returns the leftovers per extension that has any: its manifest, all entries to delete and the entries to list.
+     *
+     * @param list<ZipExtension>  $extensions
+     * @param list<Manifest|null> $previous
+     *
+     * @return list<array{Manifest, list<Deletion>, list<Deletion>}>
+     */
+    private function findLeftovers(SymfonyStyle $io, array $extensions, array $previous, string $joomlaRoot): array
+    {
+        $found = [];
+
+        foreach ($extensions as $index => $extension) {
+            try {
+                $leftovers = $this->leftoverFinder->find(
+                    $extension->manifest,
+                    $previous[$index] ?? $extension->manifest,
+                    $extension->files,
+                    $joomlaRoot,
+                );
+            } catch (JxtException $exception) {
+                $io->warning('Cannot check for leftovers: ' . $exception->getMessage());
+
+                continue;
+            }
+
+            $topLevel = $this->leftoverFinder->topLevel($leftovers);
+
+            if ($topLevel !== []) {
+                $found[] = [$extension->manifest, $leftovers, $topLevel];
+            }
+        }
+
+        return $found;
     }
 
     /**

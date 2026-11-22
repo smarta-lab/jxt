@@ -506,6 +506,80 @@ final class InstallCommandTest extends TestCase
         self::assertStringNotContainsString('Not removed', self::display($tester));
     }
 
+    public function testInstallsAPackageWithOneCallOfTheInstaller(): void
+    {
+        $this->writePackageProject();
+        $runner = new RecordingProcessRunner(new ProcessResult(0, '[OK] Extension installed successfully.'));
+        $tester = $this->tester($runner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame('extension:install', $runner->command[6]);
+        self::assertStringEndsWith('pkg_x-1.0.0.zip', $runner->command[7]);
+        self::assertFileExists($this->temporaryDirectory . '/project/dist/pkg_x-1.0.0.zip');
+        self::assertStringContainsString('pkg_x 1.0.0 installed', self::display($tester));
+    }
+
+    public function testReportsLeftoversOfTheExtensionsOfAPackage(): void
+    {
+        $this->writePackageProject();
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('Not removed by the Joomla installer: modules/mod_x/tmpl/old.php', self::display($tester));
+    }
+
+    public function testCleanDeletesLeftoversOfTheExtensionsOfAPackage(): void
+    {
+        $this->writePackageProject();
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/old.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--clean' => true]));
+        self::assertStringContainsString('pkg_x 1.0.0 installed, 1 leftover removed', self::display($tester));
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/default.php');
+    }
+
+    public function testChecksTheExtensionsOfAnExistingPackageZip(): void
+    {
+        $this->writeZip('module.zip', self::MANIFEST);
+        $zip = new ZipArchive();
+        $zip->open($this->temporaryDirectory . '/pkg_x.zip', ZipArchive::CREATE);
+        $zip->addFromString('pkg_x.xml', self::packageManifest(
+            '<file type="module" id="mod_x" client="site">mod_x.zip</file><file type="file" id="files_x">files_x.zip</file>',
+        ));
+        $zip->addFile($this->temporaryDirectory . '/module.zip', 'packages/mod_x.zip');
+        $zip->close();
+        $this->writeInstalledExtension(self::MANIFEST);
+        $this->writeFile('joomla/modules/mod_x/tmpl/extra.php');
+        $tester = $this->tester(new RecordingProcessRunner(new ProcessResult(0, '')));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--zip' => $this->temporaryDirectory . '/pkg_x.zip']));
+        self::assertStringContainsString('Cannot check for leftovers of packages/files_x.zip: missing in the package.', self::display($tester));
+        self::assertStringContainsString('Not removed by the Joomla installer: modules/mod_x/tmpl/extra.php', self::display($tester));
+    }
+
+    /**
+     * Turns the project into a package with `mod_x` in the subdirectory `module/`.
+     */
+    private function writePackageProject(): void
+    {
+        rename($this->temporaryDirectory . '/project/mod_x.xml', $this->temporaryDirectory . '/project/module.xml.tmp');
+        mkdir($this->temporaryDirectory . '/project/module');
+        rename($this->temporaryDirectory . '/project/module.xml.tmp', $this->temporaryDirectory . '/project/module/mod_x.xml');
+        rename($this->temporaryDirectory . '/project/tmpl', $this->temporaryDirectory . '/project/module/tmpl');
+        $this->writeFile('project/pkg_x.xml', self::packageManifest('<file type="module" id="mod_x" client="site">mod_x.zip</file>'));
+    }
+
+    private static function packageManifest(string $entries): string
+    {
+        return '<extension type="package" method="upgrade"><name>pkg_x</name><packagename>x</packagename>'
+            . '<version>1.0.0</version><files folder="packages">' . $entries . '</files></extension>';
+    }
+
     /**
      * Writes the installed manifest and the template file of `mod_x` to the Joomla directory.
      */

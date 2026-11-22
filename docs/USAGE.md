@@ -19,6 +19,7 @@
   - [DDEV](#ddev)
   - [Official Joomla image](#official-joomla-image)
 - [jxt build – build an installable ZIP](#jxt-build--build-an-installable-zip)
+  - [Packages](#packages)
 - [Build steps](#build-steps)
 - [jxt check – check before a release](#jxt-check--check-before-a-release)
   - [Checking a Git tag](#checking-a-git-tag)
@@ -183,6 +184,13 @@ For templates, the template directory is also the place of overrides created in
 the backend (`html/`) and of `user.css`/`user.js`. They are not part of the ZIP
 file and therefore count as leftovers, which `--clean` deletes, as `jxt sync`
 does; check the list of a plain `jxt install` first.
+
+For a [package](#packages), `jxt install` installs the package ZIP with one
+call of the Joomla installer, so that Joomla links the extensions to the
+package, and checks the leftovers of each extension in it. Entries that jxt
+cannot read (e.g. of the type `file`) are skipped with a warning. The
+directory of the package's install script
+(`administrator/manifests/packages/<packagename>/`) is not checked.
 
 ### Setup: sudo without password for the Joomla installer
 
@@ -528,6 +536,40 @@ prefix), jxt warns but still builds the ZIP.
 
 If the project generates files first, list the commands under `prepare` (see
 [Build steps](#build-steps)); `jxt build` runs them before building.
+
+### Packages
+
+If the manifest is a package manifest (`type="package"`), `jxt build` creates
+`dist/pkg_<packagename>-<version>.zip` with the package manifest, its
+`<scriptfile>` and `<languages>`, and the extensions listed in `<files>`:
+
+```xml
+<files folder="dist">
+    <file type="component" id="com_example">com_example-1.0.0.zip</file>
+    <file type="plugin" id="example" group="system">plg_system_example-1.0.0.zip</file>
+</files>
+```
+
+jxt looks for the manifests of the extensions in the subdirectories of the
+package (up to three levels; not in hidden directories, `dist`, the output
+directory, `vendor`, `node_modules` and `tests`) and assigns them by `type`,
+`id`, `client` (modules, templates) and `group` (plugins), the attributes
+Joomla uses to uninstall the extensions of a package. Each extension is built
+from its directory with its own `.jxt.json` and build steps. An entry ending in
+`.zip` gets the ZIP of the extension under the name of the entry, any other
+entry its unpacked files. The ZIPs of the extensions only end up in the
+package, not in the output directory.
+
+An entry without a matching manifest is taken as it is if the file or
+directory exists, e.g. the ZIP of another vendor. It is an error if no
+manifest matches and the file does not exist, if a manifest differs only in
+`client` or `group`, or if several manifests match. jxt warns if a ZIP entry
+is named neither like the ZIP of its extension nor without a version
+(`com_example.zip`), e.g. after a new version of the extension.
+
+`jxt install` installs packages (see [Leftovers](#leftovers)); `jxt sync` and
+`jxt check` do not support them yet, run them in the directory of each
+extension.
 
 ## Build steps
 

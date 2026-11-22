@@ -6,6 +6,20 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `jxt build` builds packages (`type="package"`): it finds the manifests of
+  the extensions listed in `<files>` in the subdirectories by `type`, `id`,
+  `client` and `group`, builds each from its directory and packs them with the
+  package manifest, `<scriptfile>` and `<languages>` into
+  `dist/pkg_<packagename>-<version>.zip`. An entry without a manifest is taken
+  as it is if the file exists.
+- `jxt install` installs packages with one call of the Joomla installer, so
+  that Joomla links the extensions to the package, and checks the leftovers
+  of each extension in the package ZIP, also with `--zip`. `jxt sync` and
+  `jxt check` reject package manifests for now instead of failing on the
+  unknown type.
+
 ### Changed
 
 - `jxt bridge status` mentions `jxt bridge add` for an older bridge, which

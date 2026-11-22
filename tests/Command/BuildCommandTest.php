@@ -161,6 +161,28 @@ final class BuildCommandTest extends TestCase
         self::assertStringContainsString('media/svg/', self::display($tester));
     }
 
+    public function testBuildsAPackageAndListsItsExtensions(): void
+    {
+        $this->writeFile('pkg_x.xml', <<<'XML'
+            <extension type="package"><name>pkg_x</name><packagename>x</packagename><version>1.0.0</version>
+                <files folder="dist"><file type="module" id="mod_x" client="site">mod_x-0.9.0.zip</file></files>
+            </extension>
+            XML);
+        $this->writeFile('module/mod_x.xml', self::manifest('1.0.0'));
+        $this->writeFile('module/tmpl/default.php', '<?php');
+
+        $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertFileExists($this->project . '/dist/pkg_x-1.0.0.zip');
+        self::assertStringContainsString(
+            'dist/mod_x-0.9.0.zip contains mod_x 1.0.0, whose ZIP file is named mod_x-1.0.0.zip.',
+            self::display($tester),
+        );
+        self::assertStringContainsString('* mod_x 1.0.0 (2 files)', self::display($tester));
+        self::assertStringContainsString('Created dist/pkg_x-1.0.0.zip (2 files).', self::display($tester));
+    }
+
     public function testReportsErrorsWithoutStackTrace(): void
     {
         $tester = new CommandTester(new BuildCommand($this->project, new ConfigurationLoader(null)));

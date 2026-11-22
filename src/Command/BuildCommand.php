@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Build\Preparation;
+use SmartA\Jxt\Build\ProjectBuild;
 use SmartA\Jxt\Build\ProjectBuilder;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\JxtException;
@@ -77,7 +78,12 @@ final class BuildCommand extends Command
             $io->warning(implode("\n", ['Not listed in the manifest, therefore not in the ZIP:', ...$build->unlisted]));
         }
 
+        foreach ($build->warnings as $warning) {
+            $io->warning($warning);
+        }
+
         TagWarning::show($io, $build);
+        $this->listExtensions($io, $build);
 
         $io->success(sprintf(
             'Created %s%s (%d files).',
@@ -87,6 +93,26 @@ final class BuildCommand extends Command
         ));
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Lists the extensions contained in a package.
+     */
+    private function listExtensions(SymfonyStyle $io, ProjectBuild $build): void
+    {
+        if ($build->children === []) {
+            return;
+        }
+
+        $io->writeln('Extensions in the package:');
+        $io->listing(array_map(
+            static fn (ProjectBuild $child): string => sprintf(
+                '%s (%d files)',
+                trim($child->manifest->name() . ' ' . ($child->manifest->version ?? '')),
+                $child->package->fileCount,
+            ),
+            $build->children,
+        ));
     }
 
     /**

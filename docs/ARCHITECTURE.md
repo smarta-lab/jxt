@@ -14,6 +14,7 @@
 - [Leftovers after an installation](#leftovers-after-an-installation)
 - [Building and checking a tag](#building-and-checking-a-tag)
 - [Build steps](#build-steps)
+- [Packages](#packages)
 - [Checks: design decisions](#checks-design-decisions)
   - [EditorConfig parser](#editorconfig-parser)
 - [Code structure](#code-structure)
@@ -77,8 +78,8 @@ written:
   The name does not contain "Joomla" so that it is not mistaken for an official
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
-  `client`), templates, plugins, components and libraries. Packages (`pkg_`)
-  consist of several manifests and are not supported yet; the type `file` is
+  `client`), templates, plugins, components and libraries; packages (`pkg_`)
+  for `jxt build` and `jxt install` so far (see [Packages](#packages)). The type `file` is
   not supported, since it may install files anywhere, which contradicts the
   exclusive directories that `jxt sync` deletes in and the targets the bridge
   accepts.
@@ -690,6 +691,74 @@ minified files, a manifest with the version filled in). The project setting
   the version differs between projects; environment variables for the steps.
   All of them could be added later without breaking anything.
 
+## Packages
+
+Decided on 2026-11-22 (first package of our own: `pkg_cookieconsent`, with a
+component and a plugin in subdirectories). A package has a manifest of its
+own (`type="package"`) and lists its extensions in `<files>`, often in the
+same repository.
+
+**Joomla 6** (`PackageAdapter`): the element is `pkg_` plus `<packagename>`.
+The manifest goes to `administrator/manifests/packages/` under its own file
+name, but uninstalling reads `<element>.xml` there, so the file should be
+named `pkg_<packagename>.xml`. The install script goes to
+`administrator/manifests/packages/<packagename>/`, the language files to the
+site. Of `<files>`, only the first section counts; each entry is installed
+from a directory if it is one, otherwise unpacked. Uninstalling finds the
+extensions by the attributes `type`, `id`, `client` (modules, templates) and
+`group` (plugins), not by the file name.
+
+- **The package manifest is the project:** jxt finds it like any other
+  manifest, so `manifest` stays a single file and no key was added. Its plan
+  holds the manifest, `<scriptfile>` and `<languages>`; the entries of
+  `<files>` are build results, not sources, and the `folder` of `<files>`
+  (e.g. `dist`) is only a path inside the ZIP. A license file of the package
+  cannot be listed there, and jxt does not add unlisted files; it belongs in
+  the `<files>` of each extension, which also installs it with them (the
+  packages of weblinks and Atomic ship none at all).
+- **Children found automatically:** jxt looks for manifests in the
+  subdirectories of the package (up to three levels, without hidden
+  directories, `dist`, the output directory, `vendor`, `node_modules` and
+  `tests`; only XML files with the root element `<extension>`) and assigns them
+  to the entries by `type`, `id`, `client` and `group`, the attributes Joomla
+  relies on when uninstalling. An entry whose manifest differs only in
+  `client` or `group` is an error, as is an entry that two manifests match.
+  An entry without a manifest is taken as it is if the file or directory
+  exists (a ZIP of another vendor, the result of a prepare step), otherwise it
+  is an error. Rejected for now: a mapping in `.jxt.json` (a second list next
+  to the manifest that would have to be compared with it; can be added if the
+  search is ambiguous) and a workspace of several projects (`projects`, which
+  does not solve the package and needs output and exit codes across projects;
+  nobody asked for it).
+- **Children built as projects:** each child is built from its directory
+  with its own `.jxt.json` and prepare steps, into a temporary directory. The
+  entry decides the form: a name ending in `.zip` gets the ZIP, any other name
+  the unpacked files, under the name of the entry. jxt warns if a ZIP entry is
+  named neither like the ZIP of the child (`com_example-1.2.0.zip`) nor
+  without a version (`com_example.zip`), which catches an outdated version in
+  the name. jxt does not compare the versions of package and children: Joomla
+  does not require them to match.
+- **Only the package in the output directory:** the children's ZIPs are not
+  kept, since a release offers the package and outdated ZIPs with versions in
+  their names would pile up. `jxt build` in the directory of a child still
+  builds that child alone.
+- **Installing:** one call of the Joomla installer for the package ZIP;
+  installing the children one by one would leave `package_id` unset. The
+  leftovers are checked per child, read from the installed package ZIP
+  (`ZipContentReader`), so `--zip` works the same; with `--clean` and the
+  bridge, each child gets a plan of its own, since a plan names one
+  extension. Entries jxt cannot read (type `file`, a package in a package)
+  are skipped with a warning. The script directory of the package
+  (`administrator/manifests/packages/<packagename>/`) is not checked: the
+  bridge does not accept it, and Joomla only copies the script there (added
+  2026-11-22).
+- **Next steps:** `jxt check` with project checks (changelog, Composer,
+  EditorConfig) once and the checks of each extension per child, plus the
+  package entries; `jxt sync` of all children, and of the package's own
+  files only with a bridge that accepts `administrator/manifests/packages/`.
+  Until then these commands reject a package manifest, and each child can be
+  synced and checked from its own directory.
+
 ## Checks: design decisions
 
 `jxt check` only runs checks that hold for any extension or derive their
@@ -823,13 +892,17 @@ Namespaces below `SmartA\Jxt`:
   `Manifest` (type, client, element, version, `DeploymentPlan`,
   `InstallerMetadata`); `PackageManifestReader` reads the manifest of an
   existing ZIP (`jxt install --zip`); `RelativePath` validates paths.
+  `PackageEntry` is an entry of `<files>` of a package manifest,
+  `ChildManifestFinder` finds the manifests of its extensions
+  (`ChildManifestSearch`, `ChildManifest`).
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
   directories into files, `PackagePlanExpander` into the files of a ZIP;
   `UnlistedSourceFinder` finds files missing from the manifest.
 - **`Build`:** `ProjectBuilder` builds the ZIP of the project from the working
   copy or a Git tag (`ProjectBuild`) for `jxt build` and `jxt install`;
-  `PackageBuilder` creates the ZIP, `TagExporter` exports a tag into a
-  temporary directory. `Preparation` runs the prepare steps through a
+  `PackageBuilder` creates the ZIP, `PackageAssembler` builds the
+  extensions of a package and the package ZIP, `TagExporter` exports a tag
+  into a `TemporaryDirectory`. `Preparation` runs the prepare steps through a
   `StepRunner` (`SystemStepRunner`: `proc_open` in the project directory,
   output passed through or collected), also for `jxt check` and `jxt sync`.
 - **`Git`:** `GitRepository` reads tags, files and file states and archives
@@ -838,6 +911,8 @@ Namespaces below `SmartA\Jxt`:
   user via sudo or via `cli_command`, through a `ProcessRunner`
   (`SystemProcessRunner` uses `proc_open` without a shell); `JoomlaInstaller`
   hands it the ZIP; `CommandLine` formats commands for the output.
+  `ZipContentReader` reads the extensions of a ZIP (`ZipContent`,
+  `ZipExtension`), for a package those of its entries, for the leftover check.
 - **`Site`:** `TestSite` describes the test site: directory, web server user,
   `cli_command` and `cli_root`, with the translation of paths and the staging
   directory for the Joomla CLI.

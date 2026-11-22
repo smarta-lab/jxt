@@ -21,6 +21,7 @@ enum ExtensionType: string
     case Plugin = 'plugin';
     case Component = 'component';
     case Library = 'library';
+    case Package = 'package';
 
     /**
      * Returns the install directory of the extension relative to the Joomla root directory.
@@ -28,7 +29,8 @@ enum ExtensionType: string
      * It receives the install script and, except for libraries, the manifest. Plugins are always installed in
      * `plugins/<group>/<element>`, regardless of the client; for components it is the administrator directory
      * `administrator/components/<element>`, the base of the SQL files as well; libraries go to
-     * `libraries/<element>`, where the element may contain `/`.
+     * `libraries/<element>`, where the element may contain `/`; for packages `administrator/manifests/packages/<name>`,
+     * the package name without the prefix `pkg_` of the element, which only receives the install script.
      *
      * @param string|null $group Plugin group (attribute `group` in the manifest), null for other types
      */
@@ -40,6 +42,7 @@ enum ExtensionType: string
             self::Plugin => 'plugins/' . ($group ?? throw new LogicException('A plugin needs a group.')) . '/' . $element,
             self::Component => 'administrator/components/' . $element,
             self::Library => 'libraries/' . $element,
+            self::Package => 'administrator/manifests/packages/' . substr($element, strlen('pkg_')),
         };
     }
 
@@ -47,16 +50,19 @@ enum ExtensionType: string
      * Returns the path of the installed manifest relative to the Joomla root directory.
      *
      * The Joomla installer copies the manifest into the install directory, except for libraries: their manifest
-     * goes to `administrator/manifests/libraries/<element>.xml`, renamed after the element.
+     * goes to `administrator/manifests/libraries/<element>.xml`, renamed after the element, and except for packages:
+     * their manifest goes to `administrator/manifests/packages/` under its own file name.
      *
      * @param string      $fileName File name of the manifest in the extension directory
      * @param string|null $group    Plugin group (attribute `group` in the manifest), null for other types
      */
     public function manifestTarget(ClientType $client, string $element, string $fileName, ?string $group = null): string
     {
-        return $this === self::Library
-            ? 'administrator/manifests/libraries/' . $element . '.xml'
-            : $this->installDirectory($client, $element, $group) . '/' . $fileName;
+        return match ($this) {
+            self::Library => 'administrator/manifests/libraries/' . $element . '.xml',
+            self::Package => 'administrator/manifests/packages/' . $fileName,
+            default => $this->installDirectory($client, $element, $group) . '/' . $fileName,
+        };
     }
 
     /**

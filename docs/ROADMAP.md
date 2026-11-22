@@ -4,16 +4,11 @@ Released changes are listed in the [changelog](../CHANGELOG.md).
 
 ## Ideas
 
-- Packages (`pkg_`): a package has a manifest of its own and one per
-  extension, often in one repository. The plan is to treat the package
-  manifest as the project: jxt finds the manifests of the extensions in the
-  subdirectories by the `type`, `id`, `client` and `group` of its entries,
-  builds their ZIPs and the package ZIP, installs the package with one call
-  of the Joomla installer, syncs each extension and checks that the entries
-  match the extensions, which Joomla relies on when uninstalling. `manifest`
-  stays a single file and may name the package manifest, so this can be added
-  without changing the configuration. Until then, each extension of a package
-  can be built, installed and synced from its own directory.
+- Packages (`pkg_`): `jxt build` and `jxt install` support packages. Still
+  to come: syncing each extension, and checking the project once and each
+  extension with the entries of the package, which Joomla relies on when
+  uninstalling. Until then, each extension of a package can be synced and
+  checked from its own directory.
 - States of the test site: save the database and files of a test site as a
   snapshot with a description, and restore it with one command, e.g. before
   trying an extension or to go back to a known state after a test. A

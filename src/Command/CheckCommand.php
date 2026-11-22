@@ -189,6 +189,7 @@ final class CheckCommand extends Command
         $this->preparation->run($configuration->prepare, $directory, $output);
         $manifestFile = $this->manifestLocator->locate($directory, $configuration->manifestFile);
         $manifest = $this->manifestParser->parseFile($manifestFile);
+        PackageGuard::reject($manifest, 'check');
         $release = (bool) $input->getOption('release');
         $context = $git !== null && $tag !== null
             ? $this->contextFactory->createForTag($directory, $manifestFile, $manifest, $release, $git, $tag)
