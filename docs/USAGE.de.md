@@ -592,8 +592,37 @@ Pakets und jeder Erweiterung sowie die Einträge des Pakets (Gruppe `package`).
 `jxt sync` überträgt jede Erweiterung nach ihren eigenen Build-Schritten; die
 Dateien des Pakets selbst (Manifest, Installationsskript, Sprachdateien), die
 Joomla nur beim Installieren und Deinstallieren des Pakets nutzt, kopiert es
-nicht, verweist aber auf `jxt install`, wenn sie von der Site abweichen. Im
-Ordner einer Erweiterung arbeiten alle Befehle nur für diese Erweiterung.
+nicht, verweist aber auf `jxt install`, wenn sie von der Site abweichen.
+
+#### Arbeiten im Ordner einer Erweiterung
+
+Im Ordner einer Erweiterung eines Pakets arbeiten alle Befehle nur für diese
+Erweiterung, wie bei einer Erweiterung ohne Paket:
+
+- **Konfiguration:** jxt liest nur die `.jxt.json` dieses Ordners, nicht die
+  des Pakets; Einstellungen wie `prepare`, `dist_dir` oder `check_exclude` des
+  Pakets gelten nicht. `jxt build` und `jxt install` legen das ZIP in `dist/`
+  der Erweiterung ab, das die `.gitignore` ebenfalls erfassen sollte (z. B.
+  `/component/dist/` neben `/dist/`).
+- **`jxt sync`:** ohne Einschränkungen; nur der Vergleich der Dateien des
+  Pakets selbst fehlt.
+- **`jxt install`:** Ein Update einer Erweiterung, die mit dem Paket
+  installiert wurde, behält ihre Zuordnung zum Paket, denn Joomla setzt sie
+  nur beim Installieren des Pakets. Eine Erweiterung, die zum ersten Mal
+  einzeln installiert wird, gehört bis zur nächsten Installation des Pakets
+  zu keinem Paket. Das Installationsskript des Pakets läuft nicht, und sein
+  Manifest und seine Sprachdateien werden nicht aktualisiert; für eine
+  Erstinstallation oder zum Testen des Skripts daher das Paket installieren.
+  Mit `--tag` nennt der Tag die Version des Pakets; weicht die Version der
+  Erweiterung ab, warnt jxt, baut das ZIP aber trotzdem.
+- **`jxt check`:** sieht `CHANGELOG.md` und `composer.json` des Pakets nicht,
+  daher entfallen die Changelog-Prüfungen mit einem Hinweis, und mit `--tag`
+  meldet `manifest/tag-version` einen Fehler, wenn der Tag nicht die Version
+  der Erweiterung nennt.
+  Ein Release im Ordner des Pakets prüfen.
+
+Kurz: `jxt sync` im Ordner einer Erweiterung eignet sich für die tägliche
+Arbeit; installieren und prüfen im Ordner des Pakets.
 
 ## Build-Schritte
 

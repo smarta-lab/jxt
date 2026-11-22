@@ -574,8 +574,36 @@ package and of each extension, and the entries of the package (group
 `package`). `jxt sync` syncs each extension after its own build steps; it does
 not copy the files of the package itself (manifest, install script, language
 files), which Joomla only uses when installing and uninstalling the package,
-but points to `jxt install` if they differ from the site. In the directory of
-an extension, all commands work for that extension alone.
+but points to `jxt install` if they differ from the site.
+
+#### Working in the directory of an extension
+
+In the directory of an extension of a package, all commands work for that
+extension alone, as for an extension without a package:
+
+- **Configuration:** jxt reads only the `.jxt.json` of that directory, not the
+  one of the package; settings such as `prepare`, `dist_dir` or
+  `check_exclude` of the package do not apply. `jxt build` and `jxt install`
+  create the ZIP in `dist/` of the extension, which `.gitignore` should cover
+  as well (e.g. `/component/dist/` next to `/dist/`).
+- **`jxt sync`:** works without restrictions; only the comparison of the
+  package's own files is missing.
+- **`jxt install`:** updating an extension that was installed with the
+  package keeps its assignment to the package, since Joomla only sets it when
+  installing the package. An extension installed on its own for the first
+  time belongs to no package until the next installation of the package. The
+  install script of the package does not run, and its manifest and language
+  files are not updated, so install the package for a first installation or
+  to test its script. With `--tag`, the tag names the version of the package;
+  if the version of the extension differs, jxt warns but builds the ZIP.
+- **`jxt check`:** does not see `CHANGELOG.md` and `composer.json` of the
+  package, so the changelog checks are skipped with a notice, and with
+  `--tag`, `manifest/tag-version` reports an error if the tag does not name
+  the version of the extension.
+  Check a release in the directory of the package.
+
+In short: `jxt sync` in the directory of an extension is fine for everyday
+work; install and check in the directory of the package.
 
 ## Build steps
 

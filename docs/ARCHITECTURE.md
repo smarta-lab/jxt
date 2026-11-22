@@ -742,6 +742,11 @@ extensions by the attributes `type`, `id`, `client` (modules, templates) and
   kept, since a release offers the package and outdated ZIPs with versions in
   their names would pile up. `jxt build` in the directory of a child still
   builds that child alone.
+- **Commands in the directory of a child** work for that child alone, with
+  its own `.jxt.json` only; jxt does not look for a package above it, which
+  would make the result depend on where the repository happens to lie. A
+  single `jxt install` keeps the `package_id` of an installed child, since
+  only Joomla's `PackageAdapter` sets it (checked in Joomla 6, 2026-11-22).
 - **Installing:** one call of the Joomla installer for the package ZIP;
   installing the children one by one would leave `package_id` unset. The
   leftovers are checked per child, read from the installed package ZIP
