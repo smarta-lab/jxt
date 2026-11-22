@@ -27,7 +27,7 @@ All commands run in the project directory of an extension, like
 include or exclude lists to maintain.
 
 Supported extension types: modules (site and administrator), templates,
-plugins, components and libraries.
+plugins, components, libraries and packages.
 
 ## Status
 
