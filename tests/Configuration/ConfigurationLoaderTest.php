@@ -89,6 +89,7 @@ final class ConfigurationLoaderTest extends TestCase
             new ConfigurationEntry(ConfigurationKey::DistDirectory, '/srv/dist', ConfigurationSource::Global),
             new ConfigurationEntry(ConfigurationKey::CheckExclude, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::CheckInclude, null, ConfigurationSource::None),
+            new ConfigurationEntry(ConfigurationKey::ZipExtras, null, ConfigurationSource::None),
             new ConfigurationEntry(ConfigurationKey::DefaultSite, 'local', ConfigurationSource::Global),
         ], $this->loader()->describe($this->project()));
     }
@@ -432,6 +433,23 @@ final class ConfigurationLoaderTest extends TestCase
         $this->loader()->load($this->project());
     }
 
+    public function testReadsZipExtrasAsNormalizedPathsWithoutDuplicates(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["LICENSE", "./licenses/", "docs\\\\NOTICE", "LICENSE"]}');
+
+        self::assertSame(['LICENSE', 'licenses', 'docs/NOTICE'], $this->loader()->load($this->project())->zipExtras);
+    }
+
+    public function testRejectsZipExtrasInGlobalConfiguration(): void
+    {
+        $this->writeFile('config.json', '{"zip_extras": ["LICENSE"]}');
+
+        $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessageMatches('/zip_extras can only be set in the project configuration/');
+
+        $this->loader()->load($this->project());
+    }
+
     public function testRejectsCheckListsInGlobalConfiguration(): void
     {
         $this->writeFile('config.json', '{"check_exclude": ["manifest"]}');
@@ -503,6 +521,10 @@ final class ConfigurationLoaderTest extends TestCase
         yield 'number in a list' => ['{"check_include": [1]}', 'must be a list of check names'];
         yield 'invalid check name' => ['{"check_exclude": ["Manifest"]}', 'Invalid check name "Manifest" for "check_exclude"'];
         yield 'check name with three parts' => ['{"check_exclude": ["a/b/c"]}', 'Invalid check name "a/b/c"'];
+        yield 'string for zip_extras' => ['{"zip_extras": "LICENSE"}', 'Value of "zip_extras" in'];
+        yield 'empty path in zip_extras' => ['{"zip_extras": [" "]}', 'Invalid path " " for "zip_extras"'];
+        yield 'absolute path in zip_extras' => ['{"zip_extras": ["/srv/LICENSE"]}', 'Invalid path "/srv/LICENSE" for "zip_extras"'];
+        yield 'path out of the project in zip_extras' => ['{"zip_extras": ["../LICENSE"]}', 'Invalid path "../LICENSE" for "zip_extras"'];
         yield 'string for prepare' => ['{"prepare": "npm run build"}', 'Value of "prepare" in'];
         yield 'empty prepare' => ['{"prepare": []}', 'must be a non-empty list of steps'];
         yield 'single command for prepare' => ['{"prepare": ["npm", "run", "build"]}', 'Step 1 of "prepare" in'];

@@ -19,6 +19,7 @@
   - [DDEV](#ddev)
   - [Official Joomla image](#official-joomla-image)
 - [jxt build – build an installable ZIP](#jxt-build--build-an-installable-zip)
+  - [Files outside the manifest](#files-outside-the-manifest)
   - [Packages](#packages)
 - [Build steps](#build-steps)
 - [jxt check – check before a release](#jxt-check--check-before-a-release)
@@ -537,6 +538,28 @@ prefix), jxt warns but still builds the ZIP.
 If the project generates files first, list the commands under `prepare` (see
 [Build steps](#build-steps)); `jxt build` runs them before building.
 
+### Files outside the manifest
+
+The Joomla installer only copies what the manifest lists. Files that belong in
+the ZIP but not on the site, such as the license, are listed under
+`zip_extras` in `.jxt.json`:
+
+```json
+{
+    "zip_extras": ["LICENSE", "licenses"]
+}
+```
+
+`jxt build` and `jxt install` add these files, and the files below these
+directories, with their path relative to the project directory; the Joomla
+installer ignores them. This keeps a license that the GPL requires to ship
+with the extension out of `administrator/components/` or a package's
+`<files>`, which cannot list it at all. It is an error if a path does not
+exist, if a file is already part of the ZIP through the manifest, or if it is
+a Joomla manifest, which the installer could take for the one of the
+extension. `zip_extras` can only be set in the project configuration, so that
+the ZIP does not depend on who builds it; `jxt sync` ignores it.
+
 ### Packages
 
 If the manifest is a package manifest (`type="package"`), `jxt build` creates
@@ -905,6 +928,7 @@ prepare       –                                not set
 dist_dir      dist                             default
 check_exclude assets/uri                       project
 check_include –                                not set
+zip_extras    –                                not set
 default_site  local                            global
 joomla_root   /home/user/sites/example         site
 web_user      –                                not set
@@ -950,8 +974,10 @@ called sudo (`SUDO_USER`), not from `/root`.
 | `dist_dir` | Output directory of `jxt build` and `jxt install`, relative to the project or absolute | `dist` |
 | `check_exclude` | List of checks, groups or `all` that `jxt check` skips; only in `.jxt.json` | – |
 | `check_include` | List of checks, groups or `all` that `jxt check` runs despite `check_exclude`; only in `.jxt.json` | – |
+| `zip_extras` | List of files and directories relative to the project directory that `jxt build` adds to the ZIP without the manifest listing them, see [Files outside the manifest](#files-outside-the-manifest); only in `.jxt.json` | – |
 
-All values are strings, lists of strings (`check_exclude`, `check_include`),
+All values are strings, lists of strings (`check_exclude`, `check_include`,
+`zip_extras`),
 `null`, a list of objects for `prepare`, or an object with the sites by id for
 `sites`. `null` resets a key to
 its default. Unknown keys are rejected, so typos do not go unnoticed.

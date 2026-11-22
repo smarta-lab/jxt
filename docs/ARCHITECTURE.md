@@ -14,6 +14,7 @@
 - [Leftovers after an installation](#leftovers-after-an-installation)
 - [Building and checking a tag](#building-and-checking-a-tag)
 - [Build steps](#build-steps)
+- [Files outside the manifest](#files-outside-the-manifest)
 - [Packages](#packages)
 - [Checks: design decisions](#checks-design-decisions)
   - [EditorConfig parser](#editorconfig-parser)
@@ -91,7 +92,9 @@ The manifest parser turns the manifest into a *deployment plan*: a list of
 `<scriptfile>`, `<languages>` and `<media>`. Sources are relative to the
 extension directory (the directory of the manifest, usually the project
 directory), targets relative to the Joomla root. `jxt sync` and `jxt build` use
-the same plan, so the server and the ZIP always contain the same files.
+the same plan, so the server and the ZIP always contain the same files; the
+only exception are the files of `zip_extras`, which the installer does not
+install (see [Files outside the manifest](#files-outside-the-manifest)).
 
 The plan also records:
 
@@ -691,6 +694,39 @@ minified files, a manifest with the version filled in). The project setting
   the version differs between projects; environment variables for the steps.
   All of them could be added later without breaking anything.
 
+## Files outside the manifest
+
+Decided on 2026-11-22. The GPL requires the license text to ship with the
+extension, i.e. in the ZIP, not to be installed on the site. The Joomla
+installer only copies what the manifest lists (plus the manifest and the
+install script) and ignores everything else in the ZIP. Listing the license
+in the manifest installs it on the site, for components only in
+`administrator/components/` or `components/`, and the `<files>` of a package
+cannot list it at all. Of the extensions on our test site and the release
+ZIPs compared (weblinks, patchtester, Atomic), only our own install a license
+file.
+
+- **`zip_extras`:** a list of files and directories relative to the project
+  directory that `jxt build` and `jxt install` add to the ZIP under the same
+  path, for all extension types. A general list rather than a license option,
+  since third-party licenses or a `NOTICE` need the same.
+- **Explicit:** jxt does not pick up `LICENSE*` on its own; until now the ZIP
+  contains exactly what the manifest lists, and an exception has to be
+  visible in the configuration.
+- **Only in the project configuration:** the global configuration belongs to
+  the developer's machine, so the ZIP would depend on who builds it. Ignoring
+  missing files there, which a global setting would need, would hide a typo
+  or a missing license.
+- **Errors:** a missing path, a file that the manifest already puts into the
+  ZIP (or that lies in an entry of a package), and a Joomla manifest, since
+  the installer looks for the manifest in the ZIP and its first-level
+  subdirectories.
+- **`jxt sync` and the leftover check ignore them:** nothing of them is
+  installed.
+- **Name:** `unlisted_files` was rejected, since "unlisted" means "missing
+  from the manifest" in jxt (`manifest/unlisted-files`); `zip_files` and
+  `zip_entries` read like all files of the ZIP.
+
 ## Packages
 
 Decided on 2026-11-22 (first package of our own: `pkg_cookieconsent`, with a
@@ -713,9 +749,9 @@ extensions by the attributes `type`, `id`, `client` (modules, templates) and
   holds the manifest, `<scriptfile>` and `<languages>`; the entries of
   `<files>` are build results, not sources, and the `folder` of `<files>`
   (e.g. `dist`) is only a path inside the ZIP. A license file of the package
-  cannot be listed there, and jxt does not add unlisted files; it belongs in
-  the `<files>` of each extension, which also installs it with them (the
-  packages of weblinks and Atomic ship none at all).
+  cannot be listed there; `zip_extras` adds it to the package ZIP (see
+  [Files outside the manifest](#files-outside-the-manifest)), which covers the
+  children as well, since their ZIPs are only shipped inside the package.
 - **Children found automatically:** jxt looks for manifests in the
   subdirectories of the package (up to three levels, without hidden
   directories, `dist`, the output directory, `vendor`, `node_modules` and
@@ -922,7 +958,8 @@ Namespaces below `SmartA\Jxt`:
   `UnlistedSourceFinder` finds files missing from the manifest.
 - **`Build`:** `ProjectBuilder` builds the ZIP of the project from the working
   copy or a Git tag (`ProjectBuild`) for `jxt build` and `jxt install`;
-  `PackageBuilder` creates the ZIP, `PackageAssembler` builds the
+  `PackageBuilder` creates the ZIP, `ZipExtras` collects the files of
+  `zip_extras`, `PackageAssembler` builds the
   extensions of a package and the package ZIP, `TagExporter` exports a tag
   into a `TemporaryDirectory`. `Preparation` runs the prepare steps through a
   `StepRunner` (`SystemStepRunner`: `proc_open` in the project directory,

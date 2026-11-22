@@ -25,6 +25,7 @@ enum ConfigurationKey: string
     case DistDirectory = 'dist_dir';
     case CheckExclude = 'check_exclude';
     case CheckInclude = 'check_include';
+    case ZipExtras = 'zip_extras';
     case DefaultSite = 'default_site';
     case Sites = 'sites';
 
@@ -60,7 +61,7 @@ enum ConfigurationKey: string
     {
         return match ($this) {
             self::JoomlaRoot, self::WebUser, self::CliCommand, self::CliRoot => KeyScope::Site,
-            self::Manifest, self::Prepare, self::CheckExclude, self::CheckInclude => KeyScope::Project,
+            self::Manifest, self::Prepare, self::CheckExclude, self::CheckInclude, self::ZipExtras => KeyScope::Project,
             self::DefaultSite, self::Sites => KeyScope::Global,
             self::DistDirectory => KeyScope::Anywhere,
         };
@@ -71,7 +72,7 @@ enum ConfigurationKey: string
      */
     public function isList(): bool
     {
-        return in_array($this, [self::CliCommand, self::CheckExclude, self::CheckInclude], true);
+        return in_array($this, [self::CliCommand, self::CheckExclude, self::CheckInclude, self::ZipExtras], true);
     }
 
     /**
@@ -86,7 +87,8 @@ enum ConfigurationKey: string
      * Validates a value and returns it normalized; null is always allowed.
      *
      * Single values must be non-empty strings, `default_site` the id of a site. Commands must be non-empty lists of
-     * non-empty arguments. Other lists must contain check names (`group` or `group/check`) and are returned without
+     * non-empty arguments. `zip_extras` must contain relative paths inside the project directory, returned normalized
+     * and without duplicates; other lists must contain check names (`group` or `group/check`) and are returned without
      * duplicates. The steps of `prepare` are returned as written, the sites of `sites` as written by id.
      *
      * @param string $source Origin of the value for the error message, e.g. the file path
@@ -105,6 +107,7 @@ enum ConfigurationKey: string
             $this === self::Prepare => $this->validateSteps($value, $source),
             $this === self::Sites => $this->validateSites($value, $source),
             $this->isCommand() => $this->validateCommand($value, $source),
+            $this === self::ZipExtras => $this->validatePaths($value, $source),
             $this->isList() => $this->validateList($value, $source),
             default => $this->validateString($value, $source),
         };
@@ -296,6 +299,47 @@ enum ConfigurationKey: string
         }
 
         return array_values(array_unique($value));
+    }
+
+    /**
+     * Validates a list of paths relative to the project directory and returns them with `/` as separator, without
+     * `.` segments and trailing slashes, and without duplicates.
+     *
+     * @return list<string>
+     *
+     * @throws ConfigurationException for an invalid value
+     */
+    private function validatePaths(mixed $value, string $source): array
+    {
+        if (!is_array($value) || !array_is_list($value) || array_filter($value, is_string(...)) !== $value) {
+            throw new ConfigurationException(sprintf(
+                'Value of "%s" in %s must be a list of paths relative to the project directory, e.g. ["LICENSE"].',
+                $this->value,
+                $source,
+            ));
+        }
+
+        $paths = [];
+
+        foreach ($value as $path) {
+            $segments = array_values(array_filter(
+                explode('/', str_replace('\\', '/', trim($path))),
+                static fn (string $segment): bool => $segment !== '' && $segment !== '.',
+            ));
+
+            if ($segments === [] || str_starts_with(trim($path), '/') || in_array('..', $segments, true)) {
+                throw new ConfigurationException(sprintf(
+                    'Invalid path "%s" for "%s" in %s: it must lie inside the project directory.',
+                    $path,
+                    $this->value,
+                    $source,
+                ));
+            }
+
+            $paths[] = implode('/', $segments);
+        }
+
+        return array_values(array_unique($paths));
     }
 
     /**

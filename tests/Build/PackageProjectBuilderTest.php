@@ -208,6 +208,18 @@ final class PackageProjectBuilderTest extends TestCase
         self::assertSame(['language/de-DE/', 'component/admin/Unlisted.php'], $this->build()->unlisted);
     }
 
+    public function testAddsTheZipExtrasOfThePackageAtTheTopOfThePackageZip(): void
+    {
+        $this->writePackageManifest(self::PLUGIN_ENTRY);
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["LICENSE"]}');
+        $this->writeFile('project/LICENSE', 'GPL');
+
+        self::assertSame(
+            ['LICENSE', 'dist/plg_system_x-1.0.0.zip', 'language/en-GB/pkg_x.sys.ini', 'pkg_x.xml', 'script.php'],
+            $this->zipEntries($this->build()->package->path),
+        );
+    }
+
     public function testBuildsAPackageFromATag(): void
     {
         $this->writePackageManifest(self::PLUGIN_ENTRY);

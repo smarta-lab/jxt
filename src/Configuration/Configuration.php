@@ -23,6 +23,8 @@ final readonly class Configuration
      * @param list<string>      $checkExclude  Checks or groups that `jxt check` skips
      * @param list<string>      $checkInclude  Checks or groups that `jxt check` runs despite `$checkExclude`
      * @param list<PrepareStep> $prepare       Steps that generate files before building, checking or syncing
+     * @param list<string>      $zipExtras     Files and directories (relative to the project directory) that
+     *                                         `jxt build` adds to the ZIP file without the manifest listing them
      * @param SiteEntry|null    $site          The selected test site; null if it is not configured
      * @param SiteSelection     $siteSelection How the test site was selected
      * @param string            $missingSite   Why the selected test site cannot be used if it is not configured
@@ -36,6 +38,7 @@ final readonly class Configuration
         public ?SiteEntry $site = null,
         public SiteSelection $siteSelection = new SiteSelection(),
         public string $missingSite = 'No test site is configured.',
+        public array $zipExtras = [],
     ) {
     }
 

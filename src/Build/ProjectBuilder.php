@@ -39,14 +39,15 @@ final readonly class ProjectBuilder
         private TagExporter $tagExporter = new TagExporter(),
         private Preparation $preparation = new Preparation(),
         private PackageAssembler $packageAssembler = new PackageAssembler(),
+        private ZipExtras $zipExtras = new ZipExtras(),
     ) {
     }
 
     /**
      * Runs the prepare steps in the project directory and builds the ZIP file from it.
      *
-     * The settings `manifest` and `prepare` are read from the `.jxt.json` in that directory, so that they match its
-     * layout.
+     * The settings `manifest`, `prepare` and `zip_extras` are read from the `.jxt.json` in that directory, so that
+     * they match its layout.
      *
      * @param OutputInterface $output Output for the prepare steps
      *
@@ -60,6 +61,7 @@ final readonly class ProjectBuilder
         $manifestFile = $this->manifestLocator->locate($projectDirectory, $configuration->manifestFile);
         $manifest = $this->manifestParser->parseFile($manifestFile);
         $extensionDirectory = dirname($manifestFile);
+        $extras = $this->zipExtras->collect($configuration->zipExtras, $projectDirectory, $manifest, $extensionDirectory);
 
         if ($manifest->type === ExtensionType::Package) {
             return $this->packageAssembler->build(
@@ -67,12 +69,13 @@ final readonly class ProjectBuilder
                 $extensionDirectory,
                 $distDirectory,
                 fn (string $directory, string $childDistDirectory): ProjectBuild => $this->build($directory, $childDistDirectory, $output),
+                $extras,
             );
         }
 
         return new ProjectBuild(
             $manifest,
-            $this->packageBuilder->build($manifest, $extensionDirectory, $distDirectory),
+            $this->packageBuilder->build($manifest, $extensionDirectory, $distDirectory, $extras),
             $this->unlistedSourceFinder->find($manifest->plan, $extensionDirectory),
         );
     }

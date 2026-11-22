@@ -19,6 +19,7 @@
   - [DDEV](#ddev)
   - [Offizielles Joomla-Image](#offizielles-joomla-image)
 - [jxt build – installierbare ZIP-Datei erstellen](#jxt-build--installierbare-zip-datei-erstellen)
+  - [Dateien außerhalb des Manifests](#dateien-außerhalb-des-manifests)
   - [Pakete](#pakete)
 - [Build-Schritte](#build-schritte)
 - [jxt check – vor einem Release prüfen](#jxt-check--vor-einem-release-prüfen)
@@ -554,6 +555,28 @@ trotzdem.
 Erzeugt das Projekt zuerst Dateien, stehen die Befehle unter `prepare` (siehe
 [Build-Schritte](#build-schritte)); `jxt build` führt sie vor dem Bauen aus.
 
+### Dateien außerhalb des Manifests
+
+Der Joomla-Installer kopiert nur, was das Manifest nennt. Dateien, die ins ZIP
+gehören, aber nicht auf die Site, etwa die Lizenz, stehen unter `zip_extras`
+in der `.jxt.json`:
+
+```json
+{
+    "zip_extras": ["LICENSE", "licenses"]
+}
+```
+
+`jxt build` und `jxt install` nehmen diese Dateien und die Dateien unterhalb
+dieser Ordner mit ihrem Pfad relativ zum Projektordner auf; der
+Joomla-Installer ignoriert sie. So muss eine Lizenz, die nach der GPL mit der
+Erweiterung ausgeliefert werden muss, weder nach `administrator/components/`
+noch in die `<files>` eines Pakets, die sie gar nicht aufnehmen können. Ein
+Fehler ist es, wenn ein Pfad fehlt, eine Datei schon über das Manifest im ZIP
+steht oder ein Joomla-Manifest ist, das der Installer für das der Erweiterung
+halten könnte. `zip_extras` gibt es nur in der Projektkonfiguration, damit das
+ZIP nicht davon abhängt, wer es baut; `jxt sync` ignoriert die Einstellung.
+
 ### Pakete
 
 Ist das Manifest ein Paketmanifest (`type="package"`), erstellt `jxt build`
@@ -936,6 +959,7 @@ prepare       –                                not set
 dist_dir      dist                             default
 check_exclude assets/uri                       project
 check_include –                                not set
+zip_extras    –                                not set
 default_site  local                            global
 joomla_root   /home/user/sites/example         site
 web_user      –                                not set
@@ -983,8 +1007,10 @@ gelesen, der sudo aufgerufen hat (`SUDO_USER`), nicht aus `/root`.
 | `dist_dir` | Zielordner von `jxt build` und `jxt install`, relativ zum Projekt oder absolut | `dist` |
 | `check_exclude` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` auslässt; nur in `.jxt.json` | – |
 | `check_include` | Liste der Prüfungen, Gruppen oder `all`, die `jxt check` trotz `check_exclude` ausführt; nur in `.jxt.json` | – |
+| `zip_extras` | Liste von Dateien und Ordnern relativ zum Projektordner, die `jxt build` ins ZIP aufnimmt, ohne dass das Manifest sie nennt, siehe [Dateien außerhalb des Manifests](#dateien-außerhalb-des-manifests); nur in `.jxt.json` | – |
 
-Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`),
+Alle Werte sind Texte, Listen von Texten (`check_exclude`, `check_include`,
+`zip_extras`),
 `null`, bei `prepare` eine Liste von Objekten und bei `sites` ein Objekt mit
 den Sites nach id. `null` setzt einen
 Schlüssel auf seinen Standardwert zurück. Unbekannte Schlüssel werden

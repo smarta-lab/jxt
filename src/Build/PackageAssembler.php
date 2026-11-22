@@ -45,12 +45,18 @@ final readonly class PackageAssembler
      *
      * @param Closure(string, string): ProjectBuild $buildChild Builds the project in the directory (first argument)
      *                                                          into the output directory (second argument)
+     * @param array<string, string>                 $extras     Files of `zip_extras` by their path in the ZIP file
      *
      * @throws JxtException if an entry matches no manifest and no file, or several manifests, or if building an
      *                      extension or the package fails
      */
-    public function build(Manifest $manifest, string $packageDirectory, string $distDirectory, Closure $buildChild): ProjectBuild
-    {
+    public function build(
+        Manifest $manifest,
+        string $packageDirectory,
+        string $distDirectory,
+        Closure $buildChild,
+        array $extras = [],
+    ): ProjectBuild {
         if ($manifest->packageEntries === []) {
             throw new BuildException('The package manifest lists no extensions in <files>.');
         }
@@ -86,7 +92,7 @@ final readonly class PackageAssembler
                 $unlisted = [...$unlisted, ...$this->childUnlisted($resolved->child, $packageDirectory, $child)];
             }
 
-            $package = $this->packageBuilder->build($manifest, $packageDirectory, $distDirectory, $files);
+            $package = $this->packageBuilder->build($manifest, $packageDirectory, $distDirectory, $files + $extras);
         } finally {
             TemporaryDirectory::remove($temporaryDirectory);
         }

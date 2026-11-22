@@ -8,6 +8,11 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `zip_extras` in `.jxt.json` lists files and directories that `jxt build`
+  and `jxt install` add to the ZIP without the manifest listing them, e.g.
+  `["LICENSE"]`: the Joomla installer ignores them, so a license ships with
+  the extension without being installed on the site, also for components and
+  packages.
 - `jxt build` builds packages (`type="package"`): it finds the manifests of
   the extensions listed in `<files>` in the subdirectories by `type`, `id`,
   `client` and `group`, builds each from its directory and packs them with the

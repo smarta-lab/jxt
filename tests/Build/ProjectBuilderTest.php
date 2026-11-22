@@ -93,6 +93,66 @@ final class ProjectBuilderTest extends TestCase
         self::assertSame(['mod_x.xml', 'tmpl/default.php'], $this->zipEntries($build->package->path));
     }
 
+    public function testAddsTheZipExtrasWithoutTheManifestListingThem(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["LICENSE", "licenses"]}');
+        $this->writeFile('project/LICENSE', 'GPL');
+        $this->writeFile('project/licenses/leaflet.txt', 'BSD');
+        $this->writeFile('project/licenses/.gitkeep');
+
+        $build = $this->builder()->build($this->project, $this->dist, new BufferedOutput());
+
+        self::assertSame(
+            ['LICENSE', 'licenses/leaflet.txt', 'mod_x.xml', 'tmpl/default.php'],
+            $this->zipEntries($build->package->path),
+        );
+        self::assertSame(4, $build->package->fileCount);
+    }
+
+    public function testFailsForAMissingZipExtra(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["LICENSE"]}');
+
+        $this->expectException(BuildException::class);
+        $this->expectExceptionMessage('LICENSE of zip_extras does not exist in ' . $this->project . '.');
+
+        $this->builder()->build($this->project, $this->dist, new BufferedOutput());
+    }
+
+    public function testFailsForAZipExtraThatTheManifestListsAlready(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["tmpl"]}');
+
+        $this->expectException(BuildException::class);
+        $this->expectExceptionMessage('tmpl/default.php of zip_extras is already part of the ZIP file through the manifest.');
+
+        $this->builder()->build($this->project, $this->dist, new BufferedOutput());
+    }
+
+    public function testFailsForAManifestAmongTheZipExtras(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["extras"]}');
+        $this->writeFile('project/extras/old.xml', self::manifest('0.9.0'));
+
+        $this->expectException(BuildException::class);
+        $this->expectExceptionMessage('extras/old.xml of zip_extras is a Joomla manifest, which the Joomla installer could take for the one');
+
+        $this->builder()->build($this->project, $this->dist, new BufferedOutput());
+    }
+
+    public function testAddsTheZipExtrasOfTheTag(): void
+    {
+        $this->writeFile('project/.jxt.json', '{"zip_extras": ["LICENSE"]}');
+        $this->writeFile('project/LICENSE', 'tagged');
+        $this->initGit();
+        $this->git('tag', 'v1.0.0');
+        $this->writeFile('project/LICENSE', 'changed');
+
+        $build = $this->builder()->buildTag($this->project, 'v1.0.0', $this->dist, new BufferedOutput());
+
+        self::assertSame('tagged', $this->zipContent($build->package->path, 'LICENSE'));
+    }
+
     public function testRunsThePrepareStepsBeforeLocatingTheManifest(): void
     {
         unlink($this->project . '/mod_x.xml');

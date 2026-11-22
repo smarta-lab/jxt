@@ -94,6 +94,7 @@ final readonly class ConfigurationLoader
                 array_map(static fn (SiteEntry $site): string => $site->id, $sites),
                 $this->globalConfigFile ?? 'the global configuration',
             ),
+            $this->listValue($values, ConfigurationKey::ZipExtras),
         );
     }
 
