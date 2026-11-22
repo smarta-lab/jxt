@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Check\Checker;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\EntryKind;
 use SmartA\Jxt\Deployment\PlanEntry;
@@ -49,6 +50,12 @@ final readonly class ManifestChecker implements Checker
     public function group(): string
     {
         return 'manifest';
+    }
+
+    #[\Override]
+    public function scope(): CheckScope
+    {
+        return CheckScope::Extension;
     }
 
     #[\Override]

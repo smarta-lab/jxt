@@ -16,9 +16,16 @@ project follows [Semantic Versioning](https://semver.org/).
   as it is if the file exists.
 - `jxt install` installs packages with one call of the Joomla installer, so
   that Joomla links the extensions to the package, and checks the leftovers
-  of each extension in the package ZIP, also with `--zip`. `jxt sync` and
-  `jxt check` reject package manifests for now instead of failing on the
-  unknown type.
+  of each extension in the package ZIP, also with `--zip`.
+- `jxt check` checks packages: the project checks (changelog, Composer,
+  EditorConfig) once, the manifest, asset and language checks for the package
+  and each of its extensions, and the new group `package` the entries of the
+  package manifest against the extensions (`package/entries`,
+  `package/file-name`, `package/zip-names`, `package/unlisted-extensions`).
+  Identical findings are reported once.
+- `jxt sync` syncs each extension of a package after its own build steps and
+  points to `jxt install` if the files of the package itself differ from the
+  site.
 
 ### Changed
 

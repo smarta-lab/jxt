@@ -13,6 +13,7 @@ use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckMode;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Git\GitRepository;
@@ -42,6 +43,12 @@ final readonly class AssetChecker implements Checker
     public function group(): string
     {
         return 'assets';
+    }
+
+    #[\Override]
+    public function scope(): CheckScope
+    {
+        return CheckScope::Extension;
     }
 
     #[\Override]

@@ -16,7 +16,9 @@ use SmartA\Jxt\Deployment\PlanExpander;
 use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Install\ProcessRunner;
 use SmartA\Jxt\Install\SystemProcessRunner;
+use SmartA\Jxt\Manifest\ChildManifest;
 use SmartA\Jxt\Manifest\Manifest;
+use SmartA\Jxt\Manifest\PackageResolution;
 
 /**
  * Collects the context of a check run: Git repository, changelog, release state and the files of the plan.
@@ -87,6 +89,43 @@ final readonly class CheckContextFactory
             $git->atTag($tag),
             Changelog::load($directory),
             $tag,
+        );
+    }
+
+    /**
+     * Returns the context of a package with a context for each extension that an entry refers to.
+     *
+     * The extensions share the project directory, the release state, the repository and the changelog of the
+     * package; their contexts have no tag, since a tag names the version of the package.
+     */
+    public function withPackage(CheckContext $package, PackageResolution $resolution): CheckContext
+    {
+        $children = array_map(
+            fn (ChildManifest $child): CheckContext => new CheckContext(
+                $package->projectDirectory,
+                $child->directory(),
+                $child->manifest,
+                $package->state,
+                $this->existingFiles($child->manifest->plan, $child->directory()),
+                $package->release,
+                $package->git,
+                $package->changelog,
+            ),
+            $resolution->children(),
+        );
+
+        return new CheckContext(
+            $package->projectDirectory,
+            $package->extensionDirectory,
+            $package->manifest,
+            $package->state,
+            $package->files,
+            $package->release,
+            $package->git,
+            $package->changelog,
+            $package->tag,
+            $children,
+            $resolution,
         );
     }
 

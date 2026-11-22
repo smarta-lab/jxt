@@ -14,6 +14,7 @@ use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckMode;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\Severity;
 
 /**
@@ -28,6 +29,12 @@ final readonly class ChangelogChecker implements Checker
     public function group(): string
     {
         return 'changelog';
+    }
+
+    #[\Override]
+    public function scope(): CheckScope
+    {
+        return CheckScope::Project;
     }
 
     #[\Override]

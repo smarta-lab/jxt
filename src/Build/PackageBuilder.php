@@ -41,7 +41,7 @@ final readonly class PackageBuilder
         array $additionalFiles = [],
     ): Package {
         $files = $this->planExpander->expand($manifest->plan, $extensionDirectory);
-        $path = $distDirectory . '/' . $this->fileName($manifest);
+        $path = $distDirectory . '/' . $manifest->zipFileName();
 
         if (!is_dir($distDirectory) && !mkdir($distDirectory, 0777, true) && !is_dir($distDirectory)) {
             throw new BuildException(sprintf('Cannot create output directory %s.', $distDirectory));
@@ -66,17 +66,5 @@ final readonly class PackageBuilder
         }
 
         return new Package($path, count($files) + count($additionalFiles));
-    }
-
-    /**
-     * Returns the file name, e.g. `mod_example-1.0.0.zip`, `tpl_cassiopeia-1.0.0.zip` or `plg_system_example-1.0.0.zip`.
-     */
-    private function fileName(Manifest $manifest): string
-    {
-        $version = $manifest->version === null
-            ? ''
-            : '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $manifest->version);
-
-        return $manifest->name() . $version . '.zip';
     }
 }

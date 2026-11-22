@@ -114,7 +114,12 @@ Phing, Gulp or the shell. jxt takes a different approach:
   of the manifest and deletes the ones that no longer belong to it.
 - **Release checks:** `jxt check` finds mistakes before a release and in CI.
 
-jxt does not support packages (`pkg_`) yet, and it runs on Linux or WSL only.
+- **Packages without a package configuration:** for a package (`pkg_`), jxt
+  finds the extensions in the subdirectories by the attributes of its
+  manifest, builds and installs the package as a whole and checks and syncs
+  each extension.
+
+jxt runs on Linux or WSL only.
 
 ## Documentation
 

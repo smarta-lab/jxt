@@ -333,6 +333,76 @@ final class CheckCommandTest extends TestCase
         return $tester;
     }
 
+    public function testChecksAPackageAndEachOfItsExtensions(): void
+    {
+        $this->moveModuleIntoAPackage('1.0.0');
+        $this->writeFile('module/media/svg/icon.svg', "<svg/>\n");
+        $this->writeFile('module/.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"]}]}');
+        $stepRunner = new ScriptedStepRunner();
+        $tester = $this->tester(stepRunner: $stepRunner);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        $display = self::display($tester);
+        self::assertStringContainsString('Checking pkg_x 1.1.0: pre-release check', $display);
+        self::assertStringContainsString('with mod_example 1.0.0 in module/', $display);
+        self::assertStringContainsString(
+            'WARN module/media/svg/: not listed in the manifest and therefore not part of the extension [manifest/unlisted-files]',
+            $display,
+        );
+        self::assertSame(1, substr_count($display, '[changelog/unreleased]'));
+        self::assertMatchesRegularExpression('/package\s+-+\s+OK/', $display);
+        self::assertSame([[['npm', 'run', 'build'], $this->temporaryDirectory . '/module', true]], $stepRunner->runs);
+    }
+
+    public function testReportsEntriesOfAPackageThatMatchNoExtension(): void
+    {
+        $this->moveModuleIntoAPackage('1.1.0', 'administrator');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('does not match module/mod_example.xml (client="site"); Joomla', self::display($tester));
+    }
+
+    public function testTheTagOfAPackageNeedNotNameTheVersionsOfItsExtensions(): void
+    {
+        $this->moveModuleIntoAPackage('1.0.0');
+        $this->initGit();
+        $this->git('tag', 'v1.1.0');
+        $tester = $this->tester();
+
+        $tester->execute(['--tag' => 'v1.1.0']);
+        self::assertStringNotContainsString('[manifest/tag-version]', self::display($tester));
+    }
+
+    public function testDoesNotShowThePackageChecksForOtherExtensions(): void
+    {
+        $tester = $this->tester();
+
+        $tester->execute([]);
+        self::assertStringNotContainsString('package', self::display($tester));
+    }
+
+    /**
+     * Moves the module into `module/` and adds a package manifest with version 1.1.0 that lists it.
+     *
+     * @param string $moduleVersion Version of the module
+     * @param string $client        Client of the module in the package entry
+     */
+    private function moveModuleIntoAPackage(string $moduleVersion, string $client = 'site'): void
+    {
+        mkdir($this->temporaryDirectory . '/module');
+
+        foreach (['mod_example.xml', 'tmpl', 'language', 'media'] as $name) {
+            rename($this->temporaryDirectory . '/' . $name, $this->temporaryDirectory . '/module/' . $name);
+        }
+
+        $manifest = $this->temporaryDirectory . '/module/mod_example.xml';
+        file_put_contents($manifest, str_replace('1.1.0', $moduleVersion, (string) file_get_contents($manifest)));
+        $this->writeFile('pkg_x.xml', '<extension type="package" method="upgrade"><name>pkg_x</name>'
+            . '<packagename>x</packagename><version>1.1.0</version><files folder="dist">'
+            . '<file type="module" id="mod_example" client="' . $client . '">mod_example.zip</file></files></extension>' . "\n");
+    }
+
     /**
      * Creates the command for the project without global configuration.
      *

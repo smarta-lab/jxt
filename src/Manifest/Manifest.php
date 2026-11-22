@@ -60,6 +60,17 @@ final readonly class Manifest
     }
 
     /**
+     * Returns the file name of the ZIP file that `jxt build` creates, e.g. `mod_example-1.0.0.zip`, or
+     * `mod_example.zip` without a version.
+     */
+    public function zipFileName(): string
+    {
+        $version = $this->version === null ? '' : '-' . preg_replace('/[^A-Za-z0-9._-]/', '_', $this->version);
+
+        return $this->name() . $version . '.zip';
+    }
+
+    /**
      * Returns the path of the installed manifest relative to the Joomla root directory.
      */
     public function installedManifest(): string

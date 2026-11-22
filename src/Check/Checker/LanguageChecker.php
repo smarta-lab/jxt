@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Check\Checker;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\CommentStripper;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Manifest\ExtensionType;
@@ -41,6 +42,12 @@ final readonly class LanguageChecker implements Checker
     public function group(): string
     {
         return 'language';
+    }
+
+    #[\Override]
+    public function scope(): CheckScope
+    {
+        return CheckScope::Extension;
     }
 
     #[\Override]

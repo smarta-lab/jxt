@@ -585,9 +585,15 @@ ist es, wenn kein Manifest passt und die Datei fehlt, wenn ein Manifest nur in
 wenn ein ZIP-Eintrag weder wie das ZIP seiner Erweiterung noch ohne Version
 (`com_example.zip`) heißt, z. B. nach einer neuen Version der Erweiterung.
 
-`jxt install` installiert Pakete (siehe [Altlasten](#altlasten)); `jxt sync`
-und `jxt check` unterstützen sie noch nicht und laufen im Ordner jeder
-einzelnen Erweiterung.
+`jxt install` installiert das Paket mit einem Aufruf des Joomla-Installers
+(siehe [Altlasten](#altlasten)). `jxt check` prüft das Projekt einmal
+(Changelog, Composer, EditorConfig), Manifest, Assets und Sprachdateien des
+Pakets und jeder Erweiterung sowie die Einträge des Pakets (Gruppe `package`).
+`jxt sync` überträgt jede Erweiterung nach ihren eigenen Build-Schritten; die
+Dateien des Pakets selbst (Manifest, Installationsskript, Sprachdateien), die
+Joomla nur beim Installieren und Deinstallieren des Pakets nutzt, kopiert es
+nicht, verweist aber auf `jxt install`, wenn sie von der Site abweichen. Im
+Ordner einer Erweiterung arbeiten alle Befehle nur für diese Erweiterung.
 
 ## Build-Schritte
 
@@ -730,6 +736,10 @@ scheitern.
 | `manifest/listed-files` | eine im Manifest genannte Datei oder ein Ordner fehlt | Fehler | Fehler |
 | `manifest/unlisted-files` | eine Datei in einem Quellordner steht nicht im Manifest | Warnung | Warnung |
 | `manifest/stray-files` | eine Müll-Datei in einem gelisteten Ordner käme ins ZIP (`.DS_Store`, `*~`, `*.orig`, versteckte Dateien) | Warnung | Warnung |
+| `package/entries` | ein Paket nennt keine Erweiterungen, oder ein Eintrag in `<files>` passt zu keiner Erweiterung und keiner Datei, zu mehreren Erweiterungen oder zu einer, die nur in `client` oder `group` abweicht | Fehler | Fehler |
+| `package/file-name` | das Paketmanifest heißt nicht `pkg_<packagename>.xml`, wo Joomla es beim Deinstallieren sucht | Fehler | Fehler |
+| `package/zip-names` | ein ZIP-Eintrag eines Pakets heißt weder wie das ZIP seiner Erweiterung noch ohne Version | Warnung | Warnung |
+| `package/unlisted-extensions` | ein Manifest in einem Unterordner eines Pakets gehört nicht dazu | Hinweis | Hinweis |
 | `editorconfig/missing` | es gibt keine `.editorconfig`; die Gruppe entfällt | Hinweis | Hinweis |
 | `editorconfig/indent-style` | Einrückung entgegen `indent_style` | Fehler | Fehler |
 | `editorconfig/end-of-line` | Zeilenenden entgegen `end_of_line` | Fehler | Fehler |

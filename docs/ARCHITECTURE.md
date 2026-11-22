@@ -79,7 +79,7 @@ written:
   Joomla! project.
 - Supported extension types: modules (site and administrator, depending on
   `client`), templates, plugins, components and libraries; packages (`pkg_`)
-  for `jxt build` and `jxt install` so far (see [Packages](#packages)). The type `file` is
+  (see [Packages](#packages)). The type `file` is
   not supported, since it may install files anywhere, which contradicts the
   exclusive directories that `jxt sync` deletes in and the targets the bridge
   accepts.
@@ -752,12 +752,28 @@ extensions by the attributes `type`, `id`, `client` (modules, templates) and
   (`administrator/manifests/packages/<packagename>/`) is not checked: the
   bridge does not accept it, and Joomla only copies the script there (added
   2026-11-22).
-- **Next steps:** `jxt check` with project checks (changelog, Composer,
-  EditorConfig) once and the checks of each extension per child, plus the
-  package entries; `jxt sync` of all children, and of the package's own
-  files only with a bridge that accepts `administrator/manifests/packages/`.
-  Until then these commands reject a package manifest, and each child can be
-  synced and checked from its own directory.
+- **Checking:** each checker has a `CheckScope`: project checks (changelog,
+  Composer, EditorConfig) run once, extension checks (manifest, assets,
+  language) for the package and each child, and the group `package` only for
+  packages, hidden otherwise. The children share the release state, the
+  repository and the changelog of the package; their contexts have no tag,
+  since a tag names the version of the package and Joomla does not require
+  the children to match it. Each child's prepare steps run first, as for
+  `jxt build`. Identical findings (e.g. the asset baseline notice of several
+  children) are reported once. Unlike `jxt build`, which stops at the first
+  entry it cannot resolve, `package/entries` reports all of them
+  (`PackageResolver` serves both). An extension in a subdirectory that no
+  entry refers to is a notice, since it may be a deliberate leftover or a
+  test extension (added 2026-11-22).
+- **Syncing:** each child with the existing planner, after its prepare steps
+  for `sync`; an entry without a manifest (e.g. a ZIP of another vendor) is
+  skipped with a note. The package's own files are only compared with the
+  site, and jxt points to `jxt install` if they differ: Joomla uses the
+  manifest and the script only when installing and uninstalling, the
+  installed manifest is what uninstalling relies on, and copying them would
+  need a bridge that accepts `administrator/manifests/packages/`. To be
+  reconsidered if packages with changing language files of their own turn up
+  (added 2026-11-22).
 
 ## Checks: design decisions
 
@@ -894,7 +910,8 @@ Namespaces below `SmartA\Jxt`:
   existing ZIP (`jxt install --zip`); `RelativePath` validates paths.
   `PackageEntry` is an entry of `<files>` of a package manifest,
   `ChildManifestFinder` finds the manifests of its extensions
-  (`ChildManifestSearch`, `ChildManifest`).
+  (`ChildManifestSearch`, `ChildManifest`), `PackageResolver` assigns them to
+  the entries (`PackageResolution`, `ResolvedEntry`).
 - **`Deployment`:** `DeploymentPlan` and `PlanEntry`; `PlanExpander` expands
   directories into files, `PackagePlanExpander` into the files of a ZIP;
   `UnlistedSourceFinder` finds files missing from the manifest.
@@ -927,7 +944,9 @@ Namespaces below `SmartA\Jxt`:
 - **`Check`:** `CheckContextFactory` collects the `CheckContext` (manifest,
   expanded files of the plan, `GitRepository`, `Changelog`, `ReleaseState` from
   the `ReleaseDetector`); one `Checker` per group adds `Finding`s to the
-  `CheckReport`, which drops the checks excluded by `CheckSelection`. All
+  `CheckReport`, which drops the checks excluded by `CheckSelection`; the
+  `CheckScope` of a checker decides whether it runs once or per extension of
+  a package (`CheckContextFactory::withPackage()`). All
   checks are cases of `CheckName`. `GithubAnnotation` formats findings as
   workflow commands for `--format=github`; `CommentStripper` removes comments
   before the `LanguageChecker` looks for constants.

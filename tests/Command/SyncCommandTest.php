@@ -357,6 +357,77 @@ final class SyncCommandTest extends TestCase
         self::assertStringNotContainsString('Refresh Cache', self::display($tester));
     }
 
+    public function testSyncsEachExtensionOfAPackage(): void
+    {
+        $this->writePackageProject();
+        $this->writeFile('project/module/.jxt.json', '{"prepare": [{"run": ["npm", "run", "build"], "sync": ["npm", "run", "dev"]}]}');
+        $stepRunner = new ScriptedStepRunner();
+        $tester = new CommandTester($this->command(new ScriptedProcessRunner(new ProcessResult(0, '')), $stepRunner));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/default.php');
+        self::assertFileDoesNotExist($this->joomla() . '/modules/mod_x/tmpl/old.php');
+        self::assertStringContainsString('mod_x → ', self::display($tester));
+        self::assertStringContainsString('lib_acme.zip has no manifest in the subdirectories', self::display($tester));
+        self::assertStringContainsString('1 copied, 1 deleted, 1 unchanged', self::display($tester));
+        self::assertStringNotContainsString('Changed files of the package', self::display($tester));
+        self::assertSame([[['npm', 'run', 'dev'], $this->temporaryDirectory . '/project/module', true]], $stepRunner->runs);
+    }
+
+    public function testPointsToInstallForChangedFilesOfThePackage(): void
+    {
+        $this->writePackageProject();
+        $this->writeFile('project/script.php', '<?php // changed');
+        $tester = $this->tester();
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString(
+            'Changed files of the package: script.php. jxt sync does not copy them; please run jxt install.',
+            self::display($tester),
+        );
+        self::assertSame('<?php', file_get_contents($this->joomla() . '/administrator/manifests/packages/x/script.php'));
+    }
+
+    public function testFailsForAPackageThatIsNotInstalled(): void
+    {
+        $this->writePackageProject();
+        unlink($this->joomla() . '/administrator/manifests/packages/pkg_x.xml');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('pkg_x.xml not found. Please install the extension once with jxt install.', self::display($tester));
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
+    }
+
+    public function testFailsForAPackageEntryThatMatchesNoExtension(): void
+    {
+        $this->writePackageProject('<file type="module" id="mod_y" client="site">mod_y.zip</file>');
+        $tester = $this->tester();
+
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('No manifest in the subdirectories matches dist/mod_y.zip', self::display($tester));
+        self::assertFileExists($this->joomla() . '/modules/mod_x/tmpl/old.php');
+    }
+
+    /**
+     * Turns the project into an installed package with `mod_x` in `module/` and an existing library ZIP.
+     */
+    private function writePackageProject(string $extraEntry = ''): void
+    {
+        mkdir($this->temporaryDirectory . '/project/module');
+        rename($this->temporaryDirectory . '/project/mod_x.xml', $this->temporaryDirectory . '/project/module/mod_x.xml');
+        rename($this->temporaryDirectory . '/project/tmpl', $this->temporaryDirectory . '/project/module/tmpl');
+        $manifest = '<extension type="package" method="upgrade"><name>pkg_x</name><packagename>x</packagename>'
+            . '<version>1.0.0</version><scriptfile>script.php</scriptfile><files folder="dist">'
+            . '<file type="module" id="mod_x" client="site">mod_x.zip</file>'
+            . '<file type="library" id="acme">lib_acme.zip</file>' . $extraEntry . '</files></extension>';
+        $this->writeFile('project/pkg_x.xml', $manifest);
+        $this->writeFile('project/script.php', '<?php');
+        $this->writeFile('project/dist/lib_acme.zip', 'zip');
+        $this->writeFile('joomla/administrator/manifests/packages/pkg_x.xml', $manifest);
+        $this->writeFile('joomla/administrator/manifests/packages/x/script.php', '<?php');
+    }
+
     /**
      * Creates the command without global configuration; the bridge runs its processes with the runner.
      */

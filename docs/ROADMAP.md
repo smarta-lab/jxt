@@ -4,11 +4,11 @@ Released changes are listed in the [changelog](../CHANGELOG.md).
 
 ## Ideas
 
-- Packages (`pkg_`): `jxt build` and `jxt install` support packages. Still
-  to come: syncing each extension, and checking the project once and each
-  extension with the entries of the package, which Joomla relies on when
-  uninstalling. Until then, each extension of a package can be synced and
-  checked from its own directory.
+- Files of a package for `jxt sync`: copy the package manifest, the install
+  script and the language files of the package itself, which `jxt sync` only
+  compares with the site so far. This needs a bridge that accepts
+  `administrator/manifests/packages/`; it is worth it only if packages with
+  changing language files of their own turn up.
 - States of the test site: save the database and files of a test site as a
   snapshot with a description, and restore it with one command, e.g. before
   trying an extension or to go back to a known state after a test. A

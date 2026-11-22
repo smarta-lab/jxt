@@ -11,14 +11,20 @@ namespace SmartA\Jxt\Command;
 
 use SmartA\Jxt\Bridge\Bridge;
 use SmartA\Jxt\Build\Preparation;
+use SmartA\Jxt\Configuration\Configuration;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Deployment\DeploymentException;
 use SmartA\Jxt\Deployment\DeploymentPlan;
 use SmartA\Jxt\Deployment\EntryKind;
+use SmartA\Jxt\Deployment\PlanEntry;
+use SmartA\Jxt\Deployment\PlanExpander;
 use SmartA\Jxt\Deployment\UnlistedSourceFinder;
 use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Manifest\ExtensionType;
+use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
+use SmartA\Jxt\Manifest\PackageResolver;
 use SmartA\Jxt\Sync\FileStatus;
 use SmartA\Jxt\Sync\SyncExecutor;
 use SmartA\Jxt\Sync\SyncPlan;
@@ -35,6 +41,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * The prepare steps run first, with their replacements for `jxt sync`, also for `--dry-run`, which only promises
  * not to change the site.
+ *
+ * For a package, each of its extensions is synced after its own prepare steps; changed files of the package itself
+ * are only pointed out, since only `jxt install` installs them.
  *
  * If the jxt bridge is installed on the site, the plan is applied by the bridge as web server user via the Joomla
  * CLI, after updating an older bridge; otherwise the files are copied with the developer's own permissions.
@@ -57,6 +66,8 @@ final class SyncCommand extends Command
         private readonly SyncPlanner $planner = new SyncPlanner(),
         private readonly UnlistedSourceFinder $unlistedSourceFinder = new UnlistedSourceFinder(),
         private readonly Preparation $preparation = new Preparation(),
+        private readonly PackageResolver $packageResolver = new PackageResolver(),
+        private readonly PlanExpander $planExpander = new PlanExpander(),
     ) {
         parent::__construct();
     }
@@ -83,62 +94,168 @@ final class SyncCommand extends Command
             $this->preparation->run($configuration->prepare, $this->projectDirectory, $io, true);
             $manifestFile = $this->manifestLocator->locate($this->projectDirectory, $configuration->manifestFile);
             $manifest = $this->manifestParser->parseFile($manifestFile);
-            PackageGuard::reject($manifest, 'sync');
-            $extensionDirectory = dirname($manifestFile);
-            $installedManifest = $joomlaRoot . '/' . $manifest->installedManifest();
-
-            if (!is_file($installedManifest)) {
-                throw new DeploymentException(sprintf(
-                    '%s not found. Please install the extension once with jxt install.',
-                    $installedManifest,
-                ));
-            }
-
-            $plan = $this->planner->plan(
-                $manifest,
-                $this->manifestParser->parseFile($installedManifest),
-                $extensionDirectory,
-                $joomlaRoot,
-            );
-            $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
-
-            $io->writeln(sprintf(
-                '<info>%s</info> → %s%s%s%s',
-                $manifest->name(),
-                $joomlaRoot,
-                SiteOption::describe($configuration),
-                $bridgeVersion === null ? '' : ' via jxt bridge',
-                $dryRun ? ' (dry run)' : '',
-            ));
-            $this->listChanges($io, $plan);
-            $this->warn($io, $plan, $bridgeVersion !== null);
-            $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
-
-            if (!$dryRun && $bridgeVersion === null) {
-                if (!$this->applyDirectly($io, $plan, $extensionDirectory, $joomlaRoot)) {
-                    return Command::FAILURE;
-                }
-            } elseif (
-                !$dryRun
-                && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration->testSite(), $bridgeVersion)
-            ) {
-                return Command::FAILURE;
-            }
+            $counts = $manifest->type === ExtensionType::Package
+                ? $this->syncPackage($io, $manifest, dirname($manifestFile), $configuration, $dryRun)
+                : $this->syncExtension($io, $manifest, dirname($manifestFile), $configuration, $dryRun);
         } catch (JxtException $exception) {
             $io->error($exception->getMessage());
 
             return Command::FAILURE;
         }
 
-        $summary = sprintf(
-            '%d copied, %d deleted, %d unchanged.',
-            count($plan->changedFiles()),
-            count($plan->deletions),
-            $plan->unchangedCount(),
-        );
+        if ($counts === null) {
+            return Command::FAILURE;
+        }
+
+        $summary = vsprintf('%d copied, %d deleted, %d unchanged.', $counts);
         $io->success($dryRun ? 'Dry run, nothing changed: ' . $summary : $summary);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Syncs each extension of the package that an entry refers to, after its own prepare steps, and points out
+     * changed files of the package itself, which only `jxt install` installs.
+     *
+     * @return array{int, int, int}|null Copied, deleted and unchanged files, or null if applying a plan failed
+     *
+     * @throws JxtException if an entry cannot be resolved, the package is not installed or syncing an extension fails
+     */
+    private function syncPackage(
+        SymfonyStyle $io,
+        Manifest $package,
+        string $packageDirectory,
+        Configuration $configuration,
+        bool $dryRun,
+    ): ?array {
+        $joomlaRoot = $configuration->validJoomlaRoot();
+        $this->installedManifest($package, $joomlaRoot);
+        $packageFiles = $this->planExpander->expand($package->plan, $packageDirectory);
+        $resolution = $this->packageResolver->resolve($package, $packageDirectory, [$configuration->distDirectory]);
+        $errors = $resolution->errors();
+
+        if ($errors !== []) {
+            throw new DeploymentException($errors[0]);
+        }
+
+        $counts = [0, 0, 0];
+
+        foreach ($resolution->entries as $resolved) {
+            if ($resolved->child === null) {
+                $io->note(sprintf('%s has no manifest in the subdirectories and is not synced.', $resolved->entry->source));
+
+                continue;
+            }
+
+            $directory = $resolved->child->directory();
+            $this->preparation->run($this->configurationLoader->load($directory)->prepare, $directory, $io, true);
+            $childCounts = $this->syncExtension($io, $this->manifestParser->parseFile($resolved->child->file), $directory, $configuration, $dryRun);
+
+            if ($childCounts === null) {
+                return null;
+            }
+
+            $counts = array_map(static fn (int $sum, int $count): int => $sum + $count, $counts, $childCounts);
+        }
+
+        $this->warnAboutUnlistedSources($io, $package->plan, $packageDirectory);
+        $this->warnAboutPackageFiles($io, $packageFiles, $packageDirectory, $joomlaRoot);
+
+        return [$counts[0], $counts[1], $counts[2]];
+    }
+
+    /**
+     * Compares the extension with the site, shows the changes and applies them.
+     *
+     * @return array{int, int, int}|null Copied, deleted and unchanged files, or null if applying the plan failed
+     *
+     * @throws JxtException if the extension is not installed or the plan cannot be created
+     */
+    private function syncExtension(
+        SymfonyStyle $io,
+        Manifest $manifest,
+        string $extensionDirectory,
+        Configuration $configuration,
+        bool $dryRun,
+    ): ?array {
+        $joomlaRoot = $configuration->validJoomlaRoot();
+        $plan = $this->planner->plan(
+            $manifest,
+            $this->installedManifest($manifest, $joomlaRoot),
+            $extensionDirectory,
+            $joomlaRoot,
+        );
+        $bridgeVersion = $this->bridge->installedVersion($joomlaRoot);
+
+        $io->writeln(sprintf(
+            '<info>%s</info> → %s%s%s%s',
+            $manifest->name(),
+            $joomlaRoot,
+            SiteOption::describe($configuration),
+            $bridgeVersion === null ? '' : ' via jxt bridge',
+            $dryRun ? ' (dry run)' : '',
+        ));
+        $this->listChanges($io, $plan);
+        $this->warn($io, $plan, $bridgeVersion !== null);
+        $this->warnAboutUnlistedSources($io, $manifest->plan, $extensionDirectory);
+
+        if (!$dryRun && $bridgeVersion === null) {
+            if (!$this->applyDirectly($io, $plan, $extensionDirectory, $joomlaRoot)) {
+                return null;
+            }
+        } elseif (
+            !$dryRun
+            && !$this->bridgeRun()->apply($io, $plan, $manifest, $extensionDirectory, $configuration->testSite(), $bridgeVersion)
+        ) {
+            return null;
+        }
+
+        return [count($plan->changedFiles()), count($plan->deletions), $plan->unchangedCount()];
+    }
+
+    /**
+     * Returns the manifest installed on the site.
+     *
+     * @throws JxtException if the extension is not installed or its installed manifest is invalid
+     */
+    private function installedManifest(Manifest $manifest, string $joomlaRoot): Manifest
+    {
+        $installedManifest = $joomlaRoot . '/' . $manifest->installedManifest();
+
+        if (!is_file($installedManifest)) {
+            throw new DeploymentException(sprintf(
+                '%s not found. Please install the extension once with jxt install.',
+                $installedManifest,
+            ));
+        }
+
+        return $this->manifestParser->parseFile($installedManifest);
+    }
+
+    /**
+     * Warns about files of the package itself (manifest, install script, language files) that differ from the site;
+     * `jxt sync` does not copy them, since Joomla only uses them when installing and uninstalling the package.
+     *
+     * @param list<PlanEntry> $files Expanded files of the package's plan
+     */
+    private function warnAboutPackageFiles(SymfonyStyle $io, array $files, string $packageDirectory, string $joomlaRoot): void
+    {
+        $changed = [];
+
+        foreach ($files as $file) {
+            $target = $joomlaRoot . '/' . $file->target;
+
+            if (!is_file($target) || hash_file('xxh128', $target) !== hash_file('xxh128', $packageDirectory . '/' . $file->source)) {
+                $changed[] = $file->source;
+            }
+        }
+
+        if ($changed !== []) {
+            $io->warning(sprintf(
+                'Changed files of the package: %s. jxt sync does not copy them; please run jxt install.',
+                implode(', ', $changed),
+            ));
+        }
     }
 
     /**

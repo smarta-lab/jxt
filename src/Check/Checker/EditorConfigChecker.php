@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Check\Checker;
 use SmartA\Jxt\Check\CheckContext;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\EditorConfig\EditorConfigResolver;
@@ -19,7 +20,8 @@ use SmartA\Jxt\EditorConfig\EditorConfigResolver;
 /**
  * Checks the text files of the project against their `.editorconfig` properties.
  *
- * Files are the tracked and untracked, not ignored files from Git; without Git, the files of the plan
+ * Files are the tracked and untracked, not ignored files from Git; without Git, the files of the plan (for a
+ * package, those of its extensions as well)
  * and the files in the project directory itself except hidden ones, which are mostly tool files that
  * Git would ignore (`.envrc`, `.phpunit.result.cache`). Binary files (containing NUL bytes) are skipped.
  * Without any `.editorconfig`, only a notice is reported: jxt does not invent a style of its own.
@@ -34,6 +36,12 @@ final readonly class EditorConfigChecker implements Checker
     public function group(): string
     {
         return 'editorconfig';
+    }
+
+    #[\Override]
+    public function scope(): CheckScope
+    {
+        return CheckScope::Project;
     }
 
     #[\Override]
@@ -65,7 +73,13 @@ final readonly class EditorConfigChecker implements Checker
         if ($context->git !== null) {
             $files = $context->git->files();
         } else {
-            $files = array_map(static fn (PlanEntry $entry): string => $context->projectPath($entry->source), $context->files);
+            $files = array_merge(...array_map(
+                static fn (CheckContext $extension): array => array_map(
+                    static fn (PlanEntry $entry): string => $extension->projectPath($entry->source),
+                    $extension->files,
+                ),
+                [$context, ...$context->children],
+            ));
             $topLevel = array_filter(scandir($context->projectDirectory) ?: [], static fn (string $file): bool => !str_starts_with($file, '.'));
             $files = [...$files, ...$topLevel];
         }

@@ -21,17 +21,21 @@ use SmartA\Jxt\Check\Checker\ComposerChecker;
 use SmartA\Jxt\Check\Checker\EditorConfigChecker;
 use SmartA\Jxt\Check\Checker\LanguageChecker;
 use SmartA\Jxt\Check\Checker\ManifestChecker;
+use SmartA\Jxt\Check\Checker\PackageChecker;
 use SmartA\Jxt\Check\CheckMode;
 use SmartA\Jxt\Check\CheckName;
 use SmartA\Jxt\Check\CheckReport;
+use SmartA\Jxt\Check\CheckScope;
 use SmartA\Jxt\Check\CheckSelection;
 use SmartA\Jxt\Check\GithubAnnotation;
 use SmartA\Jxt\Check\Severity;
 use SmartA\Jxt\Configuration\ConfigurationLoader;
 use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\JxtException;
+use SmartA\Jxt\Manifest\ExtensionType;
 use SmartA\Jxt\Manifest\ManifestLocator;
 use SmartA\Jxt\Manifest\ManifestParser;
+use SmartA\Jxt\Manifest\PackageResolver;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -47,7 +51,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * configuration or manifest, or a failing prepare step. The prepare steps run before the checks, since the checks
  * concern the files that would be shipped. With `--tag`, the committed files of a Git tag are checked as the final
  * check of that release, with the configuration from the tag and its prepare steps run in the exported files.
- * `--format=github` prints the findings as GitHub Actions annotations instead of sections.
+ * `--format=github` prints the findings as GitHub Actions annotations instead of sections. For a package, the checks
+ * of the project run once, those of an extension for the package and each of its extensions (after their own prepare
+ * steps), and the package entries are checked against the extensions.
  */
 #[AsCommand(name: 'check', description: 'Checks the extension before a release.')]
 final class CheckCommand extends Command
@@ -65,6 +71,7 @@ final class CheckCommand extends Command
         private readonly ManifestParser $manifestParser = new ManifestParser(),
         private readonly TagExporter $tagExporter = new TagExporter(),
         private readonly Preparation $preparation = new Preparation(),
+        private readonly PackageResolver $packageResolver = new PackageResolver(),
     ) {
         parent::__construct();
     }
@@ -189,20 +196,60 @@ final class CheckCommand extends Command
         $this->preparation->run($configuration->prepare, $directory, $output);
         $manifestFile = $this->manifestLocator->locate($directory, $configuration->manifestFile);
         $manifest = $this->manifestParser->parseFile($manifestFile);
-        PackageGuard::reject($manifest, 'check');
+        $resolution = $manifest->type === ExtensionType::Package
+            ? $this->packageResolver->resolve($manifest, dirname($manifestFile), [$configuration->distDirectory])
+            : null;
+
+        foreach ($resolution?->children() ?? [] as $child) {
+            $this->preparation->run($this->configurationLoader->load($child->directory())->prepare, $child->directory(), $output);
+        }
+
         $release = (bool) $input->getOption('release');
         $context = $git !== null && $tag !== null
             ? $this->contextFactory->createForTag($directory, $manifestFile, $manifest, $release, $git, $tag)
             : $this->contextFactory->create($directory, $manifestFile, $manifest, $release);
+        $context = $resolution === null ? $context : $this->contextFactory->withPackage($context, $resolution);
         $report = new CheckReport($selection);
 
         foreach ($this->checkers() as $checker) {
             if ($selection->isGroupEnabled($checker->group())) {
-                $checker->check($context, $report);
+                foreach ($this->contexts($checker, $context) as $checked) {
+                    $checker->check($checked, $report);
+                }
             }
         }
 
         return [$context, $selection, $report];
+    }
+
+    /**
+     * Returns the contexts the checker runs on: the project once, each extension of a package, or the package.
+     *
+     * @return list<CheckContext>
+     */
+    private function contexts(Checker $checker, CheckContext $context): array
+    {
+        return match ($checker->scope()) {
+            CheckScope::Project => [$context],
+            CheckScope::Extension => [$context, ...$context->children],
+            CheckScope::Package => $context->package === null ? [] : [$context],
+        };
+    }
+
+    /**
+     * Returns the groups shown in the output: all except those that only concern packages, unless the project is
+     * one.
+     *
+     * @return list<string>
+     */
+    private function groups(CheckContext $context): array
+    {
+        $packageGroups = array_map(
+            static fn (Checker $checker): string => $checker->group(),
+            array_filter($this->checkers(), static fn (Checker $checker): bool => $checker->scope() === CheckScope::Package),
+        );
+
+        return $context->package === null ? array_values(array_diff(CheckName::groups(), $packageGroups)) : CheckName::groups();
     }
 
     /**
@@ -227,6 +274,7 @@ final class CheckCommand extends Command
     {
         return $this->checkers !== [] ? $this->checkers : [
             new ManifestChecker(),
+            new PackageChecker(),
             new EditorConfigChecker(),
             new ChangelogChecker(),
             new AssetChecker(),
@@ -247,7 +295,11 @@ final class CheckCommand extends Command
             $io->writeln('<comment>' . OutputFormatter::escape($hint) . '</comment>');
         }
 
-        foreach (CheckName::groups() as $group) {
+        foreach ($this->extensionLines($context) as $line) {
+            $io->writeln(OutputFormatter::escape($line));
+        }
+
+        foreach ($this->groups($context) as $group) {
             $io->section($group);
 
             if (!$selection->isGroupEnabled($group)) {
@@ -293,6 +345,10 @@ final class CheckCommand extends Command
             $this->writeRaw($output, GithubAnnotation::command(Severity::Notice, $hint));
         }
 
+        foreach ($this->extensionLines($context) as $line) {
+            $this->writeRaw($output, $line);
+        }
+
         $pathPrefix = $context->git?->prefix() ?? '';
 
         foreach (CheckName::groups() as $group) {
@@ -313,6 +369,24 @@ final class CheckCommand extends Command
             $context->manifest->version ?? '(no version)',
             $context->state->mode->value,
             $context->state->reason,
+        );
+    }
+
+    /**
+     * Returns the lines listing the extensions of a package with their directories, empty for other types.
+     *
+     * @return list<string>
+     */
+    private function extensionLines(CheckContext $context): array
+    {
+        return array_map(
+            static fn (CheckContext $child): string => sprintf(
+                '  with %s %s in %s/',
+                $child->manifest->name(),
+                $child->manifest->version ?? '(no version)',
+                substr($child->extensionDirectory, strlen($context->projectDirectory) + 1),
+            ),
+            $context->children,
         );
     }
 

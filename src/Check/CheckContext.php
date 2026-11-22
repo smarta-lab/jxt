@@ -12,6 +12,7 @@ namespace SmartA\Jxt\Check;
 use SmartA\Jxt\Deployment\PlanEntry;
 use SmartA\Jxt\Git\GitRepository;
 use SmartA\Jxt\Manifest\Manifest;
+use SmartA\Jxt\Manifest\PackageResolution;
 
 /**
  * Everything the checkers need to know about the project.
@@ -25,7 +26,10 @@ final readonly class CheckContext
      * @param bool               $release            Whether `--release` was given
      * @param GitRepository|null $git                Repository of the project directory, null without Git
      * @param Changelog|null     $changelog          `CHANGELOG.md` of the project directory, null if missing
-     * @param string|null        $tag                Git tag whose files are checked, null for the working copy
+     * @param string|null        $tag                Git tag whose files are checked, null for the working copy and
+     *                                               for the extensions of a package, whose version the tag need not name
+     * @param list<CheckContext>     $children Contexts of the extensions of a package, empty for other types
+     * @param PackageResolution|null $package  Assignment of the entries of a package manifest, null for other types
      */
     public function __construct(
         public string $projectDirectory,
@@ -37,6 +41,8 @@ final readonly class CheckContext
         public ?GitRepository $git = null,
         public ?Changelog $changelog = null,
         public ?string $tag = null,
+        public array $children = [],
+        public ?PackageResolution $package = null,
     ) {
     }
 

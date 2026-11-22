@@ -21,6 +21,10 @@ enum CheckName: string
     case ManifestListedFiles = 'manifest/listed-files';
     case ManifestUnlistedFiles = 'manifest/unlisted-files';
     case ManifestStrayFiles = 'manifest/stray-files';
+    case PackageEntries = 'package/entries';
+    case PackageFileName = 'package/file-name';
+    case PackageZipNames = 'package/zip-names';
+    case PackageUnlistedExtensions = 'package/unlisted-extensions';
     case EditorConfigMissing = 'editorconfig/missing';
     case EditorConfigIndentStyle = 'editorconfig/indent-style';
     case EditorConfigEndOfLine = 'editorconfig/end-of-line';

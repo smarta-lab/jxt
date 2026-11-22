@@ -17,25 +17,24 @@ use RecursiveIteratorIterator;
 use SmartA\Jxt\Deployment\UnlistedSourceFinder;
 use SmartA\Jxt\JxtException;
 use SmartA\Jxt\Manifest\ChildManifest;
-use SmartA\Jxt\Manifest\ChildManifestFinder;
-use SmartA\Jxt\Manifest\ChildManifestSearch;
 use SmartA\Jxt\Manifest\Manifest;
 use SmartA\Jxt\Manifest\PackageEntry;
+use SmartA\Jxt\Manifest\PackageResolver;
 use SplFileInfo;
 
 /**
  * Builds the ZIP file of a package: the extensions listed in its `<files>` from the subdirectories and the files of
  * the package itself.
  *
- * Each entry is assigned to the manifest in the subdirectories that matches its attributes (ChildManifestFinder,
- * PackageEntry::matches()); that extension is built from its own directory into a temporary directory, as a ZIP
+ * Each entry is assigned to the manifest in the subdirectories that matches its attributes (PackageResolver); that
+ * extension is built from its own directory into a temporary directory, as a ZIP
  * file for an entry ending in `.zip`, otherwise as unpacked files. An entry without a manifest is taken as it is if
  * the file or directory exists. Only the package ZIP goes to the output directory.
  */
 final readonly class PackageAssembler
 {
     public function __construct(
-        private ChildManifestFinder $childManifestFinder = new ChildManifestFinder(),
+        private PackageResolver $packageResolver = new PackageResolver(),
         private PackageBuilder $packageBuilder = new PackageBuilder(),
         private UnlistedSourceFinder $unlistedSourceFinder = new UnlistedSourceFinder(),
     ) {
@@ -56,11 +55,13 @@ final readonly class PackageAssembler
             throw new BuildException('The package manifest lists no extensions in <files>.');
         }
 
-        $search = $this->childManifestFinder->find($packageDirectory, [$distDirectory]);
-        $sources = array_map(
-            fn (PackageEntry $entry): ChildManifest|string => $this->source($entry, $search, $packageDirectory),
-            $manifest->packageEntries,
-        );
+        $resolution = $this->packageResolver->resolve($manifest, $packageDirectory, [$distDirectory]);
+        $errors = $resolution->errors();
+
+        if ($errors !== []) {
+            throw new BuildException($errors[0]);
+        }
+
         $temporaryDirectory = TemporaryDirectory::create();
 
         try {
@@ -69,20 +70,20 @@ final readonly class PackageAssembler
             $warnings = [];
             $unlisted = $this->unlistedSourceFinder->find($manifest->plan, $packageDirectory);
 
-            foreach ($manifest->packageEntries as $index => $entry) {
-                $source = $sources[$index];
+            foreach ($resolution->entries as $index => $resolved) {
+                $entry = $resolved->entry;
 
-                if (is_string($source)) {
-                    $files = [...$files, ...$this->existingFiles($entry->source, $source)];
+                if ($resolved->child === null) {
+                    $files = [...$files, ...$this->existingFiles($entry->source, (string) $resolved->existingPath)];
 
                     continue;
                 }
 
-                $child = $this->buildChild($entry, $source, $temporaryDirectory . '/' . $index, $buildChild);
+                $child = $this->buildChild($entry, $resolved->child, $temporaryDirectory . '/' . $index, $buildChild);
                 $files = [...$files, ...$this->childFiles($entry, $child, $temporaryDirectory . '/' . $index . '-files')];
                 $children[] = $child;
-                $warnings = [...$warnings, ...$this->nameWarnings($entry, $child)];
-                $unlisted = [...$unlisted, ...$this->childUnlisted($source, $packageDirectory, $child)];
+                $warnings = [...$warnings, ...array_filter([$entry->nameWarning($child->manifest)])];
+                $unlisted = [...$unlisted, ...$this->childUnlisted($resolved->child, $packageDirectory, $child)];
             }
 
             $package = $this->packageBuilder->build($manifest, $packageDirectory, $distDirectory, $files);
@@ -91,75 +92,6 @@ final readonly class PackageAssembler
         }
 
         return new ProjectBuild($manifest, $package, $unlisted, null, $children, $warnings);
-    }
-
-    /**
-     * Returns the manifest that matches the entry, or else the absolute path of the existing file or directory.
-     *
-     * @throws BuildException if several manifests match, a manifest differs only in client or group, or there is
-     *                        neither a manifest nor a file
-     */
-    private function source(PackageEntry $entry, ChildManifestSearch $search, string $packageDirectory): ChildManifest|string
-    {
-        $matching = array_values(array_filter($search->manifests, static fn (ChildManifest $child): bool => $entry->matches($child->manifest)));
-
-        if (count($matching) > 1) {
-            throw new BuildException(sprintf(
-                'Several manifests match %s (%s): %s.',
-                $entry->source,
-                $entry->identity(),
-                implode(', ', array_map(static fn (ChildManifest $child): string => $child->relativePath, $matching)),
-            ));
-        }
-
-        if ($matching !== []) {
-            return $matching[0];
-        }
-
-        foreach ($search->manifests as $child) {
-            if ($entry->sharesId($child->manifest)) {
-                throw new BuildException(sprintf(
-                    '%s (%s) does not match %s (%s); Joomla would not find the extension when uninstalling the package.',
-                    $entry->source,
-                    $entry->identity(),
-                    $child->relativePath,
-                    $this->clientOrGroup($child->manifest),
-                ));
-            }
-        }
-
-        $path = $packageDirectory . '/' . $entry->source;
-
-        return file_exists($path) ? $path : throw new BuildException(
-            sprintf('No manifest in the subdirectories matches %s (%s), and the file does not exist.', $entry->source, $entry->identity())
-            . $this->invalidManifests($search),
-        );
-    }
-
-    /**
-     * Describes the attribute that distinguishes extensions of the same type and element, e.g. `group="system"`.
-     */
-    private function clientOrGroup(Manifest $manifest): string
-    {
-        return $manifest->group === null
-            ? sprintf('client="%s"', $manifest->client->value)
-            : sprintf('group="%s"', $manifest->group);
-    }
-
-    /**
-     * Lists the manifests that could not be parsed, since one of them may be meant for the entry.
-     */
-    private function invalidManifests(ChildManifestSearch $search): string
-    {
-        if ($search->invalid === []) {
-            return '';
-        }
-
-        return "\nManifests that could not be read:" . implode('', array_map(
-            static fn (string $path, string $message): string => "\n" . $path . ': ' . $message,
-            array_keys($search->invalid),
-            $search->invalid,
-        ));
     }
 
     /**
@@ -234,29 +166,6 @@ final readonly class PackageAssembler
         ksort($files, SORT_STRING);
 
         return $files;
-    }
-
-    /**
-     * Warns if a ZIP entry is named neither like the ZIP file of the extension nor without a version, which hints at
-     * an outdated version in the name.
-     *
-     * @return list<string>
-     */
-    private function nameWarnings(PackageEntry $entry, ProjectBuild $child): array
-    {
-        $expected = basename($child->package->path);
-        $actual = basename($entry->source);
-
-        if (!$entry->isZip() || $actual === $expected || $actual === $child->manifest->name() . '.zip') {
-            return [];
-        }
-
-        return [sprintf(
-            '%s contains %s, whose ZIP file is named %s.',
-            $entry->source,
-            trim($child->manifest->name() . ' ' . ($child->manifest->version ?? '')),
-            $expected,
-        )];
     }
 
     /**

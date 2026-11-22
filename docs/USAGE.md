@@ -567,9 +567,15 @@ manifest matches and the file does not exist, if a manifest differs only in
 is named neither like the ZIP of its extension nor without a version
 (`com_example.zip`), e.g. after a new version of the extension.
 
-`jxt install` installs packages (see [Leftovers](#leftovers)); `jxt sync` and
-`jxt check` do not support them yet, run them in the directory of each
-extension.
+`jxt install` installs the package with one call of the Joomla installer (see
+[Leftovers](#leftovers)). `jxt check` checks the project once (changelog,
+Composer, EditorConfig), the manifest, assets and language files of the
+package and of each extension, and the entries of the package (group
+`package`). `jxt sync` syncs each extension after its own build steps; it does
+not copy the files of the package itself (manifest, install script, language
+files), which Joomla only uses when installing and uninstalling the package,
+but points to `jxt install` if they differ from the site. In the directory of
+an extension, all commands work for that extension alone.
 
 ## Build steps
 
@@ -706,6 +712,10 @@ fail the check.
 | `manifest/listed-files` | a file or directory listed in the manifest is missing | error | error |
 | `manifest/unlisted-files` | a file in a source directory is not listed in the manifest | warning | warning |
 | `manifest/stray-files` | a junk file in a listed directory would end up in the ZIP (`.DS_Store`, `*~`, `*.orig`, hidden files) | warning | warning |
+| `package/entries` | a package lists no extensions, or an entry of `<files>` matches no extension and no file, several extensions, or one that differs only in `client` or `group` | error | error |
+| `package/file-name` | the package manifest is not named `pkg_<packagename>.xml`, under which Joomla looks for it when uninstalling | error | error |
+| `package/zip-names` | a ZIP entry of a package is named neither like the ZIP of its extension nor without a version | warning | warning |
+| `package/unlisted-extensions` | a manifest in a subdirectory of a package is not part of it | notice | notice |
 | `editorconfig/missing` | there is no `.editorconfig`; the group is skipped | notice | notice |
 | `editorconfig/indent-style` | indentation contradicts `indent_style` | error | error |
 | `editorconfig/end-of-line` | line endings contradict `end_of_line` | error | error |

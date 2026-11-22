@@ -67,6 +67,27 @@ final readonly class PackageEntry
     }
 
     /**
+     * Returns a warning if the entry is a ZIP file named neither like the ZIP file of the extension nor without a
+     * version, which hints at an outdated version in the name; null otherwise.
+     */
+    public function nameWarning(Manifest $extension): ?string
+    {
+        $expected = $extension->zipFileName();
+        $actual = basename($this->source);
+
+        if (!$this->isZip() || $actual === $expected || $actual === $extension->name() . '.zip') {
+            return null;
+        }
+
+        return sprintf(
+            '%s contains %s, whose ZIP file is named %s.',
+            $this->source,
+            trim($extension->name() . ' ' . ($extension->version ?? '')),
+            $expected,
+        );
+    }
+
+    /**
      * Describes the identifying attributes for messages, e.g. `type="plugin" id="example" group="system"`.
      */
     public function identity(): string
